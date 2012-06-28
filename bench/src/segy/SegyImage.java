@@ -9,6 +9,7 @@ package segy;
 
 import java.io.*;
 import java.nio.*;
+import java.util.Random;
 
 import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.io.*;
@@ -299,56 +300,77 @@ public class SegyImage {
   }
   
   /**
-   * Get the format of the trace data by comparing IBM
-   * and IEEE formats for a given number of randomly selected
-   * traces. This method ignores the format listed in the
-   * binary header and determines the correct format by
-   * analyzing trace data in the frequency domain. The incorrect
-   * format yields a larger ratio of high to low frequencies.
-   * @param ntraces the number of traces to test
-   * @return the format code for IBM or IEEE depending on
-   *   	     the results of the test.
+   * Returns a likelihood that the SEG-Y format is IBM floats.
+   * The likelihood is a number in the range [0.0,1.0], where a
+   * value greater than 0.5 indicates that the format is more
+   * likely to be IBM floats than IEEE floats. This method
+   * computes this likelihood by analyzing amplitude spectra
+   * of a random sample of the specified number of traces.
+   * @param ntraces the number of traces to analyze
+   * @return likelihood that the format is IBM floats
    */
-  public int getIbmIeee(int ntraces) {
-	if (_ntrace == 0)
-	  countTraces();
-	int format = getFormat();
-	
-	float ribm  = 0;
-    float rieee = 0;
-	for (int i = 0; i < ntraces; i++) {
-	  int itrace = (int)Math.random()*_ntrace;
+  public float isFormatIbm(int ntraces) {
+    if (_ntrace == 0)
+      countTraces();
+    int format = getFormat();
+	float[] hibm  = new float[ntraces];
+	float[] libm  = new float[ntraces];
+	float[] hieee = new float[ntraces];
+	float[] lieee = new float[ntraces];
+	float[] ribms = new float[ntraces];
+	float[] rieees = new float[ntraces];
+    Random r = new Random(1L);
+    
+    int traceCount = 0;
+    while (traceCount < ntraces) {
+	  int itrace = (int)(r.nextDouble()*_ntrace);
+
 	  setFormat(1);
 	  float[] fibm = getTrace(itrace);
+	  boolean allZero = true;
+	  for (int j = 0; j < fibm.length; j++) {
+	    if (fibm[j] != 0.0f) {
+	      allZero = false;
+	      break;
+	    }
+	  }
+	  if (allZero)
+	    continue;
+	  
 	  setFormat(5);
 	  float[] fieee = getTrace(itrace);
 	  
 	  Fft fft = new Fft(fibm);
-	  Sampling sk1 = fft.getFrequencySampling1();
-	  int nk1 = sk1.getCount();
   	  float[] gibm  = fft.applyForward(fibm);
   	  float[] gieee = fft.applyForward(fieee);
-  	  float[] aibm  = new float[nk1];
-  	  float[] aieee = new float[nk1];
-  	  for (int kk=0,kr=0,ki=kr+1; kk<nk1; kk++,kr+=2,ki+=2) {
-  	    Cdouble cibm = new Cdouble(gibm[kr], gibm[ki]);
-  	    aibm[kk] = (float)cibm.abs();
-				
-  	    Cdouble cieee = new Cdouble(gieee[kr], gieee[ki]);
-  	    aieee[kk] = (float)cieee.abs();
-  	  }
+  	  float[] aibm  = cabs(gibm);
+	  float[] aieee = cabs(gieee);
   	  
-  	  ribm  += computeRatio(aibm);
-	  rieee += computeRatio(aieee);
+	  float[] hl;
+      hl = computeRatio(aibm);
+      hibm[traceCount] = hl[0];
+      libm[traceCount] = hl[1];
+      ribms[traceCount] = hl[0]/hl[1];
+      
+      hl = computeRatio(aieee);
+      hieee[traceCount] = hl[0];
+      lieee[traceCount] = hl[1];
+      rieees[traceCount] = hl[0]/hl[1];
+	  
+	  traceCount++;
 	}
 
 	setFormat(format);
-	ribm = ribm/ntraces;
-	rieee = rieee/ntraces;
-	float percentDiff = Math.abs((ribm - rieee) / ((ribm + rieee) / 2f)) * 100f;
-	System.out.println("high/low frequency ratios: ribm="+ribm+
-			", rieee="+rieee+", % diff="+percentDiff);
-	return ribm < rieee ? 1 : 5; 
+	float mribm = median(ribms);
+	float mrieee = median(rieees);
+	
+	float ribm = median(hibm)/median(libm);
+	float rieee = median(hieee)/median(lieee);
+	System.out.println("Ratio of medians = "+ribm+", Median of ratios = "+mribm);
+	float diff = Math.abs((ribm - rieee) / ((ribm + rieee) / 2f));
+	diff = diff > 1.0f ? 1.0f : diff;
+	float l = 0.5f * diff;
+	return ribm < rieee ? 0.5f + l : 0.5f - l;
   }
 
   /**
@@ -1153,26 +1175,36 @@ public class SegyImage {
     }
   }
   
-  private static float computeRatio(float[] a) {
-    int len = a.length;
-    float hSum  = 0;
-    float lSum  = 0;
-    float hwSum = 0;
-    float lwSum = 0;
-    for (int i = 0; i < len; i++) {
-      float radians = (float)Math.toRadians((float)i / (float)(len-1) * 90f);
-      float hw = (float)Math.pow(Math.sin(radians), 2);
-      hwSum += hw;
-      hSum  += hw*a[i];
-			
-      float lw = (float)Math.pow(Math.cos(radians), 2);
-      lwSum += lw;
-      lSum  += lw*a[i];
+  private static float[] computeRatio(float[] a) {
+    int n = a.length;
+    float[] h = new float[n];
+    float[] l = new float[n];
+    for (int i = 0; i < n; i++) {
+      float radians = (float) (Math.toRadians((float)i / (float)(n-1) * 90f));
+      float hw = (float) (Math.pow(Math.sin(radians), 2));
+      h[i] = hw*a[i];
+      float lw = (float) (Math.pow(Math.cos(radians), 2));
+      l[i] = lw*a[i];
     }
     
-    float h = hSum/hwSum;
-    float l = lSum/lwSum;
-    return h/l;
+    float hmedian = median(h);
+    float lmedian = median(l);
+    return new float[] {hmedian, lmedian};
+  }
+  
+  private static float median(float[] f) {
+	int n = f.length;
+    quickSort(f);
+    float median;
+    if ((n % 2) != 0) {
+      int imid = n/2;
+      median = f[imid];
+    } else {
+      int imid2 = n/2;
+      int imid1 = imid2-1;
+      median = (f[imid1] + f[imid2]) / 2f;
+    }
+    return median;
   }
 
   private static void byteToFloat(byte[] b, float[] f) {
