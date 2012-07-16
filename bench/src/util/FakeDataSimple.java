@@ -10,7 +10,6 @@ public class FakeDataSimple {
     float[] trc = zerofloat(n1);
     int ih = (int) (sqrt(3.0/2.0) / (PI*fpeak));
     ih *= 2;
-    System.out.println(ih);
     int nh = 1+2*ih;
     float[] h = new float[nh];
     for (int jh=0;jh<nh;jh++)
