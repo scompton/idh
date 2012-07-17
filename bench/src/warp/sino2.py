@@ -3,19 +3,19 @@
 
 from imports import *
 
-from warp import DynamicWarpingX
-
 #############################################################################
 
-#pngDir = "./png/sino/"
-pngDir = None
+pngDir = "./png/sino/"
+#pngDir = None
 
 s1f,s1g,s2 = None,None,None
 
 # Different time windows for plotting
 ilims = ["0","1","2"]
-flims = [(0.0,5.0),(1.0,3.0),(3.0,5.0)]
-glims = [(0.0,8.0),(1.6,4.8),(4.8,8.0)]
+#flims = [(0.0,5.333),(1.0,3.0),(3.0,5.0)]
+#glims = [(0.0,8.000),(1.5,4.5),(4.5,7.5)]
+flims = [(0.0,5.333),(0.8,2.8),(2.8,4.8)]
+glims = [(0.0,8.000),(1.2,4.2),(4.2,7.2)]
 
 def main(args):
   #goSinoImages()
@@ -34,44 +34,75 @@ def goSinoWarp():
   fclips = (-2.0,2.0)
   fcbar = "Amplitude"
   ucbar = "Shift (ms)"
+  psbar = "Vp/Vs"
   f,g = getSinoImages()
   u1,h1 = warp1(f,g)
   u2,h2 = warp2(f,h1)
   u = addShifts(u1,u2)
-  u = mul(1000.0*s1f.getDelta(),u)
-  u1 = mul(1000.0*s1f.getDelta(),u1)
-  u2 = mul(1000.0*s1f.getDelta(),u2)
-  for i in [0]: #range(len(ilims)):
+  c = s1g.delta/s1f.delta
+  psa = vpvs(u,c,True)
+  psi = vpvs(u,c,False)
+  u  = mul(1000.0*s1f.delta,u)
+  u1 = mul(1000.0*s1f.delta,u1)
+  u2 = mul(1000.0*s1f.delta,u2)
+  for i in [0,1,2]:
     flim = flims[i]
     pre = "si"+ilims[i]
-    fpng = pre+"f"
-    gpng = pre+"g"
-    upng = pre+"u"
-    u1png = pre+"u1"
-    u2png = pre+"u2"
-    h1png = pre+"h1"
-    h2png = pre+"h2"
-    plot(g ,s1f,fclips,flim,title="X component",cbar=fcbar,png=gpng)
-    plot(h1,s1f,fclips,flim,title="X, 1st warping",cbar=fcbar,png=h1png)
-    plot(h2,s1f,fclips,flim,title="X, 2nd warping",cbar=fcbar,png=h2png)
-    plot(f ,s1f,fclips,flim,title="Z component",cbar=fcbar,png=fpng)
-    plot(u1,s1f,None,flim,title="1st warping",cmap=jet,cbar=ucbar,png=u1png)
-    plot(u2,s1f,None,flim,title="2nd warping",cmap=jet,cbar=ucbar,png=u1png)
-    plot(u ,s1f,None,flim,title="Total warping",cmap=jet,cbar=ucbar,png=upng)
+    plot(g ,s1f,fclips,flim,title="X component",cbar=fcbar,png=pre+"g")
+    plot(h1,s1f,fclips,flim,title="X 1st warp",cbar=fcbar,png=pre+"h1")
+    plot(h2,s1f,fclips,flim,title="X 2nd warp",cbar=fcbar,png=pre+"h2")
+    plot(f ,s1f,fclips,flim,title="Z component",cbar=fcbar,png=pre+"f")
+    plot(u1,s1f,None,flim,title="1st shifts",cmap=jet,cbar=ucbar,png=pre+"u1")
+    plot(u2,s1f,None,flim,title="2nd shifts",cmap=jet,cbar=ucbar,png=pre+"u2")
+    plot(u ,s1f,None,flim,title="Shifts",cmap=jet,cbar=ucbar,png=pre+"u")
+    plot(psa,s1f,(2.0,3.0),flim,title="Vp/Vs (average)",
+         cmap=jet,cbar=psbar,png=pre+"psa")
+    plot(psi,s1f,(1.5,2.5),flim,title="Vp/Vs (interval)",
+         cmap=jet,cbar=psbar,png=pre+"psi")
 
 def addShifts(u1,u2):
-  dw = DynamicWarpingX(-1,1)
-  return add(u2,dw.applyShifts(u2,u1))
+  n1,n2 = len(u1[0]),len(u1)
+  li = LinearInterpolator()
+  li.setExtrapolation(LinearInterpolator.Extrapolation.CONSTANT)
+  li.setUniformSampling(n1,1.0,0.0)
+  t1 = rampfloat(0.0,1.0,n1)
+  s1 = zerofloat(n1)
+  y1 = zerofloat(n1)
+  us = zerofloat(n1,n2)
+  for i2 in range(n2):
+    add(u2[i2],t1,s1)
+    li.setUniformSamples(u1[i2])
+    li.interpolate(n1,s1,y1)
+    add(y1,u2[i2],us[i2])
+  return us
+
+def vpvs(u,c,avg=False):
+  n1,n2 = len(u[0]),len(u)
+  if avg:
+    ut = div(u,rampfloat(1.0,1.0,0.0,n1,n2))
+  else:
+    ut = zerofloat(n1,n2)
+    rgf = RecursiveGaussianFilter(1.0)
+    rgf.apply1X(u,ut)
+  ut = add(2.0*c-1.0,mul(2.0*c,ut))
+  smoothX(3.0,ut)
+  return ut
+
+def smoothX(sigma,x):
+  n = 8
+  ref = RecursiveExponentialFilter(float(sigma)/sqrt(n))
+  for i in range(n):
+    ref.apply(x,x)
 
 def warp2(f,g):
-  esmooth = 0
-  usmooth = 0.0
+  #esmooth,usmooth = 0,0.0
+  esmooth,usmooth = 2,1.0
   strainMax1 = 0.125
   strainMax2 = 0.125
-  shiftMax = 5
+  shiftMax = 10
   shiftMin = -shiftMax
-  dw = DynamicWarpingX(-shiftMax,shiftMax)
-  dw.setErrorExtrapolation(DynamicWarpingX.ErrorExtrapolation.AVERAGE)
+  dw = DynamicWarping(shiftMin,shiftMax)
+  dw.setErrorExtrapolation(DynamicWarping.ErrorExtrapolation.REFLECT)
   dw.setStrainMax(strainMax1,strainMax2)
   dw.setShiftSmoothing(usmooth)
   e = dw.computeErrors(f,g)
@@ -85,33 +116,30 @@ def warp2(f,g):
   return u,h
 
 def warp1(f,g):
-  usmooth = 1.0
+  usmooth = 4.0
   strainMax1 = 0.125
-  shiftMax = 80
-  shiftMin = -shiftMax
-  dw = DynamicWarpingX(-shiftMax,shiftMax)
-  dw.setErrorExtrapolation(DynamicWarpingX.ErrorExtrapolation.AVERAGE)
+  shiftMin = 0
+  shiftMax = 160
+  dw = DynamicWarping(shiftMin,shiftMax)
+  dw.setErrorExtrapolation(DynamicWarping.ErrorExtrapolation.REFLECT)
   dw.setStrainMax(strainMax1)
   dw.setShiftSmoothing(usmooth)
-  e = dw.computeErrors(f,g)
-  nl,n1,n2 = len(e[0][0]),len(e[0]),len(e)
-  e1 = zerofloat(nl,n1)
-  for i2 in range(n2):
-    add(e[i2],e1,e1)
-  dw.normalizeErrors(e1)
+  e1 = dw.computeErrors1(f,g)
   d1 = dw.accumulateForward(e1)
   u1 = dw.backtrackReverse(d1,e1)
   u1 = dw.smoothShifts(u1)
-  if False:
+  #u1 = dw.findShifts1(f,g)
+  n1,n2 = len(f[0]),len(f)
+  if True:
+    nl = len(e1[0])
     sp = SimplePlot()
     sp.setSize(1800,500)
-    sl = Sampling(nl,1.0,shiftMin)
-    s1 = Sampling(n1,1.0,0.0)
-    pv = sp.addPixels(s1,sl,pow(transpose(e1),0.25))
+    sl = Sampling(nl,s1f.delta,shiftMin*s1f.delta)
+    pv = sp.addPixels(s1f,sl,pow(transpose(e1),0.25))
     pv.setInterpolation(PixelsView.Interpolation.NEAREST)
     pv.setColorModel(ColorMap.JET)
     pv.setPercentiles(2,98)
-    pv = sp.addPoints(u1)
+    pv = sp.addPoints(s1f,mul(s1f.delta,u1))
   h = zerofloat(n1,n2)
   u = zerofloat(n1,n2)
   for i2 in range(n2):
@@ -122,8 +150,9 @@ def warp1(f,g):
 
 def getSinoImages():
   dataDir = "/data/seis/sino/"
-  n1f,d1f,f1f = 2001,0.0025,0.0 # z component, 0 to 5 s
-  n1g,d1g,f1g = 2001,0.0040,0.0 # x component, 0 to 8 s
+  # Stretch f = PP to match g = PS for Vp/Vs = 2 (= 2*d1g/d1f - 1)
+  n1f,d1f,f1f = 2001,0.00266667,0.0 # z component, 0 to 5.33333 s
+  n1g,d1g,f1g = 2001,0.00400000,0.0 # x component, 0 to 8.00000 s
   n2,d2,f2 =  721,0.0150,0.000
   global s1f,s1g,s2
   s1f = Sampling(n1f,d1f,f1f)
@@ -131,6 +160,7 @@ def getSinoImages():
   s2 = Sampling(n2,d2,f2)
   f = readImage(dataDir+"z260.dat",n1f,n2)
   g = readImage(dataDir+"x260.dat",n1g,n2)
+  #g = noiseImage(n1g,n2)
   #n1f = 1201; f = copy(n1f,n2,f)
   #n1g = 1201; g = copy(n1g,n2,g)
   stretch(d1g/d1f,f)
@@ -169,6 +199,14 @@ def readImage(fileName,n1,n2):
   ais.readFloats(x)
   ais.close()
   return x
+
+def noiseImage(n1,n2):
+  r = Random(3)
+  x = sub(randfloat(r,n1,n2),0.5)
+  rgf = RecursiveGaussianFilter(2.0)
+  for x2 in x:
+    rgf.apply1(x2,x2)
+  return x
  
 #############################################################################
 # plotting
@@ -180,7 +218,7 @@ def plot(f,s1,clips=None,limits=None,title=None,
          cmap=None,cbar=None,png=None):
   n1,n2 = len(f[0]),len(f)
   #width,height,cbwm = 610,815,145
-  width,height,cbwm = 900,900,150
+  width,height,cbwm = 900,900,180
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   sp.plotPanel.setColorBarWidthMinimum(cbwm)
   pv = sp.addPixels(s1,s2,f)
@@ -195,8 +233,9 @@ def plot(f,s1,clips=None,limits=None,title=None,
   if cmap:
     pv.setColorModel(cmap)
   if cbar:
+    cone = cbar=="Amplitude"
     cbar = sp.addColorBar(cbar)
-    if clips and clips[1]<10:
+    if cone:
       cbar.setInterval(1)
   sp.setVInterval(1.0)
   if s1==s1f:
