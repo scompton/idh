@@ -61,36 +61,6 @@ import static edu.mines.jtk.util.ArrayMath.*;
 public class DynamicWarpingC {
 
   /**
-   * The method used to extrapolate alignment errors.
-   * Alignment errors |f[i]-g[i+l]| cannot be computed for indices
-   * i and lags l for which the sum i+l is out of bounds. For such
-   * indices and lags, errors are missing and must be extrapolated.
-   * <p>
-   * The extrapolation methods provided are designed to work best 
-   * in the case where errors are low for one particular lag l, that 
-   * is, when the sequences f and g are related by a constant shift.
-   */
-  public enum ErrorExtrapolation {
-    /**
-     * For each lag, extrapolate alignment errors using the nearest
-     * error not missing for that lag.
-     * <p>
-     * This is the default extrapolation method.
-     */
-    NEAREST,
-    /**
-     * For each lag, extrapolate alignment errors using the average
-     * of all errors not missing for that lag.
-     */
-    AVERAGE,
-    /**
-     * For each lag, extrapolate alignment errors using a reflection
-     * of nearby errors not missing for that lag.
-     */
-    REFLECT
-  }
-
-  /**
    * Constructs a dynamic warping for specified bounds on shifts.
    * @param shiftMin lower bound on shift u.
    * @param shiftMax upper bound on shift u.
@@ -117,7 +87,6 @@ public class DynamicWarpingC {
     _nl = (_lmax-_lmin)*_fr+1;
     _shifts = new Sampling(_nl,1.0/_fr,_lmin);
     _si = new SincInterpolator();
-    _extrap = ErrorExtrapolation.NEAREST;
   }
 
   /**
@@ -165,17 +134,6 @@ public class DynamicWarpingC {
     _bstrain2 = (int)ceil(1.0/strainMax2);
     _bstrain3 = (int)ceil(1.0/strainMax3);
     updateSmoothingFilters();
-  }
-
-  /**
-   * Sets the method used to extrapolate alignment errors.
-   * Extrapolation is necessary when the sum i+l of sample index
-   * i and lag l is out of bounds. The default method is to use 
-   * the error computed for the nearest index i and the same lag l.
-   * @param ee the error extrapolation method.
-   */
-  public void setErrorExtrapolation(ErrorExtrapolation ee) {
-    _extrap = ee;
   }
 
   /**
@@ -1154,7 +1112,6 @@ public class DynamicWarpingC {
   private int _fr; // fractional shift factor (1.0/_fr is the shift interval)
   private int _lmin,_lmax; // min,max lags
   private Sampling _shifts; // sampling of shift values
-  private ErrorExtrapolation _extrap; // method for error extrapolation
   private float _epow = 2; // exponent used for alignment errors |f-g|^e
   private int _esmooth = 0; // number of nonlinear smoothings of errors
   private double _usmooth1 = 0.0; // extent of smoothing shifts in 1st dim
@@ -1195,12 +1152,6 @@ public class DynamicWarpingC {
     int n1 = f.length;
     int nl = _nl;
     int n1m = n1-1;
-    boolean average = _extrap==ErrorExtrapolation.AVERAGE;
-    boolean nearest = _extrap==ErrorExtrapolation.NEAREST;
-    boolean reflect = _extrap==ErrorExtrapolation.REFLECT;
-    float[] eavg = average?new float[nl]:null; 
-    int[] navg = average?new int[nl]:null;
-    float emax = 0.0f;
 
     // Notes for indexing:
     // 0 <= il < nl, where il is index for lag
@@ -1215,52 +1166,14 @@ public class DynamicWarpingC {
 
     // Compute errors where indices are in bounds for both f and g.
     for (int i1=0; i1<n1; ++i1) {
-      int illo = max(0,   -_lmin-i1); // see notes
-      int ilhi = min(nl,n1-_lmin-i1); // above
-      for (int il=illo,j1=i1+il+_lmin; il<ilhi; ++il,++j1) {
-        float ei = error(f[i1],g[j1]);
-        e[i1][il] = ei;
-        if (average) {
-          eavg[il] += ei;
-          navg[il] += 1;
-        }
-        if (ei>emax) 
-          emax = ei;
-      }
-    }
-
-    // If necessary, complete computation of average errors for each lag.
-    if (average) {
-      for (int il=0; il<nl; ++il) {
-        if (navg[il]>0)
-          eavg[il] /= navg[il];
-      }
-    }
-
-    // For indices where errors have not yet been computed, extrapolate.
-    for (int i1=0; i1<n1; ++i1) {
-      int illo = max(0,   -_lmin-i1); // same as
-      int ilhi = min(nl,n1-_lmin-i1); // above
-      for (int il=0; il<nl; ++il) {
-        if (il<illo || il>=ilhi) {
-          if (average) {
-            if (navg[il]>0) {
-              e[i1][il] = eavg[il];
-            } else {
-              e[i1][il] = emax;
-            }
-          } else if (nearest || reflect) {
-            int k1 = (il<illo)?-_lmin-il:n1m-_lmin-il;
-            if (reflect)
-              k1 += k1-i1;
-            if (0<=k1 && k1<n1) {
-              e[i1][il] = e[k1][il];
-            } else {
-              e[i1][il] = emax;
-            }
-          } else {
-            e[i1][il] = emax;
-          }
+      int ilhi = min(nl,n1-_lmin-i1); // see notes above
+      int k1 = n1m-_lmin-ilhi;
+      for (int il=0,j1=i1+_lmin; il<nl; ++il,++j1) {
+        if (il>=ilhi)
+          e[i1][il] = e[k1][il];
+        else {
+          float ei = error(f[i1],g[j1]);
+          e[i1][il] = ei;
         }
       }
     }
@@ -1281,12 +1194,6 @@ public class DynamicWarpingC {
     si.setUniformSamples(g);
     float[] gi = new float[nx];
     si.interpolate(nx,_shifts.getDelta(),0.0,gi);
-    boolean average = _extrap==ErrorExtrapolation.AVERAGE;
-    boolean nearest = _extrap==ErrorExtrapolation.NEAREST;
-    boolean reflect = _extrap==ErrorExtrapolation.REFLECT;
-    float[] eavg = average?new float[_nl]:null;
-    int[] navg = average?new int[_nl]:null;
-    float emax = 0.0f;
 
     // Notes for indexing:
     // _fr = fractional factor. Error is measured at interval 1.0/_fr
@@ -1295,10 +1202,7 @@ public class DynamicWarpingC {
     // 0 <=  i1 <  n1, where i1 is index for sequence f
     // 0 <=  j1 <  nx, where j1 is the index for interpolated sequence gi, and
     //                 nx is the length of gi
-    // j1 = ilx+_fr*(i1+_lmin), lag index plus the current index in gi
-    // ilxlo = max(0,_fr*(-_lmin-i1)), where ilxlo is the minimum ilx that is
-    //                                 in bounds of sequence gi, relative to 
-    //                                 the current index of sequence f
+    // j1 = _fr*(i1+_lmin), the current index in gi
     // ilxhi = min(_nl,nx+_fr*(-_lmin-i1)), where ilxhi is the maximum ilx that
     //                                      is in bounds of sequence g, 
     //                                      relative to the current index of
@@ -1306,53 +1210,15 @@ public class DynamicWarpingC {
 
     // Compute errors where indices are in bounds for both f and g.
     for (int i1=0; i1<n1; ++i1) {
-      int ilxlo = max(  0,   _fr*(-_lmin-i1)); // see notes
-      int ilxhi = min(_nl,nx+_fr*(-_lmin-i1)); // above
-      for (int ilx=ilxlo,j1=ilx+_fr*(i1+_lmin); ilx<ilxhi; ++ilx,++j1) {
-        float ei = error(f[i1], gi[j1]);
-        e[i1][ilx] = ei;
-        if (average) {
-          eavg[ilx] += ei;
-          navg[ilx] += 1;
-        }
-        if (ei>emax)
-          emax = ei;
-      }
-    }
-
-    // If necessary, complete computation of average errors for each lag.
-    if (average) {
-      for (int ilx=0; ilx<_nl; ++ilx) {
-        if (navg[ilx]>0)
-          eavg[ilx] /= navg[ilx];
-      }
-    }
-
-    // For indices where errors have not yet been computed, extrapolate.
-    for (int i1=0; i1<n1; ++i1) {
-      int ilxlo = max(  0,   _fr*(-_lmin-i1)); // same as
-      int ilxhi = min(_nl,nx+_fr*(-_lmin-i1)); // above
-      for (int ilx=0; ilx<_nl; ++ilx) {
-        if (ilx<ilxlo || ilx>=ilxhi) {
-          if (average) {
-            if (navg[ilx]>0) {
-              e[i1][ilx] = eavg[ilx];
-            } else {
-              e[i1][ilx] = emax;
-            }
-          } else if (nearest || reflect) {
-            int k1 = (ilx<ilxlo)?-_lmin-(ilx/_fr):n1m-_lmin-(ilx/_fr);
-            if (reflect)
-              k1 += k1-i1;
-            if (0<=k1 && k1<n1) {
-              e[i1][ilx] = e[k1][ilx];
-            } else {
-              e[i1][ilx] = emax;
-            }
-          } else {
-            e[i1][ilx] = emax;
-          }
-        }
+      int ilxhi = min(_nl,nx+_fr*(-_lmin-i1)); // see notes above
+      int k1 = n1m-_lmin-(ilxhi/_fr);
+      for (int ilx=0,j1=_fr*(i1+_lmin); ilx<_nl; ++ilx,++j1) {
+        if (ilx>=ilxhi)
+          e[i1][ilx] = e[k1][ilx];
+        else {
+          float ei = error(f[i1], gi[j1]);
+          e[i1][ilx] = ei;
+        }  
       }
     }
   }
@@ -1378,17 +1244,17 @@ public class DynamicWarpingC {
       int ji = max(0,min(nim1,ii-is));
       int jb = max(0,min(nim1,ii-is*b));
       for (int il=0; il<nl; ++il) {
-//        int ilm1 = il-1; if (ilm1==-1) ilm1 = 0;
-        int ilp1 = il+1; if (ilp1==nl) ilp1 = nlm1;
-//        float dm = d[jb][ilm1];
+        int ilm1 = il-1; if (ilm1==-1) ilm1 = 0;
+//        int ilp1 = il+1; if (ilp1==nl) ilp1 = nlm1;
+        float dm = d[jb][ilm1];
         float di = d[ji][il  ];
-        float dp = d[jb][ilp1];
+//        float dp = d[jb][ilp1];
         for (int kb=ji; kb!=jb; kb-=is) {
-//          dm += e[kb][ilm1];
-          dp += e[kb][ilp1];
+          dm += e[kb][ilm1];
+//          dp += e[kb][ilp1];
         }
 //        d[ii][il] = min3(dm,di,dp)+e[ii][il];
-        d[ii][il] = min(di,dp)+e[ii][il];
+        d[ii][il] = min(dm,di)+e[ii][il];
       }
     }
   }
@@ -1429,18 +1295,18 @@ public class DynamicWarpingC {
     while (ii!=ie) {
       int ji = max(0,min(nim1,ii+is));
       int jb = max(0,min(nim1,ii+is*b));
-//      int ilm1 = il-1; if (ilm1==-1) ilm1 = 0;
-      int ilp1 = il+1; if (ilp1==nl) ilp1 = nlm1;
-//      float dm = d[jb][ilm1];
+      int ilm1 = il-1; if (ilm1==-1) ilm1 = 0;
+//      int ilp1 = il+1; if (ilp1==nl) ilp1 = nlm1;
+      float dm = d[jb][ilm1];
       float di = d[ji][il  ];
-      float dp = d[jb][ilp1];
+//      float dp = d[jb][ilp1];
       for (int kb=ji; kb!=jb; kb+=is) {
-//        dm += e[kb][ilm1];
-        dp += e[kb][ilp1];
+        dm += e[kb][ilm1];
+//        dp += e[kb][ilp1];
       }
-      dl = min(di,dp);
+      dl = min(dm,di);
       if (dl!=di)
-        il = ilp1;
+        il = ilm1;
 //      dl = min3(dm,di,dp);
 //      if (dl!=di) {
 //        if (dl==dm) {
@@ -1452,7 +1318,7 @@ public class DynamicWarpingC {
       ii += is;
       u[ii] = (float)shifts.getValue(il);
 //      if (il==ilm1 || il==ilp1) {
-      if (il==ilp1) {
+      if (il==ilm1) {
         float du = (u[ii]-u[ii-is])*ob;
         u[ii] = u[ii-is]+du;
         for (int kb=ji; kb!=jb; kb+=is) {
