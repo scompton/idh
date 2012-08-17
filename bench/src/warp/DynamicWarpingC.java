@@ -103,10 +103,11 @@ public class DynamicWarpingC {
     _lSmin = shiftSMin;
     _lSmax = shiftSMax;
     _fr = fr;
-    _nl1 = (_l1max-_l1min);
+    _nl1 = 1+_l1max-_l1min;
     _nlS = (_lSmax-_lSmin)*_fr+1;
     _shifts1 = new Sampling(_nl1,1.0,_l1min);
-    _shifts1 = new Sampling(_nlS,1.0/_fr,_lSmin);
+    _shiftsS = new Sampling(_nlS,1.0/_fr,_lSmin);
+    _si = new SincInterpolator();
   }
 
   /**
@@ -817,6 +818,12 @@ public class DynamicWarpingC {
     accumulateReverse(e,d);
     return d;
   }
+  
+  public float[][][] accumulateReverse(float[][][] e) {
+    float[][][] d = like(e);
+    accumulateReverse(e,d);
+    return d;
+  }
 
   /**
    * Returns errors accumulated in forward direction in 1st dimension.
@@ -883,6 +890,10 @@ public class DynamicWarpingC {
   public void accumulateReverse(float[][] e, float[][] d) {
     accumulate(-1,_bstrain1,e,d);
   }
+  
+  public void accumulateReverse(float[][][] e, float[][][] d) {
+    accumulate(-1,_bstrain1,e,d);
+  }
 
   /**
    * Accumulates alignment errors in forward direction in 1st dimension.
@@ -944,6 +955,12 @@ public class DynamicWarpingC {
     }
   }
 
+  public float[] backtrackForward(float[][] d, float[][] e) {
+    float[] u = new float[d.length];
+    backtrackForward(d,e,u);
+    return u;
+  }
+  
   /**
    * Returns shifts found by backtracking in reverse.
    * @param d array of accumulated errors.
@@ -953,6 +970,13 @@ public class DynamicWarpingC {
     float[] u = new float[d.length];
     backtrackReverse(d,e,u);
     return u;
+  }
+  
+  public float[][] backtrackReverse(float[][][] d, float[][][] e) {
+    float[] u1 = new float[d.length];
+    float[] uS = new float[d.length];
+    backtrackReverse(d,e,u1,uS);
+    return new float[][]{u1,uS};
   }
 
   /**
@@ -977,6 +1001,10 @@ public class DynamicWarpingC {
     return u;
   }
 
+  public void backtrackForward(float[][] d, float[][] e, float[] u) {
+    backtrack(1,_bstrain1,_shifts1,d,e,u);
+  }
+  
   /**
    * Computes shifts by backtracking in reverse direction.
    * @param d input array of accumulated errors.
@@ -985,6 +1013,12 @@ public class DynamicWarpingC {
    */
   public void backtrackReverse(float[][] d, float[][] e, float[] u) {
     backtrack(-1,_bstrain1,_shifts1,d,e,u);
+  }
+  
+  public void backtrackReverse(
+      float[][][] d, float[][][] e, float[] u1, float[] uS)
+  {
+    backtrack(-1,_bstrain1,_shifts1,_shiftsS,d,e,u1,uS);
   }
 
   /**
@@ -1022,6 +1056,18 @@ public class DynamicWarpingC {
     }
   }
 
+//  public float[][][] compositeShifts(float[] u1, float[] uS) {
+//    int n1 = u1.length;
+//    float[][][] u = zerofloat(_nlS,_nl1,n1);
+//    for (int i1=0; i1<n1; ++i1) {
+//      for (int il1=0; il1<_nl1; ++il1) {
+//        for (int ilS=0; ilS<_nlS; ++ilS) {
+//          u[]
+//        }
+//      }
+//    }
+//  }
+  
   /**
    * Normalizes alignment errors to be in range [0,1].
    * @param e input/output array of alignment errors.
@@ -1066,6 +1112,7 @@ public class DynamicWarpingC {
     public MinMax combine(MinMax mm1, MinMax mm2) {
       return new MinMax(min(mm1.emin,mm2.emin),max(mm1.emax,mm2.emax));
     }});
+    System.out.println("min="+mm.emin+", max="+mm.emax);
     shiftAndScale(mm.emin,mm.emax,e);
   }
 
@@ -1224,32 +1271,38 @@ public class DynamicWarpingC {
       float[] pp, float[] ps1, float[] ps2, float[][][] e)
   {
     int n1 = pp.length;
-    int n1m = n1-1;
+    float e1Max=0.0f, e2Max=0.0f, e3Max=0.0f;
 
     // Notes for indexing:
-    // 0 <= il < nl, where il is index for lag
-    // 0 <= i1 < n1, where i1 is index for sequence f
-    // 0 <= j1 < n1, where j1 is index for sequence g
-    // j1 = i1+il+lmin, where il+lmin = lag
-    // 0 <= i1+il+lmin < n1, so that j1 is in bounds
-    // max(0,-lmin-i1) <= il < min(nl,n1-lmin-i1)
-    // max(0,-lmin-il) <= i1 < min(n1,n1-lmin-il)
-    // j1 = 0    => i1 =     -lmin-il
-    // j1 = n1-1 => i1 = n1-1-lmin-il
+    // 0 <= il1 < _nl1, where il1 is index for lag between pp and ps1
+    // 0 <= ilS < _nlS, where ilS is index for lag between ps1 and ps2    
+    // 0 <= i1 < n1, where i1 is index for sequence pp
+    // 0 <= j1 < n1, where j1 is index for sequence ps1
+    // j1 = i1+lmin, where il+lmin = lag
 
-    // Compute errors where indices are in bounds for both f and g.
+    // Compute errors for pp, ps1, and ps2.
     for (int i1=0; i1<n1; ++i1) {
-      int ilhi = min(_nl1,n1-_l1min-i1); // see notes above
-      int k1 = n1m-_l1min-ilhi;
       for (int il1=0,j1=i1+_l1min; il1<_nl1; ++il1,++j1) {
-        float e1 = 0.0f;
-        if (il1<ilhi)
+        float e1 = e1Max;
+        if (j1<n1) {
           e1 = error(pp[i1],ps1[j1]);
-        for (int ilS=0,jS=i1+_lSmin; ilS<_nlS; ++ilS,++jS) {
-          if (il1>=ilhi)
-            e1 = e[k1][il1][ilS];
-          float e2 = error(pp[i1],ps2[j1+jS]);
-          float e3 = error(ps1[j1],ps2[j1+jS]);
+          if (e1>e1Max)
+            e1Max = e1;
+        }
+        for (int ilS=0; ilS<_nlS; ++ilS) {
+          float e2,e3;
+          int j1S = j1+ilS;
+          if (j1S<n1) {
+            e2 = error(pp [i1],ps2[j1S]);
+            e3 = error(ps1[j1],ps2[j1S]);
+            if (e2>e2Max)
+              e2Max = e2;
+            if (e3>e3Max)
+              e3Max = e3;
+          } else {
+            e2 = e2Max;
+            e3 = e3Max;
+          }
           e[i1][il1][ilS] = e1+e2+e3;
         }
       }
@@ -1309,24 +1362,27 @@ public class DynamicWarpingC {
    */
   private static void accumulate(int dir, int b, float[][] e, float[][] d) {
     int nl = e[0].length;
+    int nlm1 = nl-1;
     int ni = e.length;
     int nim1 = ni-1;
     int ib = (dir>0)?0:nim1;
     int ie = (dir>0)?ni:-1;
     int is = (dir>0)?1:-1;
+    int ic = (dir>0)?-1:1;
     for (int il=0; il<nl; ++il)
       d[ib][il] = 0.0f;
     for (int ii=ib; ii!=ie; ii+=is) {
       int ji = max(0,min(nim1,ii-is));
       int jb = max(0,min(nim1,ii-is*b));
       for (int il=0; il<nl; ++il) {
-        int ilm1 = il-1; if (ilm1==-1) ilm1 = 0;
-        float dm = d[jb][ilm1];
-        float di = d[ji][il  ];
+        int ilc = il+ic; 
+        ilc = (ilc==-1)?0:(ilc==nl)?nlm1:ilc;
+        float dc = d[jb][ilc];
+        float di = d[ji][il ];
         for (int kb=ji; kb!=jb; kb-=is) {
-          dm += e[kb][ilm1];
+          dc += e[kb][ilc];
         }
-        d[ii][il] = min(dm,di)+e[ii][il];
+        d[ii][il] = min(dc,di)+e[ii][il];
       }
     }
   }
@@ -1341,7 +1397,7 @@ public class DynamicWarpingC {
     int is = (dir>0)?1:-1;
     for (int il1=0; il1<nl1; ++il1)
       for (int ilS=0; ilS<nlS; ++ilS)
-      d[ib][il1][ilS] = 0.0f;
+        d[ib][il1][ilS] = 0.0f;
     for (int ii=ib; ii!=ie; ii+=is) {
       int ji = max(0,min(nim1,ii-is));
       int jb = max(0,min(nim1,ii-is*b));
@@ -1377,62 +1433,130 @@ public class DynamicWarpingC {
    * @param u output array[ni] of computed shifts.
    */
   private static void backtrack(
-    int dir, int b, Sampling shifts, float[][] d, float[][] e, float[] u) 
-  {
-    float ob = 1.0f/b;
-    int nl = d[0].length;
-    int ni = d.length;
-    int nlm1 = nl-1;
-    int nim1 = ni-1;
-    int ib = (dir>0)?0:nim1;
-    int ie = (dir>0)?nim1:0;
-    int is = (dir>0)?1:-1;
-    int ii = ib;
-    int il = max(0,min(nlm1,-(int)shifts.getFirst()));
-    float dl = d[ii][il];
-    for (int jl=1; jl<nl; ++jl) {
-      if (d[ii][jl]<dl) {
-        dl = d[ii][jl];
-        il = jl;
+      int dir, int b, Sampling shifts, float[][] d, float[][] e, float[] u) 
+    {
+      float ob = 1.0f/b;
+      int nl = d[0].length;
+      int ni = d.length;
+      int nlm1 = nl-1;
+      int nim1 = ni-1;
+      int ib = (dir>0)?0:nim1; // begining index
+      int ie = (dir>0)?nim1:0; // end index
+      int is = (dir>0)?1:-1;   // stride
+      int ic = (dir>0)?1:-1;   // constraint dir, forward=+lag, reverse=-lag
+      int ii = ib;
+      // Set initial lag for the case that all errors at ii are equal.
+      int il = (dir>0)?0:nlm1; 
+      float dl = d[ii][il]; // Current accumulated error value.
+      
+      // Find minimum lag value(dl) and index(il) at trace index ii.
+      for (int jl=0; jl<nl; ++jl) {
+        if (d[ii][jl]<dl) {
+          dl = d[ii][jl];
+          il = jl;
+        }
       }
-    }
-    u[ii] = (float)shifts.getValue(il);
-    while (ii!=ie) {
-      int ji = max(0,min(nim1,ii+is));
-      int jb = max(0,min(nim1,ii+is*b));
-      int ilm1 = il-1; if (ilm1==-1) ilm1 = 0;
-//      int ilp1 = il+1; if (ilp1==nl) ilp1 = nlm1;
-      float dm = d[jb][ilm1];
-      float di = d[ji][il  ];
-//      float dp = d[jb][ilp1];
-      for (int kb=ji; kb!=jb; kb+=is) {
-        dm += e[kb][ilm1];
-//        dp += e[kb][ilp1];
-      }
-      dl = min(dm,di);
-      if (dl!=di)
-        il = ilm1;
-//      dl = min3(dm,di,dp);
-//      if (dl!=di) {
-//        if (dl==dm) {
-//          il = ilm1;
-//        } else {
-//          il = ilp1;
-//        }
-//      }
-      ii += is;
       u[ii] = (float)shifts.getValue(il);
-//      if (il==ilm1 || il==ilp1) {
-      if (il==ilm1) {
-        float du = (u[ii]-u[ii-is])*ob;
-        u[ii] = u[ii-is]+du;
+      
+      // Iterate through traces, finding the minimum path that satisfies
+      // the constraints.
+      while (ii!=ie) {
+        int ji = max(0,min(nim1,ii+is));   // next trace index from ii
+        int jb = max(0,min(nim1,ii+is*b)); // ji scaled by b, for strain limits 
+        int ilc = il+ic;                   // index of lag constraint
+        ilc = (ilc==-1)?0:(ilc==nlm1)?nlm1:ilc;
+        float dc = d[jb][ilc];
+        float di = d[ji][il ];
         for (int kb=ji; kb!=jb; kb+=is) {
-          ii += is;
+          dc += e[kb][ilc];
+        }
+        dl = min(dc,di);
+        if (dl!=di)
+          il = ilc;
+        ii += is;
+        u[ii] = (float)shifts.getValue(il);
+        
+        // If the minimum path is changing lags, set the shift value.
+        // This value can be non-integer if ob<1 and jb!=ji 
+        if (il==ilc) {
+          float du = (u[ii]-u[ii-is])*ob;
           u[ii] = u[ii-is]+du;
+          for (int kb=ji; kb!=jb; kb+=is) {
+            ii += is;
+            u[ii] = u[ii-is]+du;
+          }
         }
       }
     }
-  }
+  
+  private static void backtrack(
+      int dir, int b, Sampling shifts1, Sampling shiftsS,
+      float[][][] d, float[][][] e, float[] u1, float[] uS) 
+    {
+      float ob = 1.0f/b;
+      int nl1 = d[0].length;
+      int nlS = d[0][0].length;
+      int ni = d.length;
+      int nl1m1 = nl1-1;
+      int nlSm1 = nlS-1;
+      int nim1 = ni-1;
+      int ib = (dir>0)?0:nim1;
+      int ie = (dir>0)?nim1:0;
+      int is = (dir>0)?1:-1;
+      int ii = ib;
+      int il1 = 0;
+      int ilS = 0;
+      float dl = d[ii][il1][ilS];
+      for (int jl1=1; jl1<nl1; ++jl1) {
+        for (int jlS=1; jlS<nlS; ++jlS) {
+          if (d[ii][jl1][jlS]<dl) {
+            dl = d[ii][jl1][jlS];
+            il1 = jl1;
+            ilS = jlS;
+          }
+        }
+      }
+      u1[ii] = (float)shifts1.getValue(il1);
+      uS[ii] = (float)shiftsS.getValue(ilS);
+      while (ii!=ie) {
+        int ji = max(0,min(nim1,ii+is));
+        int jb = max(0,min(nim1,ii+is*b));
+        int il1m1 = il1-1; if (il1m1==-1) il1m1 = 0;
+        int ilSm1 = ilS-1; if (ilSm1==-1) ilSm1 = 0;
+        float dm1 = d[jb][il1m1][ilS  ];
+        float dmS = d[jb][il1  ][ilSm1];
+        float dm1S= d[jb][il1m1][ilSm1];
+        float di  = d[ji][il1  ][ilS  ];
+        for (int kb=ji; kb!=jb; kb+=is) {
+          dm1 += e[kb][il1m1][ilS  ];
+          dmS += e[kb][il1  ][ilSm1];
+          dm1S+= e[kb][il1m1][ilSm1];
+        }
+        dl = min4(dm1,dmS,dm1S,di);
+        if (dl!=di) {
+          if (dl==dm1)
+            il1 = il1m1;
+          else if (dl==dmS)
+            ilS = ilSm1;
+          else if (dl==dm1S) {
+            il1 = il1m1;
+            ilS = ilSm1;
+          }
+        }
+          
+        ii += is;
+        u1[ii] = (float)shifts1.getValue(il1);
+        uS[ii] = (float)shifts1.getValue(ilS);
+        if (il1==il1m1) {
+          float du = (u1[ii]-u1[ii-is])*ob;
+          u1[ii] = u1[ii-is]+du;
+          for (int kb=ji; kb!=jb; kb+=is) {
+            ii += is;
+            u1[ii] = u1[ii-is]+du;
+          }
+        }
+      }
+    }
 
   /**
    * Shifts and scales alignment errors to be in range [0,1].
