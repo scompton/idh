@@ -1340,37 +1340,36 @@ public class DynamicWarpingC {
       float[] pp, float[] ps1, float[] ps2, float[][][] e)
   {
     int n1 = pp.length;
-    float e1Max=0.0f, e2Max=0.0f, e3Max=0.0f;
+    float e1m=0.0f,e2m=0.0f,e3m=0.0f; // last computed values for extrapolation
 
     // Notes for indexing:
     // 0 <= il1 < _nl1, where il1 is index for lag between pp and ps1
     // 0 <= ilS < _nlS, where ilS is index for lag between ps1 and ps2    
     // 0 <= i1 < n1, where i1 is index for sequence pp
     // 0 <= j1 < n1, where j1 is index for sequence ps1
-    // j1 = i1+lmin, where il+lmin = lag
+    // 0 <= jS < n1, where jS is index for sequence ps2
+    // j1 = i1+_l1min, where _l1min is the minimum shift u1 where u2 = u1 + uS
+    // jS = j1+_lSmin, where _lSmin is the minimum shift uS where u2 = u1 + uS
 
     // Compute errors for pp, ps1, and ps2.
     for (int i1=0; i1<n1; ++i1) {
       for (int il1=0,j1=i1+_l1min; il1<_nl1; ++il1,++j1) {
-        float e1 = e1Max;
+        float e1;
         if (j1<n1) {
           e1 = error(pp[i1],ps1[j1]);
-          if (e1>e1Max)
-            e1Max = e1;
-        }
-        for (int ilS=0; ilS<_nlS; ++ilS) {
+          e1m = e1;
+        } else
+          e1 = e1m;
+        for (int ilS=0,jS=j1+_lSmin; ilS<_nlS; ++ilS,++jS) {
           float e2,e3;
-          int j1S = j1+ilS;
-          if (j1S<n1) {
-            e2 = error(pp [i1],ps2[j1S]);
-            e3 = error(ps1[j1],ps2[j1S]);
-            if (e2>e2Max)
-              e2Max = e2;
-            if (e3>e3Max)
-              e3Max = e3;
+          if (jS<n1) {
+            e2 = error(pp [i1],ps2[jS]);
+            e3 = error(ps1[j1],ps2[jS]);
+            e2m = e2;
+            e3m = e3;
           } else {
-            e2 = e2Max;
-            e3 = e3Max;
+            e2 = e2m;
+            e3 = e3m;
           }
           e[i1][il1][ilS] = e1+e2+e3;
         }
