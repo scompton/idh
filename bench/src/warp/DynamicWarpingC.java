@@ -61,6 +61,8 @@ import static edu.mines.jtk.util.ArrayMath.*;
 public class DynamicWarpingC {
 
   
+  private double _scale;
+
   /**
    * Constructs a dynamic warping for specified bounds on shifts.
    * @param shiftMin lower bound on shift u.
@@ -606,8 +608,17 @@ public class DynamicWarpingC {
   
   public float[][][] computeErrors(float[] pp, float[] ps1, float[] ps2) {
     int n1 = pp.length;
-    float[][][] e = new float[n1][_nl1][_nlS];
-    computeErrors(pp, ps1, ps2, e);
+    float scale = 2.0f/(1.5f+1.0f);
+    int nshort = (int)(n1*scale);
+    int nl1 = n1-nshort;
+    int nlS = (int)(nl1*0.15f);
+    scale = 1.0f-((float)(nl1+nlS)/n1);
+    System.out.println("nl1="+nl1+", nlS="+nlS);
+    System.out.println("scale="+scale);
+    float[][][] e = new float[n1][nl1][nlS];
+    computeErrors(scale, pp, ps1, ps2, e);
+//    float[][][] e = new float[n1][_nl1][_nlS];
+//    computeErrors(pp, ps1, ps2, e);
     normalizeErrors(e);
     return e;
   }
@@ -928,8 +939,8 @@ public class DynamicWarpingC {
   }
   
   public void accumulateForward(float[][][] e, float[][][] d) {
-//    accumulate( 1,_bstrain1,_bstrainS1,e,d);
-    accumulate( 1,_bstrainS1,e,d);
+    accumulate( 1,_bstrain1,_bstrainS1,e,d);
+//    accumulate( 1,_bstrainS1,e,d);
   }
 
   /**
@@ -942,8 +953,8 @@ public class DynamicWarpingC {
   }
   
   public void accumulateReverse(float[][][] e, float[][][] d) {
-//    accumulate(-1,_bstrain1,_bstrainS1,e,d);
-    accumulate(-1,_bstrainS1,e,d);
+    accumulate(-1,_bstrain1,_bstrainS1,e,d);
+//    accumulate(-1,_bstrainS1,e,d);
   }
 
   /**
@@ -1066,8 +1077,8 @@ public class DynamicWarpingC {
   public void backtrackForward(
       float[][][] d, float[][][] e, float[] u1, float[] uS)
   {
-//    backtrack(1,_bstrain1,_bstrainS1,_shifts1,_shiftsS,d,e,u1,uS);
-    backtrack(1,_bstrainS1,_shifts1,_shiftsS,d,e,u1,uS);
+    backtrack(1,_bstrain1,_bstrainS1,_shifts1,_shiftsS,d,e,u1,uS);
+//    backtrack(1,_bstrainS1,_shifts1,_shiftsS,d,e,u1,uS);
   }
   
   /**
@@ -1083,8 +1094,8 @@ public class DynamicWarpingC {
   public void backtrackReverse(
       float[][][] d, float[][][] e, float[] u1, float[] uS)
   {
-//    backtrack(-1,_bstrain1,_bstrainS1,_shifts1,_shiftsS,d,e,u1,uS);
-    backtrack(-1,_bstrainS1,_shifts1,_shiftsS,d,e,u1,uS);
+    backtrack(-1,_bstrain1,_bstrainS1,_shifts1,_shiftsS,d,e,u1,uS);
+//    backtrack(-1,_bstrainS1,_shifts1,_shiftsS,d,e,u1,uS);
   }
 
   /**
@@ -1178,7 +1189,6 @@ public class DynamicWarpingC {
     public MinMax combine(MinMax mm1, MinMax mm2) {
       return new MinMax(min(mm1.emin,mm2.emin),max(mm1.emax,mm2.emax));
     }});
-    System.out.println("min="+mm.emin+", max="+mm.emax);
     shiftAndScale(mm.emin,mm.emax,e);
   }
 
@@ -1377,6 +1387,52 @@ public class DynamicWarpingC {
     }
   }
   
+  private void computeErrors(
+      float scale, float[] pp, float[] ps1, float[] ps2, float[][][] e)
+  {
+    int n1 = pp.length;
+    int nshort = (int)(n1*scale);
+    int nl1 = e[0].length;
+    int nlS = e[0][0].length;
+//    SincInterpolator si = new SincInterpolator();
+//    si.setUniformSampling(n1, 1.0, 0.0);
+//    si.setUniformSamples(pp);
+//    float[] ppStretch = new float[n1];
+//    si.interpolate(n1, scale, 0.0, ppStretch);
+
+    // Notes for indexing:
+    // 0 <= il1 < _nl1, where il1 is index for lag between pp and ps1
+    // 0 <= ilS < _nlS, where ilS is index for lag between ps1 and ps2
+    // 0 <= i1 < n1, where i1 is index for sequence pp
+    // 0 <= j1 < n1, where j1 is index for sequence ps1
+    // 0 <= jS < n1, where jS is index for sequence ps2
+    // j1 = i1+_l1min, where _l1min is the minimum shift u1 where u2 = u1 + uS
+    // jS = j1+_lSmin, where _lSmin is the minimum shift uS where u2 = u1 + uS
+
+    // Compute errors for pp, ps1, and ps2.
+    for (int i1=0; i1<nshort; ++i1) {
+      for (int il1=0,j1=i1; il1<nl1; ++il1,++j1) {
+        if (j1<n1) {
+          float e1 = error(pp[i1],ps1[j1]);
+          for (int ilS=0,jS=j1; ilS<nlS; ++ilS,++jS) {
+            if (jS<n1) {
+              float e2 = error(pp [i1],ps2[jS]);
+              float e3 = error(ps1[j1],ps2[jS]);
+              e[i1][il1][ilS] = e1+e2+e3;
+            }
+          }
+        }
+      }
+    }
+    for (int i1=nshort; i1<n1; ++i1) {
+      for (int il1=0; il1<nl1; ++il1) {
+        for (int ilS=0; ilS<nlS; ++ilS) {
+          e[i1][il1][ilS] = e[nshort-1][il1][ilS];
+        }
+      }
+    }
+  }
+
   /**
    * Computes alignment errors for fractional shifts, not normalized
    * @param f input array[ni] for sequence f.
@@ -1672,12 +1728,12 @@ public class DynamicWarpingC {
         }
         dl = min4(dc1,dcS,dc1S,di);
         if (dl!=di) {
-          if (dl==dc1)
+          if (dl==dc1S) {
             il1 = ilc1;
-          else if (dl==dcS)
             ilS = ilcS;
-          else if (dl==dc1S) {
+          } else if (dl==dc1) {
             il1 = ilc1;
+          } else if (dl==dcS) {
             ilS = ilcS;
           }
         }
@@ -1701,7 +1757,7 @@ public class DynamicWarpingC {
         } else if (il1==ilc1) {
           du1 = (u1[ii]-u1[ii-is])*ob1;
           u1[ii] = u1[ii-is]+du1;
-          for (int kb1=ji; kb1!=jbS; kb1+=is) {
+          for (int kb1=ji; kb1!=jb1; kb1+=is) {
             ii += is;
             u1[ii] = u1[ii-is]+du1;
             uS[ii] = uS[ii-is];
