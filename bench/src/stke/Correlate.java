@@ -1,7 +1,7 @@
 package stke;
 
-//import gp404.Sequence;
-//import gp404.SequencePlot;
+import gp404.Sequence;
+import gp404.SequencePlot;
 import het.RecursiveExponentialFilter;
 import edu.mines.jtk.dsp.RecursiveGaussianFilter;
 import edu.mines.jtk.dsp.Sampling;
@@ -136,7 +136,21 @@ public class Correlate {
     }});
   }
   
-//  public static void plotWeights(float a, float l) {
+  public static void applyWeights(final float[][][] f, final float[][][] w) {
+    final int n1 = f[0][0].length;
+    final int n2 = f[0].length;
+    final int n3 = f.length;
+    Parallel.loop(n3,new Parallel.LoopInt() {
+    public void compute(int i3) {
+      for (int i2=0; i2<n2; i2++) {
+        for (int i1=0; i1<n1; i1++) {
+          f[i3][i2][i1] = f[i3][i2][i1]*w[i3][i2][i1];
+        }
+      }
+    }});
+  }
+  
+//  public static Sequence plotWeights(float a, float l) {
 //    int nt = 101;
 //    double dt = 1.0/nt;
 //    double ft = 0;
@@ -153,13 +167,22 @@ public class Correlate {
 //        x[n] = pow(v,l);
 //      }
 //    }
-//    new SequencePlot("Weights", new Sequence(s,x));
+//    return new Sequence(s,x);
 //  }
 //  
 //  public static void main(String[] args) {
-//    Check.argument(args.length==2,"args.length==2"); 
-//    float a = Float.parseFloat(args[0]);
-//    float l = Float.parseFloat(args[1]);
-//    plotWeights(a,l);
+//    Check.argument(args.length==1,"args.length==1"); 
+////    float a = Float.parseFloat(args[0]);
+//    float l = Float.parseFloat(args[0]);
+//    float[] aparms = new float[] {0.1f,0.2f,0.3f,0.4f};
+//    int na = aparms.length;
+//    String[] names = new String[na];
+//    Sequence[] seqs = new Sequence[na];
+//    for (int ia=0; ia<na; ia++) {
+//      names[ia] = "Weights a="+aparms[ia];
+//      seqs[ia] = plotWeights(aparms[ia],l); 
+//    }
+//    new SequencePlot(names,seqs);
 //  }
+
 }
