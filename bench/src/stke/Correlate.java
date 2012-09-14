@@ -113,13 +113,14 @@ public class Correlate {
     return c;
   }
   
-  public static void weight(float[][][] f, float a, float l) {
-    int n1 = f[0][0].length;
-    int n2 = f[0].length;
-    int n3 = f.length;
-    float aa  = a*a;
-    float aaa = aa*a;
-    for (int i3=0; i3<n3; i3++) {
+  public static void weight(final float[][][] f, final float a, final float l) {
+    final int n1 = f[0][0].length;
+    final int n2 = f[0].length;
+    final int n3 = f.length;
+    final float aa  = a*a;
+    final float aaa = aa*a;
+    Parallel.loop(n3,new Parallel.LoopInt() {
+    public void compute(int i3) {
       for (int i2=0; i2<n2; i2++) {
         for (int i1=0; i1<n1; i1++) {
           float v = f[i3][i2][i1];
@@ -130,7 +131,7 @@ public class Correlate {
           }
         }
       }
-    }
+    }});
   }
   
 //  public static void plotWeights(float a, float l) {
