@@ -1,7 +1,7 @@
 package stke;
 
-import gp404.Sequence;
-import gp404.SequencePlot;
+//import gp404.Sequence;
+//import gp404.SequencePlot;
 import het.RecursiveExponentialFilter;
 import edu.mines.jtk.dsp.RecursiveGaussianFilter;
 import edu.mines.jtk.dsp.Sampling;
@@ -133,30 +133,30 @@ public class Correlate {
     }
   }
   
-  public static void plotWeights(float a, float l) {
-    int nt = 101;
-    double dt = 1.0/nt;
-    double ft = 0;
-    float aa  = a*a;
-    float aaa = aa*a;
-    Sampling s = new Sampling(nt,dt,ft);
-    float[] x = new float[nt];
-    x[0] = 0.0f;
-    for (int n=1; n<nt; n++) {
-      float v = (float)s.getValue(n);
-      if (v<a) {
-        x[n] = pow(v,l)*(3.0f/aa*v*v-2.0f/aaa*v*v*v);
-      } else {
-        x[n] = pow(v,l);
-      }
-    }
-    new SequencePlot("Weights", new Sequence(s,x));
-  }
-  
-  public static void main(String[] args) {
-    Check.argument(args.length==2,"args.length==2"); 
-    float a = Float.parseFloat(args[0]);
-    float l = Float.parseFloat(args[1]);
-    plotWeights(a,l);
-  }
+//  public static void plotWeights(float a, float l) {
+//    int nt = 101;
+//    double dt = 1.0/nt;
+//    double ft = 0;
+//    float aa  = a*a;
+//    float aaa = aa*a;
+//    Sampling s = new Sampling(nt,dt,ft);
+//    float[] x = new float[nt];
+//    x[0] = 0.0f;
+//    for (int n=1; n<nt; n++) {
+//      float v = (float)s.getValue(n);
+//      if (v<a) {
+//        x[n] = pow(v,l)*(3.0f/aa*v*v-2.0f/aaa*v*v*v);
+//      } else {
+//        x[n] = pow(v,l);
+//      }
+//    }
+//    new SequencePlot("Weights", new Sequence(s,x));
+//  }
+//  
+//  public static void main(String[] args) {
+//    Check.argument(args.length==2,"args.length==2"); 
+//    float a = Float.parseFloat(args[0]);
+//    float l = Float.parseFloat(args[1]);
+//    plotWeights(a,l);
+//  }
 }
