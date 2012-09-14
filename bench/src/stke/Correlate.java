@@ -124,7 +124,9 @@ public class Correlate {
       for (int i2=0; i2<n2; i2++) {
         for (int i1=0; i1<n1; i1++) {
           float v = f[i3][i2][i1];
-          if (v<a) {
+          if (v<=0)
+            f[i3][i2][i1] = 0.0f;
+          else if (v<a) {
             f[i3][i2][i1] = pow(v,l)*(3.0f/aa*v*v-2.0f/aaa*v*v*v);
           } else {
             f[i3][i2][i1] = pow(v,l);
