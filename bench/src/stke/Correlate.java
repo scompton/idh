@@ -2,6 +2,7 @@ package stke;
 
 import het.RecursiveExponentialFilter;
 import edu.mines.jtk.dsp.RecursiveGaussianFilter;
+import edu.mines.jtk.util.Parallel;
 import static edu.mines.jtk.util.ArrayMath.*;
 
 public class Correlate {
@@ -22,15 +23,16 @@ public class Correlate {
     _ref3 = new RecursiveExponentialFilter(sigma3);
   }
   
-  public float[][][] compute(float[][][] g, float[][][] s) {
-    int n1 = g[0][0].length;
-    int n2 = g[0].length;
-    int n3 = g.length;
-    float[][][] gg = new float[n3][n2][n1];
-    float[][][] ss = new float[n3][n2][n1];
-    float[][][] gs = new float[n3][n2][n1];
-    float[][][] c  = new float[n3][n2][n1];
-    for (int i3=0; i3<n3; i3++) {
+  public float[][][] compute(final float[][][] g, final float[][][] s) {
+    final int n1 = g[0][0].length;
+    final int n2 = g[0].length;
+    final int n3 = g.length;
+    final float[][][] gg = new float[n3][n2][n1];
+    final float[][][] ss = new float[n3][n2][n1];
+    final float[][][] gs = new float[n3][n2][n1];
+    final float[][][] c  = new float[n3][n2][n1];
+    Parallel.loop(n3,new Parallel.LoopInt() {
+    public void compute(int i3) {
       for (int i2=0; i2<n2; i2++) {
         for (int i1=0; i1<n1; i1++) {
           gg[i3][i2][i1] = g[i3][i2][i1]*g[i3][i2][i1];
@@ -38,7 +40,7 @@ public class Correlate {
           gs[i3][i2][i1] = g[i3][i2][i1]*s[i3][i2][i1];
         }
       }
-    }
+    }});
     _ref1.apply1(gg,gg);
     _ref2.apply2(gg,gg);
     _ref3.apply3(gg,gg);
