@@ -150,39 +150,55 @@ public class Correlate {
     }});
   }
   
-//  public static Sequence plotWeights(float a, float l) {
-//    int nt = 101;
-//    double dt = 1.0/nt;
-//    double ft = 0;
-//    float aa  = a*a;
-//    float aaa = aa*a;
-//    Sampling s = new Sampling(nt,dt,ft);
-//    float[] x = new float[nt];
-//    x[0] = 0.0f;
-//    for (int n=1; n<nt; n++) {
-//      float v = (float)s.getValue(n);
-//      if (v<a) {
-//        x[n] = pow(v,l)*(3.0f/aa*v*v-2.0f/aaa*v*v*v);
-//      } else {
-//        x[n] = pow(v,l);
-//      }
-//    }
-//    return new Sequence(s,x);
+  public static Sequence plotWeights(float a, float l) {
+    int nt = 201;
+    double dt = 1.0/nt;
+    double ft = 0;
+    float aa  = a*a;
+    float aaa = aa*a;
+    Sampling s = new Sampling(nt,dt,ft);
+    float[] x = new float[nt];
+    x[0] = 0.0f;
+    for (int n=1; n<nt; n++) {
+      float v = (float)s.getValue(n);
+//    if (v<a) {
+//    x[n] = pow(v,l)*(3.0f/aa*v*v-2.0f/aaa*v*v*v);
 //  }
-//  
-//  public static void main(String[] args) {
-//    Check.argument(args.length==1,"args.length==1"); 
-////    float a = Float.parseFloat(args[0]);
-//    float l = Float.parseFloat(args[0]);
-//    float[] aparms = new float[] {0.1f,0.2f,0.3f,0.4f};
-//    int na = aparms.length;
-//    String[] names = new String[na];
-//    Sequence[] seqs = new Sequence[na];
-//    for (int ia=0; ia<na; ia++) {
-//      names[ia] = "Weights a="+aparms[ia];
-//      seqs[ia] = plotWeights(aparms[ia],l); 
+//    if (v<a) {
+//      x[n] = pow(v,l)*(3.0f*pow(v/a,2)-2.0f*pow(v/a,3));
 //    }
-//    new SequencePlot(names,seqs);
-//  }
+      if ((v*5.0f)<a) {
+        x[n] = pow(v,l)*(3.0f*(pow(5.0f*v/a,2))-2.0f*pow(5.0f*v/a,3));
+      }
+      else {
+        x[n] = pow(v,l);
+      }
+    }
+    return new Sequence(s,x);
+  }
+  
+  public static void main(String[] args) {
+    Check.argument(args.length==1,"args.length==1"); 
+    float l = Float.parseFloat(args[0]);
+    float[] aparms = new float[] {0.1f,0.4f,0.7f,1.0f};
+//    float[] aparms = new float[] {1f,4f,7f,10f};
+    int na = aparms.length;
+    String[] names = new String[na];
+    Sequence[] seqs = new Sequence[na];
+    for (int ia=0; ia<na; ia++) {
+      names[ia] = "Weights a="+aparms[ia];
+      seqs[ia] = plotWeights(aparms[ia],l); 
+    }
+//    float a = Float.parseFloat(args[0]);
+//    float[] lparms = new float[] {0.1f,0.4f,0.7f,1.0f};
+//    int nl = lparms.length;
+//    String[] names = new String[nl];
+//    Sequence[] seqs = new Sequence[nl];
+//    for (int il=0; il<nl; il++) {
+//      names[il] = "Weights b="+lparms[il];
+//      seqs[il] = plotWeights(a,lparms[il]); 
+//    }
+    new SequencePlot(names,seqs);
+  }
 
 }
