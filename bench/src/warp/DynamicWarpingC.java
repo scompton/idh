@@ -1,6 +1,7 @@
 package warp;
 
 import edu.mines.jtk.dsp.RecursiveExponentialFilter;
+import edu.mines.jtk.dsp.RecursiveGaussianFilter;
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.dsp.SincInterpolator;
 import edu.mines.jtk.util.*;
@@ -160,6 +161,47 @@ public class DynamicWarpingC {
     updateSmoothingFilters();
   }
 
+  public float[] findShifts(float[] f, float[] g) {
+    float[][] e = computeErrors(f,g);
+    for (int is=0; is<_esmooth; ++is)
+      smoothErrors(e,e);
+    float[][] d = accumulateForward(e);
+    float[] u = backtrackReverse(d,e);
+    smoothShifts(u,u);
+    return u;
+  }
+  
+  public float[] findShifts1(float[][] f, float[][] g) {
+    float[][] e = computeErrors1(f,g);
+    for (int is=0; is<_esmooth; ++is)
+      smoothErrors(e,e);
+    float[][] d = accumulateForward(e);
+    float[] u = backtrackReverse(d,e);
+    smoothShifts(u,u);
+    return u;
+  }
+  
+  public float[] applyShifts(float[] u, float[] g) {
+    int n1 = g.length;
+    float[] h = new float[n1]; 
+    applyShifts(u,g,h);
+    return h;
+  }
+  
+  public void applyShifts(float[] u, float[] g, float[] h) {
+    int n1 = g.length;
+    int nu = u.length;
+    int num = nu-1;
+    _si1.setUniformSampling(n1,1.0,0.0);
+    _si1.setUniformSamples(g);
+    for (int iu=0; iu<nu; ++iu) {
+      h[iu] = _si1.interpolate(iu+u[iu]);
+    }
+    for (int i1=nu; i1<n1; ++i1) {
+      h[i1] = _si1.interpolate(i1+u[num]);
+    }
+  }
+  
   public float[][] applyShifts(
       float[] u1, float[] uS, float[] ps1, float[] ps2)
   {
@@ -182,28 +224,167 @@ public class DynamicWarpingC {
     }
     return new float[][]{ps1w, ps2w};
   }
+  
+  public static float[] vpvs(float[] u, double sigma) {
+    int nu = u.length;
+    float[] vpvs = new float[nu];
+    vpvs[0] = 1.0f;
+    for (int iu=1; iu<nu; ++iu) {
+      vpvs[iu] = 1.0f + 2*(u[iu]-u[iu-1]);
+    }
+    if (sigma > 0.0) {
+      RecursiveExponentialFilter ref = new RecursiveExponentialFilter(sigma);
+      ref.apply(vpvs,vpvs);
+    }
+    return vpvs;
+  }
+  
+  public static float[][] vpvs(float[][] u, double sigma) {
+    int nu = u[0].length;
+    int n2 = u.length;
+    float[][] vpvs = new float[n2][nu];
+    for (int i2=0; i2<n2; ++i2) {
+      vpvs[i2][0] = 1.0f;
+      for (int iu=1; iu<nu; ++iu) {
+        vpvs[i2][iu] = 1.0f+2*(u[i2][iu]-u[i2][iu-1]);
+      }
+    }
+    if (sigma > 0.0) {
+      RecursiveExponentialFilter ref = new RecursiveExponentialFilter(sigma);
+      ref.apply(vpvs,vpvs);
+    }
+    return vpvs;
+  }
 
   ///////////////////////////////////////////////////////////////////////////
   // for research and atypical applications
 
-  public float[][][] computeErrors(
-      float[] pp, float[] ps1, float[] ps2, float fsp)
-  {
+  public float[][] computeErrors(float[] pp, float[] ps1) {
     int n1 = pp.length;
-    int[] el = computeErrorLengths(n1, fsp);
-    float[][][] e = new float[el[0]][el[1]][el[2]];
-    computeErrors(pp, ps1, ps2, e);
+    int[] el = computeErrorLengths(n1,0);
+    float[][] e = new float[el[0]][el[1]];
+    if (_fr>1) {
+      int nx = (n1-1)*_fr+1;
+      SincInterpolator si = new SincInterpolator();
+      si.setUniformSampling(n1,1.0f,0.0f);
+      si.setUniformSamples(ps1);
+      float[] ps1i = new float[nx];
+      si.interpolate(nx,_shifts1.getDelta(),0.0,ps1i);
+      computeErrors(pp,ps1i,e);
+    } else {
+      computeErrors(pp,ps1,e);
+    }  
     normalizeErrors(e);
     return e;
   }
   
+  public float[][] computeErrors(float[] ps1, float[] ps2, int maxShift) {
+    int n1 = ps1.length;
+    int[] el = computeErrorLengths(n1,maxShift);
+    float[][] e = new float[el[0]][el[1]];
+    if (_fr>1) {
+      int nx = (n1-1)*_fr+1;
+      SincInterpolator si = new SincInterpolator();
+      si.setUniformSampling(n1,1.0f,0.0f);
+      si.setUniformSamples(ps2);
+      float[] ps2i = new float[nx];
+      si.interpolate(nx,_shifts1.getDelta(),0.0,ps2i);
+      computeErrors(ps1,ps2i,e);
+    } else {
+      computeErrors(ps1,ps2,e);
+    }  
+    normalizeErrors(e);
+    return e;
+  }
   
+  public float[][][] computeErrors(
+      float[] pp, float[] ps1, float[] ps2, float fsp)
+  {
+    int n1 = pp.length;
+    int[] el = computeErrorLengths(n1,fsp);
+    float[][][] e = new float[el[0]][el[1]][el[2]];
+    if (_fr>1) {
+      int nx = (n1-1)*_fr+1;
+      SincInterpolator si = new SincInterpolator();
+      si.setUniformSampling(n1,1.0f,0.0f);
+      si.setUniformSamples(ps2);
+      float[] ps2i = new float[nx];
+      si.interpolate(nx,_shiftsS.getDelta(),0.0,ps2i);
+      computeErrors(pp,ps1,ps2i,e);
+    } else {
+      computeErrors(pp,ps1,ps2,e);
+    }
+    normalizeErrors(e);
+    return e;
+  }
 
+  public float[][] computeErrors1(float[][] pp, float[][] ps1) {
+    final int n1 = pp[0].length;
+    int[] el = computeErrorLengths(n1,0);
+    final int n1M = el[0]; // maximum pp time index
+    final int nl1 = el[1]; // number of pp-ps1 lags
+    final int n2 = pp.length;
+    final float[][] fpp = pp;
+    final float[][] fps1 = ps1;
+    float[][] e = Parallel.reduce(n2, new Parallel.ReduceInt<float[][]>() {
+    public float[][] compute(int i2) {
+      float[][] e = new float[n1M][nl1];
+      if (_fr>1) {
+        int nx = (n1-1)*_fr+1;
+        SincInterpolator si = new SincInterpolator();
+        si.setUniformSampling(n1,1.0f,0.0f);
+        si.setUniformSamples(fps1[i2]);
+        float[] ps1i = new float[nx];
+        si.interpolate(nx,_shifts1.getDelta(),0.0,ps1i);
+        computeErrors(fpp[i2],ps1i,e);
+      } else {
+        computeErrors(fpp[i2],fps1[i2],e);
+      }  
+      return e;
+    }
+    public float[][] combine(float[][] ea, float[][] eb) {
+      return add(ea,eb);
+    }});
+    normalizeErrors(e);
+    return e;
+  }
+  
+  public float[][] computeErrors1(float[][] ps1, float[][] ps2, int maxShift) {
+    final int n1 = ps1[0].length;
+    int[] el = computeErrorLengths(n1,maxShift);
+    final int n1M = el[0]; // maximum pp time index
+    final int nl1 = el[1]; // number of pp-ps1 lags
+    final int n2 = ps1.length;
+    final float[][] fpp = ps1;
+    final float[][] fps2 = ps2;
+    float[][] e = Parallel.reduce(n2, new Parallel.ReduceInt<float[][]>() {
+    public float[][] compute(int i2) {
+      float[][] e = new float[n1M][nl1];
+      if (_fr>1) {
+        int nx = (n1-1)*_fr+1;
+        SincInterpolator si = new SincInterpolator();
+        si.setUniformSampling(n1,1.0f,0.0f);
+        si.setUniformSamples(fps2[i2]);
+        float[] ps2i = new float[nx];
+        si.interpolate(nx,_shifts1.getDelta(),0.0,ps2i);
+        computeErrors(fpp[i2],ps2i,e);
+      } else {
+        computeErrors(fpp[i2],fps2[i2],e);
+      }
+      return e;
+    }
+    public float[][] combine(float[][] ea, float[][] eb) {
+      return add(ea,eb);
+    }});
+    normalizeErrors(e);
+    return e;
+  }
+  
   public float[][][] computeErrors1(
       float[][] pp, float[][] ps1, float[][] ps2, float fsp)
   {
-    int n1 = pp[0].length;
-    int[] el = computeErrorLengths(n1, fsp);
+    final int n1 = pp[0].length;
+    int[] el = computeErrorLengths(n1,fsp);
     final int n1M = el[0]; // maximum pp time index
     final int nl1 = el[1]; // number of pp-ps1 lags
     final int nlS = el[2]; // number of ps1-ps2 lags
@@ -214,7 +395,17 @@ public class DynamicWarpingC {
     float[][][] e = Parallel.reduce(n2, new Parallel.ReduceInt<float[][][]>() {
     public float[][][] compute(int i2) {
       float[][][] e = new float[n1M][nl1][nlS];
-      computeErrors(fpp[i2],fps1[i2],fps2[i2],e);
+      if (_fr>1) {
+        int nx = (n1-1)*_fr+1;
+        SincInterpolator si = new SincInterpolator();
+        si.setUniformSampling(n1,1.0f,0.0f);
+        si.setUniformSamples(fps2[i2]);
+        float[] ps2i = new float[nx];
+        si.interpolate(nx,_shifts1.getDelta(),0.0,ps2i);
+        computeErrors(fpp[i2],fps1[i2],ps2i,e);
+      } else {
+        computeErrors(fpp[i2],fps1[i2],fps2[i2],e);  
+      }
       return e;
     }
     public float[][][] combine(float[][][] ea, float[][][] eb) {
@@ -322,6 +513,12 @@ public class DynamicWarpingC {
       _ref2.apply2(us,us);
   }
 
+  public float[][] accumulateForward(float[][] e) {
+    float[][] d = like(e);
+    accumulateForward(e,d);
+    return d;
+  }
+  
   public float[][][] accumulateForward(float[][][] e) {
     float[][][] d = like(e);
     accumulateForward(e,d);
@@ -334,11 +531,15 @@ public class DynamicWarpingC {
     return d;
   }
 
+  public void accumulateForward(float[][] e, float[][] d) {
+    accumulate( 1,_bstrain1,e,d);
+  }
+
   public void accumulateForward(float[][][] e, float[][][] d) {
     accumulate( 1,_bstrain1,_bstrainS1,e,d);
 //    accumulate( 1,_bstrainS1,e,d);
   }
-
+  
   public void accumulateReverse(float[][][] e, float[][][] d) {
     accumulate(-1,_bstrain1,_bstrainS1,e,d);
 //    accumulate(-1,_bstrainS1,e,d);
@@ -355,6 +556,12 @@ public class DynamicWarpingC {
     float[] uS = new float[d.length];
     backtrackForward(d,e,u1,uS);
     return new float[][]{u1,uS};
+  }
+  
+  public float[] backtrackReverse(float[][] d, float[][] e) {
+    float[] u = new float[d.length];
+    backtrackReverse(d,e,u);
+    return u;
   }
   
   public float[][] backtrackReverse(float[][][] d, float[][][] e) {
@@ -375,6 +582,10 @@ public class DynamicWarpingC {
 //    backtrack(1,_bstrainS1,_shifts1,_shiftsS,d,e,u1,uS);
   }
   
+  public void backtrackReverse(float[][] d, float[][] e, float[] u) {
+    backtrack(-1,_bstrain1,_shifts1,d,e,u);
+  }
+  
   public void backtrackReverse(
       float[][][] d, float[][][] e, float[] u1, float[] uS)
   {
@@ -382,6 +593,51 @@ public class DynamicWarpingC {
 //    backtrack(-1,_bstrainS1,_shifts1,_shiftsS,d,e,u1,uS);
   }
 
+  public static float[][][] shiftVolume(
+      float[] u1, float[] uS, int fr, float[][][] e) {
+    int n1 = e.length;
+    int nl1 = e[0].length;
+    int nlS = e[0][0].length;
+    Check.argument(n1==u1.length, "n1==u1.length");
+    Check.argument(n1==uS.length, "n1==uS.length");
+    float[][][] sv = zerofloat(nlS,nl1,n1);
+    for (int i1=0; i1<n1; ++i1) {
+      int il1 = (int)u1[i1];
+      int ilS = (int)uS[i1]*fr;
+      sv[i1][il1][ilS] = 1.0f;
+    }
+    return sv;
+  }
+  
+  public static float[] extrapolateShifts(float[] u, int n1) {
+    int nu = u.length;
+    float v = u[nu-1];
+    float[] eu = new float[n1];
+    for (int iu=0; iu<nu; ++iu) {
+      eu[iu] = u[iu];
+    }
+    for (int iu=nu; iu<n1; ++iu) {
+      eu[iu] = v;
+    }
+    return eu;
+  }
+  
+  public static float[][] extrapolateShifts(float[][] u, int n1) {
+    int nu = u[0].length;
+    int n2 = u.length;
+    float[][] eu = new float[n2][n1];
+    for (int i2=0; i2<n2; ++i2) {
+      float v = u[i2][nu-1];
+      for (int iu=0; iu<nu; ++iu) {
+        eu[i2][iu] = u[i2][iu];
+      }
+      for (int iu=nu; iu<n1; ++iu) {
+        eu[i2][iu] = v;
+      }
+    }
+    return eu;
+  }
+  
   /**
    * Normalizes alignment errors to be in range [0,1].
    * @param e input/output array of alignment errors.
@@ -550,29 +806,52 @@ public class DynamicWarpingC {
 //    }
 //  }
   
+  private int[] computeErrorLengths(int n1, int maxShift) {
+    int nl1;
+    if (maxShift==0)
+      nl1 = n1-(int)(n1*_scale);
+    else
+      nl1 = maxShift;
+    int ppN1Max = n1-nl1+1;
+    nl1 = (nl1-1)*_fr+1;
+    System.out.println("ppN1Max="+ppN1Max+", nl1="+nl1);
+    _shifts1 = new Sampling(nl1,1.0/_fr,0.0);
+    return new int[]{ppN1Max,nl1};
+  }
+  
   private int[] computeErrorLengths(int n1, float fsp) {
     int nl1 = n1-(int)(n1*_scale);
     int nlS = (int)(nl1*fsp);
-    int ppN1Max = n1-nl1-nlS;
-    nlS *= _fr;
+    int ppN1Max = n1-nl1-nlS+2;
+    nlS = (nlS-1)*_fr+1;
     System.out.println("ppN1Max="+ppN1Max+", nl1="+nl1+", nlS="+nlS);
     _shifts1 = new Sampling(nl1,1.0,0.0);
     _shiftsS = new Sampling(nlS,1.0/_fr,0.0);
     return new int[]{ppN1Max,nl1,nlS};
   }
   
+  private void computeErrors(float[] f, float[] g, float[][] e) {
+    int n1max = e.length;
+    int nl1 = e[0].length;
+    for (int i1=0; i1<n1max; ++i1) {
+      for (int il1=0,j1=i1*_fr; il1<nl1; ++il1,++j1) {
+        e[i1][il1] = error(f[i1],g[j1]);
+      }
+    }
+  }
+  
   private void computeErrors(
       float[] pp, float[] ps1, float[] ps2, float[][][] e)
   {
-    int n1 = e.length;
+    int n1max = e.length;
     int nl1 = e[0].length;
     int nlS = e[0][0].length;
 
     // Compute errors for pp, ps1, and ps2.
-    for (int i1=0; i1<n1; ++i1) {
+    for (int i1=0; i1<n1max; ++i1) {
       for (int il1=0,j1=i1; il1<nl1; ++il1,++j1) {
         float e1 = error(pp[i1],ps1[j1]);
-        for (int ilS=0,jS=j1; ilS<nlS; ++ilS,++jS) {
+        for (int ilS=0,jS=j1*_fr; ilS<nlS; ++ilS,++jS) {
           float e2 = error(pp [i1],ps2[jS]);
           float e3 = error(ps1[j1],ps2[jS]);
           e[i1][il1][ilS] = e1+e2+e3;
@@ -580,50 +859,32 @@ public class DynamicWarpingC {
       }
     }
   }
+  
+  private void computeErrorsFrac(
+      float[] pp, float[] ps1, float[] ps2, float[][][] e)
+  {
+    int n1 = pp.length;
+    int n1max = e.length;
+    int nl1 = e[0].length;
+    int nlS = e[0][0].length;
+    int nx = (n1-1)*_fr+1;
+    SincInterpolator si = new SincInterpolator();
+    si.setUniformSampling(n1,1.0f,0.0f);
+    si.setUniformSamples(ps2);
+    float[] ps2i = new float[nx];
+    si.interpolate(nx,_shiftsS.getDelta(),0.0,ps2i);
 
-//  /**
-//   * Computes alignment errors for fractional shifts, not normalized
-//   * @param f input array[ni] for sequence f.
-//   * @param g input array[ni] for sequence g.
-//   * @param e output array[ni][_nl] of alignment errors.
-//   */
-//  private void computeErrorsFrac(float[] f, float[] g, float[][] e) { 
-//    int n1 = f.length;
-//    int nx = (n1-1)*_fr+1;
-//    int n1m = n1-1;
-//    SincInterpolator si = new SincInterpolator();
-//    si.setUniformSampling(n1,1.0f,0.0f);
-//    si.setUniformSamples(g);
-//    float[] gi = new float[nx];
-//    si.interpolate(nx,_shifts1.getDelta(),0.0,gi);
-//
-//    // Notes for indexing:
-//    // _fr = fractional factor. Error is measured at interval 1.0/_fr
-//    // 0 <= ilx < _nl, where ilx is the fractional lag index, and _nl has
-//    //                 length (_lmax-_lmin)*fr+1
-//    // 0 <=  i1 <  n1, where i1 is index for sequence f
-//    // 0 <=  j1 <  nx, where j1 is the index for interpolated sequence gi, and
-//    //                 nx is the length of gi
-//    // j1 = _fr*(i1+_lmin), the current index in gi
-//    // ilxhi = min(_nl,nx+_fr*(-_lmin-i1)), where ilxhi is the maximum ilx that
-//    //                                      is in bounds of sequence g, 
-//    //                                      relative to the current index of
-//    //                                      sequence f
-//
-//    // Compute errors where indices are in bounds for both f and g.
-//    for (int i1=0; i1<n1; ++i1) {
-//      int ilxhi = min(_nl1,nx+_fr*(-_l1min-i1)); // see notes above
-//      int k1 = n1m-_l1min-(ilxhi/_fr);
-//      for (int ilx=0,j1=_fr*(i1+_l1min); ilx<_nl1; ++ilx,++j1) {
-//        if (ilx>=ilxhi)
-//          e[i1][ilx] = e[k1][ilx];
-//        else {
-//          float ei = error(f[i1], gi[j1]);
-//          e[i1][ilx] = ei;
-//        }  
-//      }
-//    }
-//  }
+    for (int i1=0; i1<n1max; ++i1) {
+      for (int il1=0,j1=i1; il1<nl1; ++il1,++j1) {
+        float e1 = error(pp[i1],ps1[j1]);
+        for (int ilS=0,jS=j1*_fr; ilS<nlS; ++ilS,++jS) {
+          float e2 = error(pp [i1],ps2[jS]);
+          float e3 = error(ps1[j1],ps2[jS]);
+          e[i1][il1][ilS] = e1+e2+e3;
+        }
+      }
+    }
+  }
 
   /**
    * Non-linear accumulation of alignment errors.
@@ -847,7 +1108,7 @@ public class DynamicWarpingC {
         }
         ii += is;
         u1[ii] = (float)shifts1.getValue(il1);
-        uS[ii] = (float)shifts1.getValue(ilS);
+        uS[ii] = (float)shiftsS.getValue(ilS);
         
         // Adjust shifts for strain limits, if applicable.
         float du1 = 0.0f;
