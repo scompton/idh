@@ -407,12 +407,13 @@ public class DynamicWarpingC {
     float[][] d = new float[2][nr];
     float[][] s = new float[n1][nr];
     float[][] moves = new float[n1][nr];
+    SincInterpolator si = new SincInterpolator();
+    si.setUniform(nl,0.5,0.0,e[0]);
     for (int il=0; il<nr; il++) {
       s[0][il] = u0;
-      d[0][il] = e[0][il];
+      d[0][il] = si.interpolate(u0);
     }
     for (int i1=1; i1<n1; i1++) {
-      SincInterpolator si = new SincInterpolator();
       si.setUniform(nl,0.5,0.0,e[i1]);
       float[] d0 = d[0]; d[0] = d[1]; d[1] = d0;
       for (int ir=0; ir<nr; ir++) {
