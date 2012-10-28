@@ -1,11 +1,8 @@
 package stke;
 
-import gp404.Sequence;
-import gp404.SequencePlot;
 import het.RecursiveExponentialFilter;
 import edu.mines.jtk.dsp.RecursiveGaussianFilter;
 import edu.mines.jtk.dsp.Sampling;
-import edu.mines.jtk.util.Check;
 import edu.mines.jtk.util.Parallel;
 import static edu.mines.jtk.util.ArrayMath.*;
 
@@ -150,55 +147,20 @@ public class Correlate {
     }});
   }
   
-  public static Sequence plotWeights(float a, float l) {
-    int nt = 201;
-    double dt = 1.0/nt;
-    double ft = 0;
-    float aa  = a*a;
-    float aaa = aa*a;
-    Sampling s = new Sampling(nt,dt,ft);
-    float[] x = new float[nt];
+  public static float[] plotWeights(Sampling s, float a, float p) {
+    int n1 = s.getCount();
+    float[] x = new float[n1];
     x[0] = 0.0f;
-    for (int n=1; n<nt; n++) {
-      float v = (float)s.getValue(n);
-//    if (v<a) {
-//    x[n] = pow(v,l)*(3.0f/aa*v*v-2.0f/aaa*v*v*v);
-//  }
-//    if (v<a) {
-//      x[n] = pow(v,l)*(3.0f*pow(v/a,2)-2.0f*pow(v/a,3));
-//    }
+    for (int i1=1; i1<n1; i1++) {
+      double v = s.getValue(i1);
       if ((v*5.0f)<a) {
-        x[n] = pow(v,l)*(3.0f*(pow(5.0f*v/a,2))-2.0f*pow(5.0f*v/a,3));
+        x[i1] = (float)(pow(v,p)*(3.0f*(pow(5.0f*v/a,2))-2.0f*pow(5.0f*v/a,3)));
       }
       else {
-        x[n] = pow(v,l);
+        x[i1] = (float)pow(v,p);
       }
     }
-    return new Sequence(s,x);
-  }
-  
-  public static void main(String[] args) {
-    Check.argument(args.length==1,"args.length==1"); 
-    float l = Float.parseFloat(args[0]);
-    float[] aparms = new float[] {0.1f,0.4f,0.7f,1.0f};
-//    float[] aparms = new float[] {1f,4f,7f,10f};
-    int na = aparms.length;
-    String[] names = new String[na];
-    Sequence[] seqs = new Sequence[na];
-    for (int ia=0; ia<na; ia++) {
-      names[ia] = "Weights a="+aparms[ia];
-      seqs[ia] = plotWeights(aparms[ia],l); 
-    }
-//    float a = Float.parseFloat(args[0]);
-//    float[] lparms = new float[] {0.1f,0.4f,0.7f,1.0f};
-//    int nl = lparms.length;
-//    String[] names = new String[nl];
-//    Sequence[] seqs = new Sequence[nl];
-//    for (int il=0; il<nl; il++) {
-//      names[il] = "Weights b="+lparms[il];
-//      seqs[il] = plotWeights(a,lparms[il]); 
-//    }
-    new SequencePlot(names,seqs);
+    return x;
   }
 
 }
