@@ -23,11 +23,8 @@ public class DynamicWarpingC {
       float vpvsAvg, int fr, int frMax, int k2Min, int k2Max)
   {
     Check.argument(vpvsAvg>=1,"vpvsAvg>=1");
-//  Check.argument(vpvsMin>=1,"vpvsMin>=1");
   Check.argument(fr>0,"fr>0");
-//  Check.argument(frMax<=fr, "frMax<=fr");
   Check.argument(k2Min<k2Max, "k2Min<k2Max");
-//  _vpvsMin = vpvsMin;
   _fr = fr;
   _frMax = frMax;
   _k2Min = k2Min;
@@ -61,47 +58,6 @@ public class DynamicWarpingC {
     _esmooth = esmooth;
   }
 
-  /**
-   * Sets extent of smoothing filters used to smooth integer shifts.
-   * Half-widths of smoothing filters are inversely proportional to
-   * strain limits, and are scaled by the specified factor. Default 
-   * factor is zero, for no smoothing.
-   * @param usmooth extent of smoothing filter in all dimensions.
-   */
-  public void setShiftSmoothing(double usmooth) {
-    setShiftSmoothing(usmooth,usmooth);
-  }
-
-  /**
-   * Sets extents of smoothing filters used to smooth integer shifts.
-   * Half-widths of smoothing filters are inversely proportional to
-   * strain limits, and are scaled by the specified factors. Default 
-   * factors are zero, for no smoothing.
-   * @param usmooth1 extent of smoothing filter in 1st dimension.
-   * @param usmooth2 extent of smoothing filter in 2nd dimension.
-   */
-  public void setShiftSmoothing(double usmooth1, double usmooth2) {
-    setShiftSmoothing(usmooth1,usmooth2,usmooth2);
-  }
-
-  /**
-   * Sets extents of smoothing filters used to smooth integer shifts.
-   * Half-widths of smoothing filters are inversely proportional to
-   * strain limits, and are scaled by the specified factors. Default 
-   * factors are zero, for no smoothing.
-   * @param usmooth1 extent of smoothing filter in 1st dimension.
-   * @param usmooth2 extent of smoothing filter in 2nd dimension.
-   * @param usmooth3 extent of smoothing filter in 3rd dimension.
-   */
-  public void setShiftSmoothing(
-    double usmooth1, double usmooth2, double usmooth3) 
-  {
-    _usmooth1 = usmooth1;
-    _usmooth2 = usmooth2;
-    _usmooth3 = usmooth3;
-    updateSmoothingFilters();
-  }
-
 //  public float[] findShifts(float[] f, float[] g) {
 //    float[][] e = computeErrors(f,g);
 //    for (int is=0; is<_esmooth; ++is)
@@ -121,6 +77,14 @@ public class DynamicWarpingC {
 //    smoothShifts(u,u);
 //    return u;
 //  }
+  
+  public float[] findShifts(
+      float[] f, float[] g, float rmin, float rmax, float dr) {
+    float[][] e = computeErrors(f,g);
+    float[] u0 = getU0(f,g);
+    float[][][] sm = accumulateForward(e,u0[0],rmin,rmax,dr);
+    return backtrackReverse2(sm[0],sm[1]);
+  }
   
   public float[] applyShifts(float[] u, float[] g) {
     int n1 = g.length;
@@ -402,162 +366,25 @@ public class DynamicWarpingC {
     normalizeErrors(es);
   }
 
-  /**
-   * Returns smoothed shifts.
-   * @param u array of shifts to be smoothed.
-   * @return array of smoothed shifts
-   */
-  public float[] smoothShifts(float[] u) {
-    float[] us = like(u);
-    smoothShifts(u,us);
-    return us;
-  }
-
-  /**
-   * Returns smoothed shifts.
-   * @param u array of shifts to be smoothed.
-   * @return array of smoothed shifts
-   */
-  public float[][] smoothShifts(float[][] u) {
-    float[][] us = like(u);
-    smoothShifts(u,us);
-    return us;
-  }
-
-  /**
-   * Smooths the specified shifts. Smoothing can be performed 
-   * in place; input and output arrays can be the same array.
-   * @param u input array of shifts to be smoothed.
-   * @param us output array of smoothed shifts.
-   */
-  public void smoothShifts(float[] u, float[] us) {
-    if (_ref1!=null) {
-      _ref1.apply(u,us); 
-    } else if (u!=us) {
-      copy(u,us);
-    }
-  }
-
-  /**
-   * Smooths the specified shifts. Smoothing can be performed 
-   * in place; input and output arrays can be the same array.
-   * @param u input array of shifts to be smoothed.
-   * @param us output array of smoothed shifts.
-   */
-  public void smoothShifts(float[][] u, float[][] us) {
-    if (_ref1!=null) {
-      _ref1.apply1(u,us);
-    } else {
-      copy(u,us);
-    }
-    if (_ref2!=null)
-      _ref2.apply2(us,us);
-  }
-  
-  public float[] smoothShifts(Sampling sr, float[] u) {
-    float[] s = like(u);
-    smoothShifts(sr,u,s);
-    return s;
-  }
-  public void smoothShifts(Sampling sr, float[] u, float[] s) {
-    int nr = sr.getCount();
-    int ns = s.length;
-    float[][] d = new float[ns][nr];
-    float[][] e = new float[2][nr];
-
-    // Cache sampled values for shift increments r and initialize d and e.
-    float[] q = new float[nr];
-    for (int ir=0; ir<nr; ++ir) {
-      q[ir] = (float)sr.getValue(ir);
-      d[0][ir] = 0.0f;
-      e[0][ir] = 0.0f;
-    }
-
-    // Accumulate errors, absolute values of differences between s and u.
-    for (int is=1; is<ns; ++is) {
-      float[] di = d[is-1];
-      float[] e0 = e[0]; e[0] = e[1]; e[1] = e0;
-      for (int ir=0; ir<nr; ++ir) {
-        int im = ir;
-        float dm = di[im];
-        if (ir>0 && di[ir-1]<dm) {
-          im = ir-1;
-          dm = di[im];
-        }
-        if (ir<nr-1 && di[ir+1]<dm) {
-          im = ir+1;
-          dm = di[im];
-        }
-        float ei = e[0][ir] = e[1][im]+q[ir]-(u[is]-u[is-1]);
-        d[is][ir] = di[im]+abs(ei);
-      }
-    }
-
-    // Backtrack to find sequence of optimal shift increments r.
-    int im = sr.indexOfNearest(0.0);
-    double dm = d[ns-1][im];
-    for (int ir=0; ir<nr; ++ir) {
-      if (d[ns-1][ir]<dm) {
-        im = ir;
-        dm = d[ns-1][im];
-      }
-    }
-    float[] r = s;
-    r[ns-1] = q[im];
-    for (int is=ns-2; is>0; --is) {
-      float[] di = d[is];
-      int ir = im;
-      dm = di[im];
-      if (ir>0 && di[ir-1]<dm) {
-        im = ir-1;
-        dm = di[im];
-      }
-      if (ir<nr-1 && di[ir+1]<dm) {
-        im = ir+1;
-        dm = di[im];
-      }
-      r[is] = q[im];
-    }
-
-    // Accumulate shift increments to obtain smooth shifts s.
-    s[0] = u[0];
-    for (int is=1; is<ns; ++is)
-      s[is] = s[is-1]+r[is];
-  }
-  public float[][] smoothShifts(Sampling sr, float[][] u) {
-    float[][] s = like(u);
-    smoothShifts(sr,u,s);
-    return s;
-  }
-  public void smoothShifts(Sampling sr, float[][] u, float[][] s) {
-    int n2 = u.length;
-    for (int i2=0; i2<n2; ++i2)
-      smoothShifts(sr,u[i2],s[i2]);
-  }
-
-  public float[][][] accumulateForwardK2(float[][] e) {
+  public float[][][] accumulateForward(float[][] e) {
     float[][] d = like(e);
     float[][] m = like(e);
-    accumulateForward(e,d,m);
+    accumulate(1,e,d,m);
     return new float[][][]{d,m};
   }
   
-  public float[][] accumulateForward(float[][] e) {
+  public float[][][] accumulateForwardK2(float[][] e) {
     float[][] d = like(e);
-    accumulate(1,e,d);
-    return d;
-  }
-  
-  public float[][] accumulateForwardLM(float[][] e) {
     float[][] m = like(e);
-    accumulate(1,e,m);
-    return m;
+    accumulateK2(1,e,d,m);
+    return new float[][][]{d,m};
   }
   
   public float[] getU0(float[] f, float[] g) {
     float[][] e = computeErrors(f,g);
     float[][] d = like(e);
-    accumulate(-1,e,d);
+    float[][] m = like(e);
+    accumulate(-1,e,d,m);
     int nl = d[0].length;
     float [] u0 = new float[nl];
     int[] i = rampint(0,1,nl);
@@ -568,82 +395,49 @@ public class DynamicWarpingC {
     return u0;
   }
   
-  public float[] findShifts(
-      float[] f, float[] g, float rmin, float rmax, float dr) {
-    float[] u0 = getU0(f,g);
-    float[][][] dum = accumulateForward(f,g,u0[0],rmin,rmax,dr);
-    return backtrackReverse2(dum[0],dum[1],dum[2]);
-  }
-  
   public float[][][] accumulateForward(
-      float[] f, float[] g, float u0, float rmin, float rmax, float dr) {
-    int n1 = f.length;
-    int ml = n1-(int)(n1*_scale);
-    int mlm1 = ml-1;
-//    int nl = n1-(int)(n1*_scale);
-    n1 = n1-ml+1;
+      float[][] e, float u0, float rmin, float rmax, float dr) {
+    int n1 = e.length;
     int n1m1 = n1-1;
-    Sampling q = new Sampling((int)((rmax-rmin)/dr+1),dr,rmin);
-    int nq = q.getCount();
-    System.out.println("n1Max="+n1+", nr="+nq);
-    SincInterpolator si = new SincInterpolator();
-    si.setUniform(g.length,1.0,0.0,g);
-    int nlm1 = nq-1;
-    float[][] d = new float[n1][nq];
-    float[][] u = new float[n1][nq];
-    float[][] moves = new float[n1][nq];
-    for (int il=0; il<nq; il++) {
-      u[0][il] = u0;
-      d[0][il] = error(f[0],si.interpolate(u0));
-      moves[0][il] = 0.0f;
+    int nl = e[0].length;
+    int umax = nl/_fr;
+    Sampling sr = new Sampling((int)((rmax-rmin)/dr+1),dr,rmin);
+    int nr = sr.getCount();
+    int nrm1 = nr-1;
+    float[][] d = new float[2][nr];
+    float[][] s = new float[n1][nr];
+    float[][] moves = new float[n1][nr];
+    for (int il=0; il<nr; il++) {
+      s[0][il] = u0;
+      d[0][il] = e[0][il];
     }
     for (int i1=1; i1<n1; i1++) {
-      for (int iq=0; iq<nq; iq++) {
-        int ji = max(0,min(n1m1,i1-1));
-        int m = iq;
-        int iqm = max(0,min(nlm1,iq-1));
-        int iqp = min(nlm1,iq+1);
-        float dm = d[ji][iqm];
-        float di = d[ji][iq ];
-        float dp = d[ji][iqp];
-        float dmin = min3(dm,di,dp);
+      SincInterpolator si = new SincInterpolator();
+      si.setUniform(nl,0.5,0.0,e[i1]);
+      float[] d0 = d[0]; d[0] = d[1]; d[1] = d0;
+      for (int ir=0; ir<nr; ir++) {
+        float r = (float)sr.getValue(ir);
+        int j1 = max(0,min(n1m1,i1-1));
+        int m = ir;
+        int iqm = max(0,min(nrm1,ir-1));
+        int iqp = min(nrm1,ir+1);
+        float dm = d[1][iqm]+si.interpolate(s[j1][iqm]+r);
+        float di = d[1][ir ]+si.interpolate(s[j1][ir ]+r);
+        float dp = d[1][iqp]+si.interpolate(s[j1][iqp]+r);
         if (dm<di && dm<dp)
           m = iqm;
         if (dp<di && dp<dm)
           m = iqp;
-        float ui = u[ji][m] + (float)q.getValue(iq);
-        ui = (ui>mlm1)?mlm1:ui;
-        u[i1][iq] = ui;
-        d[i1][iq] = dmin + error(f[i1],si.interpolate(i1+u[i1][iq]));
-        moves[i1][iq] = m-iq;
+        float ui = s[j1][m] + r;
+        ui = (ui>umax)?umax:ui;
+        s[i1][ir] = ui;
+        d[0][ir] = d[1][m] + si.interpolate(s[i1][ir]);
+        moves[j1][ir] = m-ir;
       }
     }
-    return new float[][][]{d,u,moves};
+    moves[n1m1] = d[0];
+    return new float[][][]{s,moves};
   }
-  
-//  public float[][][] accumulateForward(float[][][] e) {
-//    float[][][] d = like(e);
-//    accumulateForward(e,d);
-//    return d;
-//  }
-//
-//  public float[][][] accumulateReverse(float[][][] e) {
-//    float[][][] d = like(e);
-//    accumulateReverse(e,d);
-//    return d;
-//  }
-
-  public void accumulateForward(float[][] e, float[][] d, float[][] m) {
-    accumulate(1,e,d,m);
-  }
-
-//  public void accumulateForward(float[][][] e, float[][][] d) {
-//    accumulate( 1,_bstrain1,_bstrainS1,e,d);
-//  }
-//  
-//  public void accumulateReverse(float[][][] e, float[][][] d) {
-//    accumulate(-1,_bstrain1,_bstrainS1,e,d);
-//  }
   
   public float[] backtrackReverse(float[][] m) {
     float[] u = new float[m.length];
@@ -657,23 +451,23 @@ public class DynamicWarpingC {
     return u;
   }
   
-  public float[] backtrackReverse2(float[][] d, float[][] u1, float[][] m) {
-    int n1 = d.length;
+  public float[] backtrackReverse2(float[][] s, float[][] m) {
+    int n1 = s.length;
     int n1m = n1-1;
     float[] u = new float[n1];
-    int nl = d[0].length;
+    int nl = s[0].length;
     int ml = 0;
-    float min = d[n1m][ml];
+    float min = m[n1m][ml];
     for (int il=1; il<nl; il++) {
-      if (d[n1m][il]<min) {
-        min = d[n1m][il];
+      if (m[n1m][il]<min) {
+        min = m[n1m][il];
         ml = il;
       }
     }
-    u[n1m] = u1[n1m][ml];
+    u[n1m] = s[n1m][ml];
     for (int i1=n1m-1; i1>=0; i1--) {
-      int il = ml+(int)m[i1+1][ml];
-      u[i1] = u1[i1][il];
+      int il = ml+(int)m[i1][ml];
+      u[i1] = s[i1][il];
       ml = il;
     }
     return u;
@@ -690,12 +484,6 @@ public class DynamicWarpingC {
     backtrack(-1,_shifts1,d,m,u);
   }
   
-//  public void backtrackReverse(
-//      float[][][] d, float[][][] e, float[] u1, float[] uS)
-//  {
-//    backtrack(-1,_bstrain1,_bstrainS1,_shifts1,_shiftsS,d,e,u1,uS);
-//  }
-
   public static float[][][] shiftVolume(
       float[] u1, float[] uS, int fr, float[][][] e) {
     int n1 = e.length;
@@ -845,9 +633,6 @@ public class DynamicWarpingC {
   private double _usmooth1 = 0.0; // extent of smoothing shifts in 1st dim
   private double _usmooth2 = 0.0; // extent of smoothing shifts in 2nd dim
   private double _usmooth3 = 0.0; // extent of smoothing shifts in 3rd dim
-  private RecursiveExponentialFilter _ref1; // for smoothing shifts
-  private RecursiveExponentialFilter _ref2; // for smoothing shifts
-  private RecursiveExponentialFilter _ref3; // for smoothing shifts
   private SincInterpolator _si1; // for warping with non-integer shifts
   private SincInterpolator _siS; // for warping with non-integer shifts
 
@@ -855,15 +640,6 @@ public class DynamicWarpingC {
     return pow(abs(f-g),_epow);
   }
 
-  private void updateSmoothingFilters() {
-    _ref1 = (_usmooth1<=0.0) ? null :
-      new RecursiveExponentialFilter(_usmooth1);
-    _ref2 = (_usmooth2<=0.0) ? null :
-      new RecursiveExponentialFilter(_usmooth2);
-    _ref3 = (_usmooth3<=0.0) ? null :
-      new RecursiveExponentialFilter(_usmooth3);
-  }
-  
 //  private void computeErrors(
 //      float[] pp, float[] ps1, float[] ps2, float[][][] e)
 //  {
@@ -925,7 +701,7 @@ public class DynamicWarpingC {
       nl1 = maxShift;
     int ppN1Max = n1-nl1+1;
     nl1 = (nl1-1)*_fr+1;
-    System.out.println("ppN1Max="+ppN1Max+", nl1="+nl1);
+//    System.out.println("ppN1Max="+ppN1Max+", nl1="+nl1);
     _shifts1 = new Sampling(nl1,1.0/_fr,0.0);
     return new int[]{ppN1Max,nl1};
   }
@@ -949,7 +725,7 @@ public class DynamicWarpingC {
     int nlS = (int)(nl1*nl1P);
     int ppN1Max = n1-nl1-nlS+2;
     nlS = (nlS-1)*_fr+1;
-    System.out.println("ppN1Max="+ppN1Max+", nl1="+nl1+", nlS="+nlS);
+//    System.out.println("ppN1Max="+ppN1Max+", nl1="+nl1+", nlS="+nlS);
     _shifts1 = new Sampling(nl1,1.0,0.0);
     _shiftsS = new Sampling(nlS,1.0/_fr,0.0);
     return new int[]{ppN1Max,nl1,nlS};
@@ -1020,7 +796,32 @@ public class DynamicWarpingC {
    * @param e input array[ni][nl] of alignment errors.
    * @param d output array[ni][nl] of accumulated errors.
    */
-  private static void accumulate(int dir, float[][] e, float[][] d) {
+//  private static void accumulate(int dir, float[][] e, float[][] d) {
+//    int nl = e[0].length;
+//    int nlm1 = nl-1;
+//    int ni = e.length;
+//    int nim1 = ni-1;
+//    int ib = (dir>0)?0:nim1; // beginning index
+//    int ie = (dir>0)?ni:-1;  // end index
+//    int is = (dir>0)?1:-1;   // stride
+//    int ic = (dir>0)?-1:1;   // contraint dir, forward=-lag, reverse=+lag
+//    int ii = ib;
+//    for (int il=0; il<nl; ++il)
+//      d[ii][il] = e[ii][il];
+//    ii += is;
+//    for (; ii!=ie; ii+=is) {
+//      int ji = max(0,min(nim1,ii-is)); // next trace index from ii 
+//      for (int il=0; il<nl; ++il) {
+//        int ilc = il+ic;
+//        ilc = (ilc==-1)?0:(ilc==nl)?nlm1:ilc; // index of lag constraint
+//        float dc = d[ji][ilc];
+//        float di = d[ji][il ];
+//        d[ii][il] = min(dc,di)+e[ii][il];
+//      }
+//    }
+//  }
+  
+  private void accumulate(int dir, float[][] e, float[][] d, float[][] m) {
     int nl = e[0].length;
     int nlm1 = nl-1;
     int ni = e.length;
@@ -1029,23 +830,34 @@ public class DynamicWarpingC {
     int ie = (dir>0)?ni:-1;  // end index
     int is = (dir>0)?1:-1;   // stride
     int ic = (dir>0)?-1:1;   // contraint dir, forward=-lag, reverse=+lag
-    int ii = ib;
-    for (int il=0; il<nl; ++il)
+    int ii=ib;
+    for (int il=0; il<nl; ++il) {
       d[ii][il] = e[ii][il];
-    ii += is;
+      m[ii][il] = 0;
+    }
+    ii+=is;
     for (; ii!=ie; ii+=is) {
-      int ji = max(0,min(nim1,ii-is)); // next trace index from ii 
+      int ji = ii-is;
       for (int il=0; il<nl; ++il) {
-        int ilc = il+ic;
-        ilc = (ilc==-1)?0:(ilc==nl)?nlm1:ilc; // index of lag constraint
-        float dc = d[ji][ilc];
-        float di = d[ji][il ];
-        d[ii][il] = min(dc,di)+e[ii][il];
+        int k=ic*_frMax;
+        while ((il+k)<0) k++;
+        while ((il+k)>nlm1) k--;
+        float dm = d[ii][il];
+        int mi = 0;
+        for (; k!=-ic; k+=-ic) {
+          float dc = d[ji][il+k];
+          if (dc<dm) {
+            dm = dc;
+            mi = k;
+          }
+        }
+        m[ii][il] = mi;
+        d[ii][il] = dm+e[ii][il];
       }
     }
   }
   
-  private void accumulate(int dir, float[][] e, float[][] d, float[][] m) {
+  private void accumulateK2(int dir, float[][] e, float[][] d, float[][] m) {
     int nl = e[0].length;
     int nlm1 = nl-1;
     int ni = e.length;
@@ -1087,53 +899,6 @@ public class DynamicWarpingC {
         d[ii][il] = dm+e[ii][il];
       }
     }
-    System.out.println("Number of accumulation failures = "+fcount);
-  }
-  
-  private void accumulateK2(int dir, float[][] e, float[][] m) {
-    int nl = e[0].length;
-    int nlm1 = nl-1;
-    int ni = e.length;
-    int nim1 = ni-1;
-    float[] d0 = new float[nl];
-    float[] dp = new float[nl];
-    float dmax = ni;
-    int ib = (dir>0)?0:nim1; // beginning index
-    int ie = (dir>0)?ni:-1;  // end index
-    int is = (dir>0)?1:-1;   // stride
-    int ic = (dir>0)?-1:1;   // contraint dir, forward=-lag, reverse=+lag
-    int fcount = 0;
-    int ii=ib;
-    for (int il=0; il<nl; ++il) {
-      dp[il] = e[ii][il];
-    }
-    ii+=is;
-    for (; ii!=ie; ii+=is) {
-      for (int il=0; il<nl; ++il) {
-        int k=ic*_frMax;
-        while ((il+k)<0) k++;
-        while ((il+k)>nlm1) k--;
-        float dm = dmax;
-        int mi = 0;
-        for (; k!=-ic; k+=-ic) {
-          float ds = k-m[ii][il+k];
-          if (ds>=_k2Min && ds<=_k2Max) {
-            float dc = dp[il+k];
-            if (dc<dm) {
-              dm = dc;
-              mi = k;
-            }
-          }
-        }
-        if (dm==dmax) {
-          fcount++;
-        }
-        m[ii][il] = mi;
-        d0[il] = dm+e[ii][il];
-      }
-      dp = d0;
-    }
-    m[ie-is] = d0;
     System.out.println("Number of accumulation failures = "+fcount);
   }
   
@@ -1607,9 +1372,6 @@ public class DynamicWarpingC {
   }
   private static float[][] like(float[][] a) {
     return new float[a.length][a[0].length];
-  }
-  private static int[][] likeI(float[][] a) {
-    return new int[a.length][a[0].length];
   }
   private static float[][][] like(float[][][] a) {
     return new float[a.length][a[0].length][a[0][0].length];
