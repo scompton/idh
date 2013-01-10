@@ -261,7 +261,13 @@ public class DynamicWarpingNC {
    */
   public float[][] findShifts(float[][] f, float[][] g) {
     float[][] u = like(f);
-    findShifts(f,g,u);
+    findShifts(f,g,u,true);
+    return u;
+  }
+
+  public float[][] findShiftsForward(float[][] f, float[][] g) {
+    float[][] u = like(f);
+    findShifts(f,g,u,false);
     return u;
   }
 
@@ -325,12 +331,17 @@ public class DynamicWarpingNC {
    * @param f input array for the image f.
    * @param g input array for the image g.
    * @param u output array of shifts u.
+   * @param reverse true to backtrack revers, false to
+   *  backtrack forward
    */
-  public void findShifts(float[][] f, float[][] g, float[][] u) {
+  public void findShifts(
+      float[][] f, float[][] g, float[][] u, boolean reverse)
+  {
     final float[][][] e = computeErrors(f,g);
     final int nl = e[0][0].length;
     final int n1 = e[0].length;
     final int n2 = e.length;
+    final boolean rf = reverse;
     final float[][] uf = u;
     for (int is=0; is<_esmooth; ++is)
       smoothErrors(e,e);
@@ -339,8 +350,13 @@ public class DynamicWarpingNC {
     public void compute(int i2) {
       float[][] d = du.get();
       if (d==null) du.set(d=new float[n1][nl]);
-      accumulateForward(e[i2],d);
-      backtrackReverse(d,e[i2],uf[i2]);
+      if (rf) {
+        accumulateForward(e[i2],d);
+        backtrackReverse(d,e[i2],uf[i2]);  
+      } else {
+        accumulateReverse(e[i2],d);
+        backtrackForward(d,e[i2],uf[i2]);
+      }
     }});
     smoothShifts(u,u);
   }
@@ -957,6 +973,16 @@ public class DynamicWarpingNC {
    */
   public void backtrackReverse(float[][] d, float[][] e, float[] u) {
     backtrack(-1,_kmax1,_shifts,d,e,u);
+  }
+
+  /**
+   * Computes shifts by backtracking in forward direction.
+   * @param d input array of accumulated errors.
+   * @param e input array of alignment errors.
+   * @param u output array of shifts.
+   */
+  public void backtrackForward(float[][] d, float[][] e, float[] u) {
+    backtrack( 1,_kmax1,_shifts,d,e,u);
   }
 
   /**
