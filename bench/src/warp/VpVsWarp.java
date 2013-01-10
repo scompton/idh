@@ -7,81 +7,105 @@ import edu.mines.jtk.util.Check;
 
 public class VpVsWarp {
 
-  public VpVsWarp(float a, float b, Sampling s) {
+  /**
+   * Computes Vp/Vs values at every time sample. The values
+   * correspond to a scaled cosine function with a constant
+   * frequency b.
+   * @param a scale factor between -1.0 and 1.0.
+   * @param b frequency in Hz.
+   * @param s Sampling.
+   * @return synthetic Vp/Vs.
+   */
+  public static float[] getVpVs(float a, float b, Sampling s) {
     Check.argument(a>=-1.0 & a<=1.0,"a>=-1.0 & a<=1.0");
-    _a = a;
-    _b = b;
-    _s = s;
-  }
-  
-  public float[] getVpVs() {
-    int n1 = _s.getCount();
-    double ft = _s.getFirst();
-    double dt = _s.getDelta();
+    int n1 = s.getCount();
+    double ft = s.getFirst();
+    double dt = s.getDelta();
     float[] vpvs = new float[n1];
     for (int i1=0; i1<n1; i1++) {
       double t = ft+i1*dt;
-      vpvs[i1] = 2.0f + _a*(float)cos(2.0*PI*_b*t);
+      vpvs[i1] = 2.0f + a*(float)cos(2.0*PI*b*t);
     }
     return vpvs;
   }
   
-  public float getAverage(float[] vpvs) {
+  /**
+   * Computes the shifts u, from the vpvs values.
+   * @param vpvs array of computed vpvs values.
+   * @param s Sampling.
+   * @return shift from synthetic Vp/Vs.
+   */
+  public static float[] getU(float[] vpvs, Sampling s) {
+    int n1 = vpvs.length;
+    float dt = (float)s.getDelta();
+    float[] u = new float[n1];
+//    u[0] = (vpvs[0]-1.0f)/2.0f;
+    u[0] = 0.0f;
+    for (int i1=1; i1<n1; i1++) {
+//      u[i1] = u[i1-1] + (vpvs[i1]-1.0f)/2.0f*dt;
+      u[i1] = u[i1-1] + (vpvs[i1]-1.0f)/2.0f;
+    }
+    return u;
+  }
+
+  // Comparison for getU method. The results of this should be the same.
+  public static float[] computeU(float a, float b, Sampling s) {
+    Check.argument(a>=-1.0 & a<=1.0,"a>=-1.0 & a<=1.0");
+    int n1 = s.getCount();
+    double ft = s.getFirst();
+    double dt = s.getDelta();
+    float[] u = new float[n1];
+    float d = (float)(4.0*PI*b);
+    for (int i1=0; i1<n1; i1++) {
+      double t = ft+i1*dt;
+      u[i1] = (float)(a*sin(2.0*PI*b*t)/d + t/2.0f);
+    }
+    return u;
+  }
+
+  public static float getAverage(float[] vpvs) {
     int n1 = vpvs.length;
     return sum(vpvs)/n1;
   }
-  
-  public float[] warp(float[] f, float[] vpvs) {
-    int n1 = f.length;
-    float[] u = getU(vpvs);
+
+  public static float[] warp(float[] ps, float[] vpvs, Sampling s) {
+    int nps = ps.length;
+    float vpvsAvg = getAverage(vpvs);
+    int npp = (int)ceil(2.0f*nps/(vpvsAvg+1.0f));
+    System.out.println("Average Vp/Vs: "+vpvsAvg+", npp="+npp+", nps="+nps);
+    float[] u = getU(vpvs,s);
     SincInterpolator si = new SincInterpolator();
-    float[] g = new float[n1];
-    si.setUniform(n1,1.0,0.0,f);
-    si.interpolate(n1,u,g);
-    return g;
+    si.setUniform(nps,1.0,0.0,ps);
+    SincInterpolator siu = new SincInterpolator();
+    siu.setUniform(u.length,1.0,0.0,u);
+    float[] pp = new float[npp];
+    for (int i=0; i<npp; ++i) {
+      double y = i;
+//      double x = y-uy(y,siu);
+//      ps[i] = si.interpolate(x);
+      pp[i] = si.interpolate(y+u[i]);
+    }
+    return pp;
   }
   
-//  public float[] getU(float[] vpvs) {
-//    int n1 = vpvs.length;
-//    double ft = _s.getFirst();
-//    double dt = _s.getDelta();
-//    float[] u = new float[n1];
-//    float s = _a/(2.0f*_b);
-////    float s = 1.0f/(2.0f*_b);
-//    for (int i1=0; i1<n1; i1++) {
-//      double t = ft+i1*dt;
-//      u[i1] = (float)(0.5*t + s*sin(2.0*PI*_b*t));
-////      u[i1] = (float)(_b*t+_a*sin(2.0*PI*_b*t))*s;
-//    }
-//    return u;
+  public static double uy(double y, SincInterpolator si) {
+    double uy = 0.0;
+    double up;
+    do {
+      up = uy;
+      uy = si.interpolate(y-uy);
+    } while (abs(uy-up)>0.0001);
+    return uy;
+  }
+  
+//  public static float[] warp(float[] f, float[] vpvs) {
+//    int n1 = f.length;
+//    float[] u = getU(vpvs);
+//    SincInterpolator si = new SincInterpolator();
+//    float[] g = new float[n1];
+//    si.setUniform(n1,1.0,0.0,f);
+//    si.interpolate(n1,u,g);
+//    return g;
 //  }
   
-  public float[] getU(float[] vpvs) {
-    int n1 = vpvs.length;
-    float dt = (float)_s.getDelta();
-    dt = 1.0f;
-    float[] u = new float[n1];
-    u[0] = 0.5f*(vpvs[0]*dt-1.0f);
-    for (int i1=1; i1<n1; i1++) {
-      u[i1] = u[i1-1]+(0.5f*(vpvs[i1]*dt-1.0f));
-    }
-    return mul(u,0.5f);
-  }
-  
-  public float[] computeVpVs(float[] u) {
-    int n1 = u.length;
-    double dt = _s.getDelta();
-    dt = 1.0f;
-    float[] vpvs = new float[n1];
-    vpvs[0] = 1.0f;
-    for (int i1=1; i1<n1; i1++) {
-      vpvs[i1] = (float)(1.0 + 2.0*((u[i1]-u[i1-1])/dt));
-    }
-    return vpvs;
-  }
-  
-  private float _a;
-  private float _b;
-  private Sampling _s;
-
 }
