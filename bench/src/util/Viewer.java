@@ -59,12 +59,21 @@ public class Viewer {
   }
   
   public Viewer(float[][] f) {
-    this(f,null,null,null,null,null,null,null,null,0.0f,0.0f,0,0,null);
+    this(f,null,null,null,null,null,null,null,null,null,0.0f,0.0f,0,0,null);
   }
   
   public Viewer(float[][] f, float[][] g, float[] points, String title, 
       Sampling s1, Sampling s2, String s1Label, String s2Label, String cbar, 
       float clipMin, float clipMax, int width, int height,
+      Orientation orientation) 
+  {
+    this(f,g,points,title,s1,s2,s1Label,s2Label,cbar,null,clipMin,clipMax,
+        width,height,orientation);
+  }
+  
+  public Viewer(float[][] f, float[][] g, float[] points, String title, 
+      Sampling s1, Sampling s2, String s1Label, String s2Label, String cbar, 
+      IndexColorModel cmap, float clipMin, float clipMax, int width, int height,
       Orientation orientation) 
   {
     title = (title==null)?"":title;
@@ -75,7 +84,7 @@ public class Viewer {
     orientation = (orientation==null)?Orientation.X1DOWN_X2RIGHT:orientation;
     
     init2D(
-        f,g,points,title,s1,s2,s1Label,s2Label,cbar,clipMin,clipMax,
+        f,g,points,title,s1,s2,s1Label,s2Label,cbar,cmap,clipMin,clipMax,
         width,height,orientation);
   }
   
@@ -105,7 +114,7 @@ public class Viewer {
   private void init2D(
       float[][] f, float[][] g, float[] points, String title,
       Sampling s1, Sampling s2, String s1Label, String s2Label, String cbar, 
-      float clipMin, float clipMax, int width, int height,
+      IndexColorModel cmap, float clipMin, float clipMax, int width, int height,
       Orientation orientation)
   {
     
@@ -114,6 +123,9 @@ public class Viewer {
     final PixelsView pv = pp.addPixels(s1,s2,f);
     if (clipMin!=0.0f || clipMax!=0.0f) {
       pv.setClips(clipMin,clipMax);
+    }
+    if (cmap!=null) {
+      pv.setColorModel(cmap);  
     }
     if (orientation.equals(Orientation.X1DOWN_X2RIGHT)) {
       pp.setHLabel(s2Label);
@@ -180,8 +192,8 @@ public class Viewer {
     DefaultBoundedRangeModel brm = 
         new DefaultBoundedRangeModel(r3,0,(int)s3.getFirst(),(int)s3.getLast());
     JSlider slider = new JSlider(brm);
-    slider.setMajorTickSpacing(10);
-    slider.setMinorTickSpacing(1);
+    slider.setMajorTickSpacing(n3/10);
+    slider.setMinorTickSpacing(n3/150);
     slider.setPaintLabels(true);
     slider.setPaintTicks(true);
     slider.addChangeListener(sl);
