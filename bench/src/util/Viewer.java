@@ -98,6 +98,16 @@ public class Viewer {
       float clipMin, float clipMax, int width, int height,
       Orientation orientation) 
   {
+    this(f,points,title,s1,s2,s3,s1Label,s2Label,s3Label,cbar,null,
+        clipMin,clipMax,width,height,orientation);
+  }
+  
+  public Viewer(float[][][] f, float[][] points, String title, 
+      Sampling s1, Sampling s2, Sampling s3,
+      String s1Label, String s2Label, String s3Label, String cbar,
+      IndexColorModel cmap, float clipMin, float clipMax, int width, int height,
+      Orientation orientation) 
+  {
     title = (title==null)?"":title;
     s1 = (s1==null)?new Sampling(f[0][0].length):s1;
     s2 = (s2==null)?new Sampling(f[0].length   ):s2;
@@ -107,8 +117,8 @@ public class Viewer {
     s3Label = (s3Label==null)?"":s3Label;
     orientation = (orientation==null)?Orientation.X1DOWN_X2RIGHT:orientation;
     
-    init3D(f,points,title,s1,s2,s3,s1Label,s2Label,s3Label,cbar,clipMin,clipMax,
-        width,height,orientation);
+    init3D(f,points,title,s1,s2,s3,s1Label,s2Label,s3Label,cbar,cmap,
+        clipMin,clipMax,width,height,orientation);
   }
   
   private void init2D(
@@ -157,7 +167,7 @@ public class Viewer {
   private void init3D(float[][][] f, float[][] points, String title, 
       Sampling s1, Sampling s2, Sampling s3,
       String s1Label, String s2Label, String s3Label, String cbar,
-      float clipMin, float clipMax, int width, int height,
+      IndexColorModel cmap, float clipMin, float clipMax, int width, int height,
       Orientation orientation)
   {
     int n3 = s3.getCount();
@@ -170,6 +180,9 @@ public class Viewer {
       pv.setClips(clips.getClipMin(),clips.getClipMax());
     } else {
       pv.setClips(clipMin,clipMax);
+    }
+    if (cmap!=null) {
+      pv.setColorModel(cmap);  
     }
     title = title+" "+s3Label;
     pp.setTitle(title+" "+r3);

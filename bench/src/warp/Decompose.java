@@ -1,6 +1,9 @@
 package warp;
 
-import edu.mines.jtk.util.ArrayMath;
+import static edu.mines.jtk.util.ArrayMath.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class Decompose {
 
@@ -20,14 +23,14 @@ public class Decompose {
     } else if (last%d == 0) { // n is perfectly divisible by d! 
       int ng = last/d + 1;
       g = new int[ng];
-      ArrayMath.ramp(0,d,g);
+      ramp(0,d,g);
     } else {// Compute grid with d, ensuring that the grid includes last.
-      int ng = (int)ArrayMath.floor(last/d)+1;
+      int ng = (int)floor(last/d)+1;
       g = new int[ng];
       g[0] = 0;
       for (int ig=1; ig<ng; ig++) {
         int gm = g[ig-1];
-        int id = ArrayMath.round((float)(last-gm)/(ng-ig));
+        int id = round((float)(last-gm)/(ng-ig));
         assert (id>=d);
 //        System.out.println("id="+id);
         g[ig] = gm+id;
@@ -38,11 +41,38 @@ public class Decompose {
       assert(g[ng-1]==last) : "Expected g[ng-1] to equal "+last+
       ", but g[ng-1]="+g[ng-1];  
     } catch (AssertionError e) {
-      ArrayMath.dump(g);
+      dump(g);
       throw e;
     }
     
     return g;
+  }
+  
+  public static Map<Integer,float[][]> getMXB(
+      int[] g, float rmin, float rmax, boolean up) 
+  {
+    Map<Integer,float[][]> mxbMap= new HashMap<Integer,float[][]>();
+    int ks = up? 1:-1;
+    int ms = up?-1: 1;
+    int ng = g.length;
+    for (int ig=1; ig<ng; ig++) {
+      int dg = g[ig]-g[ig-1];
+      if (mxbMap.containsKey(dg))
+        continue;
+      int kmin = (int)ceil( rmin*dg);
+      int kmax = (int)floor(rmax*dg);
+      int nk = kmax+1;
+//      System.out.println("dg="+dg+", kmin="+kmin+", kmax="+kmax+", nk="+nk);
+      float[][] mx = new float[nk][dg+1];
+      for (int k=kmin; k<=kmax; k++) {
+        float m = (float)k/dg*ms;
+        for (int x=0; x<=dg; x++) {
+          mx[k][x] = m*x+ks*k;
+        }  
+      }
+      mxbMap.put(dg,mx);
+    }
+    return mxbMap;
   }
   
   public static void main(String[] args) {
@@ -53,7 +83,7 @@ public class Decompose {
     int n = Integer.parseInt(args[0]);
     int d = Integer.parseInt(args[1]);
     int[] g = decompose(n,d); 
-    ArrayMath.dump(g);
+    dump(g);
   }
 
 }
