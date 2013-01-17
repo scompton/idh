@@ -6,6 +6,8 @@ available at http://www.eclipse.org/legal/cpl-v10.html
 ****************************************************************************/
 package warp;
 
+import java.util.Random;
+
 import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
@@ -100,7 +102,8 @@ public class DynamicWarpingX {
     _lmin = shiftMin;
     _lmax = shiftMax;
     _nl = 1+_lmax-_lmin;
-    _si = new SincInterpolator();
+    _si = new SincInterp();
+    _li = new LinearInterpolator();
     _extrap = ErrorExtrapolation.NEAREST;
   }
 
@@ -336,6 +339,120 @@ public class DynamicWarpingX {
     smoothShifts(u,u);
   }
 
+  public float[][] fakeErrors(float c, int nl, int n1) {
+    Random r = new Random(1);
+    float[][] e = sub(mul(2.0f,randfloat(r,nl,n1)),1.0f);
+    RecursiveGaussianFilter rgf = new RecursiveGaussianFilter(1.0);
+    rgf.apply00(e,e);
+    float u0 = 0.2f*(_lmax-_lmin)+_lmin;
+    float a = 0.7f*FLT_PI/n1;
+    float b = 0.7f*(_lmax-_lmin);
+    for (int i1=0; i1<n1; ++i1) {
+      for (int il=0; il<nl; ++il) {
+        float du = il+_lmin-u0-b*sin(a*i1); // u' = b*a, u'' = b*a*a
+        float sc = c; //*sin(i1*FLT_PI/n1);
+        float su = 1.0f-sc*exp(-0.5f*du*du);
+        e[i1][il] *= su;
+      }
+    }
+    return e;
+  }
+
+  public float sumErrorsInterpolated(float[][] e, float[] u) {
+    int nl = e[0].length;
+    int n1 = e.length;
+    _si.setExtrapolation(SincInterp.Extrapolation.CONSTANT);
+    float esum = 0.0f;
+    for (int i1=0; i1<n1; ++i1) {
+      float ei = _si.interpolate(nl,1.0,_lmin,e[i1],u[i1]);
+      esum += ei*ei;
+    }
+    return esum;
+  }
+
+  public float findShiftsSmooth(double dstrainMax, float[][] e, float[] u) {
+    int nl = e[0].length;
+    int n1 = e.length;
+    /*
+    float[][] ee = copy(e);
+    for (int i1=0; i1<n1; ++i1)
+      for (int il=0; il<nl; ++il)
+        ee[i1][il] = errorp(e[i1][il]);
+    float[][] d = accumulateReverse(ee);
+    dump(d[0]);
+    int[] jl = new int[nl];
+    for (int il=0; il<nl; ++il)
+      jl[il] = il;
+    quickIndexSort(d[0],jl);
+    int l0 = jl[0];
+    */
+    int nr = 1+2*(int)(_bstrain1/dstrainMax);
+    float dr = 2.0f/_bstrain1/(nr-1);
+    float fr = -1.0f/_bstrain1;
+    _si.setExtrapolation(SincInterp.Extrapolation.CONSTANT);
+    float s0i = u[0];
+    float e0i = _si.interpolate(nl,1.0,_lmin,e[0],s0i);
+    System.out.println("nr="+nr+" dr="+dr+" fr="+fr);
+    int[][] m = new int[n1][nr];
+    float[][] s = new float[n1][nr];
+    float[][] d = new float[n1][nr];
+    for (int ir=0; ir<nr; ++ir) {
+      s[0][ir] = s0i;
+      d[0][ir] = e0i*e0i;
+    }
+    for (int i1=1; i1<n1; ++i1) {
+      for (int ir=0; ir<nr; ++ir) {
+        float ri = fr+ir*dr;
+        int ir0 = ir;
+        int irm = max(ir-1,0);
+        int irp = min(ir+1,nr-1);
+        float s0 = s[i1-1][ir0]+ri;
+        float sm = s[i1-1][irm]+ri;
+        float sp = s[i1-1][irp]+ri;
+        s0 = max(_lmin,min(_lmax,s0));
+        sm = max(_lmin,min(_lmax,sm));
+        sp = max(_lmin,min(_lmax,sp));
+        float e0 = _si.interpolate(nl,1.0,_lmin,e[i1],s0);
+        float em = _si.interpolate(nl,1.0,_lmin,e[i1],sm);
+        float ep = _si.interpolate(nl,1.0,_lmin,e[i1],sp);
+        float d0 = d[i1-1][ir0]+e0*e0;
+        float dm = d[i1-1][irm]+em*em;
+        float dp = d[i1-1][irp]+ep*ep;
+        float dmin = min3(dm,d0,dp);
+        float emin;
+        float smin;
+        int imin;
+        if (dmin==d0) {
+          smin = s0;
+          imin = ir0;
+        } else if (dmin==dm) {
+          smin = sm;
+          imin = irm;
+        } else {
+          smin = sp;
+          imin = irp;
+        }
+        s[i1][ir] = smin;
+        m[i1][ir] = imin;
+        d[i1][ir] = dmin;
+      }
+    }
+    //dump(d[n1-1]);
+    int i1 = n1-1;
+    int ir = (nr-1)/2;
+    float di = d[i1][ir];
+    for (int jr=0; jr<nr; ++jr) {
+      if (d[i1][jr]<di) {
+        ir = jr;
+        di = d[i1][jr];
+      }
+    }
+    u[i1] = s[i1][ir];
+    for (ir=m[i1][ir],--i1; i1>=0; ir=m[i1][ir],--i1)
+      u[i1] = s[i1][ir];
+    return di;
+  }
+
   /**
    * Computes shifts for specified images.
    * @param f input array for the image f.
@@ -487,10 +604,8 @@ public class DynamicWarpingX {
    */
   public void applyShifts(float[] u, float[] g, float[] h) {
     int n1 = u.length;
-    _si.setUniformSampling(n1,1.0,0.0);
-    _si.setUniformSamples(g);
     for (int i1=0; i1<n1; ++i1) {
-      h[i1] = _si.interpolate(i1+u[i1]);
+      h[i1] = _si.interpolate(n1,1.0,0.0,g,i1+u[i1]);
     }
   }
 
@@ -506,19 +621,10 @@ public class DynamicWarpingX {
     final float[][] uf = u;
     final float[][] gf = g;
     final float[][] hf = h;
-    final Parallel.Unsafe<SincInterpolator> siu =
-      new Parallel.Unsafe<SincInterpolator>();
     Parallel.loop(n2,new Parallel.LoopInt() {
     public void compute(int i2) {
-      SincInterpolator si = siu.get();
-      if (si==null) {
-        si = new SincInterpolator();
-        si.setUniformSampling(n1,1.0,0.0);
-        siu.set(si);
-      }
-      si.setUniformSamples(gf[i2]);
       for (int i1=0; i1<n1; ++i1) {
-        hf[i2][i1] = si.interpolate(i1+uf[i2][i1]);
+        hf[i2][i1] = _si.interpolate(n1,1.0,0.0,gf[i2],i1+uf[i2][i1]);
       }
     }});
   }
@@ -558,6 +664,13 @@ public class DynamicWarpingX {
     float[][] e = new float[n1][_nl];
     computeErrors(f,g,e);
     normalizeErrors(e);
+    return e;
+  }
+  public float[][] computeErrorsRaw(float[] f, float[] g) {
+    int n1 = f.length;
+    float[][] e = new float[n1][_nl];
+    computeErrorsRaw(f,g,e);
+    //normalizeErrors(e);
     return e;
   }
 
@@ -1185,12 +1298,16 @@ public class DynamicWarpingX {
   private RecursiveExponentialFilter _ref1; // for smoothing shifts
   private RecursiveExponentialFilter _ref2; // for smoothing shifts
   private RecursiveExponentialFilter _ref3; // for smoothing shifts
-  private SincInterpolator _si; // for warping with non-integer shifts
+  private SincInterp _si; // for warping with non-integer shifts
+  private LinearInterpolator _li; // for interpolating alignment errors
   private int _owl2 = 50; // window size in 2nd dimension for 3D images
   private int _owl3 = 50; // window size in 3rd dimension for 3D images
   private double _owf2 = 0.5; // fraction of window overlap in 2nd dimension
   private double _owf3 = 0.5; // fraction of window overlap in 3rd dimension
 
+  private float errorp(float e) {
+    return pow(abs(e),_epow);
+  }
   private float error(float f, float g) {
     return pow(abs(f-g),_epow);
   }
@@ -1238,6 +1355,80 @@ public class DynamicWarpingX {
       int ilhi = min(nl,n1-_lmin-i1); // above
       for (int il=illo,j1=i1+il+_lmin; il<ilhi; ++il,++j1) {
         float ei = error(f[i1],g[j1]);
+        e[i1][il] = ei;
+        if (average) {
+          eavg[il] += ei;
+          navg[il] += 1;
+        }
+        if (ei>emax) 
+          emax = ei;
+      }
+    }
+
+    // If necessary, complete computation of average errors for each lag.
+    if (average) {
+      for (int il=0; il<nl; ++il) {
+        if (navg[il]>0)
+          eavg[il] /= navg[il];
+      }
+    }
+
+    // For indices where errors have not yet been computed, extrapolate.
+    for (int i1=0; i1<n1; ++i1) {
+      int illo = max(0,   -_lmin-i1); // same as
+      int ilhi = min(nl,n1-_lmin-i1); // above
+      for (int il=0; il<nl; ++il) {
+        if (il<illo || il>=ilhi) {
+          if (average) {
+            if (navg[il]>0) {
+              e[i1][il] = eavg[il];
+            } else {
+              e[i1][il] = emax;
+            }
+          } else if (nearest || reflect) {
+            int k1 = (il<illo)?-_lmin-il:n1m-_lmin-il;
+            if (reflect)
+              k1 += k1-i1;
+            if (0<=k1 && k1<n1) {
+              e[i1][il] = e[k1][il];
+            } else {
+              e[i1][il] = emax;
+            }
+          } else {
+            e[i1][il] = emax;
+          }
+        }
+      }
+    }
+  }
+  private void computeErrorsRaw(float[] f, float[] g, float[][] e) {
+    int n1 = f.length;
+    int nl = _nl;
+    int n1m = n1-1;
+    boolean average = _extrap==ErrorExtrapolation.AVERAGE;
+    boolean nearest = _extrap==ErrorExtrapolation.NEAREST;
+    boolean reflect = _extrap==ErrorExtrapolation.REFLECT;
+    float[] eavg = average?new float[nl]:null; 
+    int[] navg = average?new int[nl]:null;
+    float emax = 0.0f;
+
+    // Notes for indexing:
+    // 0 <= il < nl, where il is index for lag
+    // 0 <= i1 < n1, where i1 is index for sequence f
+    // 0 <= j1 < n1, where j1 is index for sequence g
+    // j1 = i1+il+lmin, where il+lmin = lag
+    // 0 <= i1+il+lmin < n1, so that j1 is in bounds
+    // max(0,-lmin-i1) <= il < min(nl,n1-lmin-i1)
+    // max(0,-lmin-il) <= i1 < min(n1,n1-lmin-il)
+    // j1 = 0    => i1 =     -lmin-il
+    // j1 = n1-1 => i1 = n1-1-lmin-il
+
+    // Compute errors where indices are in bounds for both f and g.
+    for (int i1=0; i1<n1; ++i1) {
+      int illo = max(0,   -_lmin-i1); // see notes
+      int ilhi = min(nl,n1-_lmin-i1); // above
+      for (int il=illo,j1=i1+il+_lmin; il<ilhi; ++il,++j1) {
+        float ei = f[i1]-g[j1];
         e[i1][il] = ei;
         if (average) {
           eavg[il] += ei;

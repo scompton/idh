@@ -6,15 +6,14 @@ from warp import DynamicWarpingX as DynamicWarping
 
 #############################################################################
 
-#pngDir = "./png/sino/"
-pngDir = None
-
 s1f,s1g,s2 = None,None,None
 
 # Different time windows for plotting
 ilims = ["0","1","2"]
-flims = [(0.0,5.333),(0.8,2.8),(2.8,4.8)]
-glims = [(0.0,8.000),(1.2,4.2),(4.2,7.2)]
+flims = [(0.0,5.333),(0.8,1.8),(2.8,4.8)] # for Geophysics
+glims = [(0.0,8.000),(1.2,2.7),(4.2,7.2)] # for Geophysics
+#flims = [(0.0,5.333),(0.8,2.8),(2.8,4.8)] # Vp/Vs = 2 => Tpp/Tps = 3/2
+#glims = [(0.0,8.000),(1.2,4.2),(4.2,7.2)] # Vp/Vs = 2 => Tpp/Tps = 3/2
 #flims = [(0.0,6.000),(0.8,2.8),(2.8,4.8)]
 #glims = [(0.0,8.000),(1.2,4.2),(4.2,7.2)]
 
@@ -25,11 +24,11 @@ def main(args):
 def goSinoImages():
   f,g = getSinoImages()
   clips = (-2.0,2.0)
-  for i in [0]: #range(len(ilims)):
-    fpng = "si"+ilims[i]+"fz"
-    gpng = "si"+ilims[i]+"gx"
-    plot(f,s1f,clips,flims[i],title="Z component",cbar="Amplitude",png=fpng)
-    plot(g,s1g,clips,glims[i],title="X component",cbar="Amplitude",png=gpng)
+  for i in [1]: #range(len(ilims)):
+    fpng = "si"+ilims[i]+"fpp"
+    gpng = "si"+ilims[i]+"gps"
+    plot(f,s1f,clips,flims[i],title="PP image",cbar="Amplitude",png=fpng)
+    plot(g,s1g,clips,glims[i],title="PS image",cbar="Amplitude",png=gpng)
 
 def goSinoWarp():
   fclips = (-2.0,2.0)
@@ -46,20 +45,23 @@ def goSinoWarp():
   u  = mul(1000.0*s1f.delta,u)
   u1 = mul(1000.0*s1f.delta,u1)
   u2 = mul(1000.0*s1f.delta,u2)
-  for i in [1]: #[0,1,2]:
+  uclips = (225,245)
+  #uclips = (215,245)
+  for i in [1]:
     flim = flims[i]
+    glim = glims[i]
     pre = "si"+ilims[i]
-    plot(g ,s1f,fclips,flim,title="X component",cbar=fcbar,png=pre+"g")
-    plot(h1,s1f,fclips,flim,title="X 1st warp",cbar=fcbar,png=pre+"h1")
-    plot(h2,s1f,fclips,flim,title="X 2nd warp",cbar=fcbar,png=pre+"h2")
-    plot(f ,s1f,fclips,flim,title="Z component",cbar=fcbar,png=pre+"f")
-    plot(u1,s1f,None,flim,title="1st shifts",cmap=jet,cbar=ucbar,png=pre+"u1")
-    plot(u2,s1f,None,flim,title="2nd shifts",cmap=jet,cbar=ucbar,png=pre+"u2")
-    plot(u ,s1f,None,flim,title="Shifts",cmap=jet,cbar=ucbar,png=pre+"u")
-    plot(psa,s1f,(2.0,3.0),flim,title="Vp/Vs (average)",
-         cmap=jet,cbar=psbar,png=pre+"psa")
-    plot(psi,s1f,(1.5,2.5),flim,title="Vp/Vs (interval)",
-         cmap=jet,cbar=psbar,png=pre+"psi")
+    plot(g ,s1f,fclips,flim,title="PS image",cbar=fcbar,png=pre+"g")
+    #plot(h1,s1f,fclips,flim,title="PS 1st warp",cbar=fcbar,png=pre+"h1")
+    plot(h2,s1f,fclips,flim,title="PS 2nd warp",cbar=fcbar,png=pre+"h2")
+    plot(f ,s1f,fclips,flim,title="PP image",cbar=fcbar,png=pre+"f")
+    #plot(u1,s1f,uclips,flim,title="1st shifts",cmap=jet,cbar=ucbar,png=pre+"u1")
+    #plot(u2,s1f,uclips,flim,title="2nd shifts",cmap=jet,cbar=ucbar,png=pre+"u2")
+    plot(u ,s1f,uclips,flim,title="Shifts",cmap=jet,cbar=ucbar,png=pre+"u")
+    #plot(psa,s1f,(2.0,3.0),flim,title="Vp/Vs (average)",
+    #     cmap=jet,cbar=psbar,png=pre+"psa")
+    #plot(psi,s1f,(1.5,2.5),flim,title="Vp/Vs (interval)",
+    #     cmap=jet,cbar=psbar,png=pre+"psi")
 
 def addShifts(u1,u2):
   n1,n2 = len(u1[0]),len(u1)
@@ -97,12 +99,10 @@ def smoothX(sigma,x):
 
 def warp2(f,g):
   #esmooth,usmooth = 0,0.0
-  esmooth,usmooth = 2,1.0
+  esmooth,usmooth = 2,8.0
   rsmooth = 101
   strainMax1 = 0.125
   strainMax2 = 0.125
-  nr = int(rsmooth); dr = 2.0*strainMax1/(nr-1); fr = -strainMax1
-  sr = Sampling(nr,dr,fr)
   shiftMax = 10
   shiftMin = -shiftMax
   dw = DynamicWarping(shiftMin,shiftMax)
@@ -114,42 +114,37 @@ def warp2(f,g):
     dw.smoothErrors(e,e)
   d = dw.accumulateForward1(e)
   u = dw.backtrackReverse1(d,e)
-  u = dw.smoothShifts(sr,u)
+  u = dw.smoothShifts(u)
   h = dw.applyShifts(u,g)
   print "warp2: u min =",min(u)," max =",max(u)
   return u,h
 
 def warp1(f,g):
-  usmooth = 4.0
-  rsmooth = 101
+  usmooth = 8.0
   strainMax1 = 0.125
-  #strainMax1 = 0.25
   shiftMin = 0
   shiftMax = 160
-  #shiftMax = 250
-  nr = rsmooth; dr = 2.0*strainMax1/(nr-1); fr = -strainMax1
-  sr = Sampling(nr,dr,fr)
   dw = DynamicWarping(shiftMin,shiftMax)
   dw.setErrorExtrapolation(DynamicWarping.ErrorExtrapolation.REFLECT)
   dw.setStrainMax(strainMax1)
-  dw.setShiftSmoothing(usmooth)
+  dw.setShiftSmoothing(usmooth,usmooth)
   e1 = dw.computeErrors1(f,g)
   d1 = dw.accumulateForward(e1)
   u1 = dw.backtrackReverse(d1,e1)
+  nl = len(e1[0])
   def plotShifts():
     nl = len(e1[0])
     sp = SimplePlot()
-    sp.setSize(1800,500)
+    sp.setSize(1400,500)
     sl = Sampling(nl,s1f.delta,shiftMin*s1f.delta)
-    pv = sp.addPixels(s1f,sl,pow(transpose(e1),0.25))
+    pv = sp.addPixels(s1f,sl,pow(transpose(e1),1.0))
     pv.setInterpolation(PixelsView.Interpolation.NEAREST)
     pv.setColorModel(ColorMap.JET)
     pv.setPercentiles(2,98)
     pv = sp.addPoints(s1f,mul(s1f.delta,u1))
   plotShifts()
-  u1 = dw.smoothShifts(sr,u1)
+  u1 = dw.smoothShifts(u1)
   plotShifts()
-  #u1 = dw.findShifts1(f,g)
   n1,n2 = len(f[0]),len(f)
   h = zerofloat(n1,n2)
   u = zerofloat(n1,n2)
@@ -198,12 +193,10 @@ def gain(hw,f):
 def stretch(c,f):
   """ stretch (supersample) by specified factor c time sampling of image f """
   n1,n2 = len(f[0]),len(f)
-  si = SincInterpolator()
-  si.setUniformSampling(n1,1.0,0.0)
+  si = SincInterp()
   g = zerofloat(n1)
   for i2 in range(n2):
-    si.setUniformSamples(f[i2])
-    si.interpolate(n1,1.0/c,0.0,g)
+    si.interpolate(n1,1.0,0.0,f[i2],n1,1.0/c,0.0,g)
     copy(g,f[i2])
 
 def readImage(fileName,n1,n2):
@@ -227,7 +220,40 @@ def noiseImage(n1,n2):
 gray = ColorMap.GRAY
 jet = ColorMap.JET
 
-def plot(f,s1,clips=None,limits=None,title=None,
+def plotp(f,s1,clips=None,limits=None,title=None,
+         cmap=None,cbar=None,png=None):
+  n1,n2 = len(f[0]),len(f)
+  #width,height,cbwm = 610,815,145
+  width,height,cbwm = 550,325,70
+  sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
+  sp.plotPanel.setColorBarWidthMinimum(cbwm)
+  pv = sp.addPixels(s1,s2,f)
+  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+  #sp.addGrid("H-").setColor(Color.BLACK)
+  if clips:
+    pv.setClips(clips[0],clips[1])
+  if limits:
+    sp.setVLimits(limits[0],limits[1])
+  #if cmap:
+  #  pv.setColorModel(cmap)
+  if cbar:
+    cone = cbar=="Amplitude"
+    cbar = sp.addColorBar(cbar)
+    if cone:
+      cbar.setInterval(1)
+  sp.setVInterval(0.2)
+  if s1==s1f:
+    sp.setVLabel("PP time (s)")
+  else:
+    sp.setVLabel("PS time (s)")
+  sp.setHLabel("Distance (km)")
+  sp.setFontSizeForPrint(8,240)
+  sp.setSize(width,height)
+  sp.setVisible(True)
+  if png and pngDir:
+    sp.paintToPng(720,3.33333,pngDir+png+".png")
+
+def plots(f,s1,clips=None,limits=None,title=None,
          cmap=None,cbar=None,png=None):
   n1,n2 = len(f[0]),len(f)
   #width,height,cbwm = 610,815,145
@@ -261,6 +287,10 @@ def plot(f,s1,clips=None,limits=None,title=None,
   sp.setVisible(True)
   if png and pngDir:
     sp.paintToPng(720,2.0,pngDir+png+".png")
+
+#pngDir = "./png/sino/"
+pngDir = None
+plot = plotp
 
 #############################################################################
 # Do everything on Swing thread.

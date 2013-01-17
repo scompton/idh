@@ -1,23 +1,20 @@
 """
-Displays F3 Demo data.
+Displays F3 data.
 """
-from common import *
+from f3utils import *
 
 #############################################################################
-clip = 5.0
-n1,n2,n3 = 462,951,591
-d1,d2,d3 = 0.004,0.025,0.025
-f1,f2,f3 = 0.004,0.000,0.000
-s1,s2,s3 = Sampling(n1,d1,f1),Sampling(n2,d2,f2),Sampling(n3,d3,f3)
+setupForSubset("all")
+s1,s2,s3 = getSamplings()
+clip = 1.0
 
 #############################################################################
 def main(args):
-  datfile = "f3d.dat"
-  display3d(datfile)
-  #displaySlice3(datfile)
+  display3d()
+  #displaySlice3()
 
-def display3d(datfile):
-  x = readImage(datfile,n1,n2,n3)
+def display3d():
+  x = readF3dImage()
   print "x min =",min(x)," max =",max(x)
   frame = SimpleFrame()
   ipg = frame.addImagePanels(s1,s2,s3,x)
@@ -28,9 +25,9 @@ def display3d(datfile):
   frame.setSize(1200,900)
   frame.setVisible(True)
 
-def displaySlice3(datfile):
+def displaySlice3():
   k3 = 75
-  x = readImage(datfile,n1,n2,n3)
+  x = readF3dImage()
   y = x[k3]
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
   pv = sp.addPixels(y)

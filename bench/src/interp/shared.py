@@ -21,6 +21,7 @@ from edu.mines.jtk.sgl import *
 from edu.mines.jtk.util import *
 from edu.mines.jtk.util.ArrayMath import *
 
+from ldf import BilateralFilter
 from interp import *
 from interp.Wa import *
   

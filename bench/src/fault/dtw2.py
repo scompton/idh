@@ -155,8 +155,8 @@ def makeTestImages():
   return f,g,s
 
 def makeFaultImages():
-  n1,n2 = 222,220; f = readImage("/data/seis/f3d/faults/s1gfm.dat",n1,n2)
-  n1,n2 = 222,220; g = readImage("/data/seis/f3d/faults/s1gfp.dat",n1,n2)
+  n1,n2 = 222,220; f = readImage("/data/seis/f3d/faults/s1/gfm.dat",n1,n2)
+  n1,n2 = 222,220; g = readImage("/data/seis/f3d/faults/s1/gfp.dat",n1,n2)
   return f,g
 
 #############################################################################
@@ -175,14 +175,12 @@ def normalize(x):
 
 def align(u,f,g):
   n1,n2 = len(u[0]),len(u)
-  si = SincInterpolator()
-  si.setUniformSampling(n1,1.0,0.0)
+  si = SincInterp()
   h = copy(g)
   r = rampfloat(0.0,1.0,n1)
   for i2 in range(n2):
     t = add(r,u[i2])
-    si.setUniformSamples(g[i2])
-    si.interpolate(n1,t,h[i2])
+    si.interpolate(n1,1.0,0.0,g[i2],n1,t,h[i2])
   return h
 
 def shifts1(dw,e):
