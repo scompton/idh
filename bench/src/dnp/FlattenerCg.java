@@ -120,11 +120,16 @@ public class FlattenerCg {
     return g;
   }
 
+  public static void setThicknessWeighting(float tw) {
+    TW = tw;
+  }
+  
   ///////////////////////////////////////////////////////////////////////////
   // private
 
   private static final boolean PARALLEL = true; // true if multi-threaded
-
+  private static float TW = 1.0f; // thickness preservation weighting
+  
   private float _sigma1 = 6.0f; // half-width of smoother in 1st dimension
   private float _sigma2 = 6.0f; // half-width of smoother in 2nd dimension
   private float _epsilon = 0.000f; // damping for stability?
@@ -583,7 +588,8 @@ public class FlattenerCg {
         float p2i = p2[i2][i1];
         float els = eli*eli;
         float p2s = p2i*p2i;
-        float d11 = p2s*els;
+//        float d11 = p2s*els;
+        float d11 = (p2s+TW)*els;
         float d12 = p2i*els;
         float d22 = els;
         float x00 = x[i2  ][i1  ];

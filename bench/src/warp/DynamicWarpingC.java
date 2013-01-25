@@ -2,16 +2,21 @@ package warp;
 
 import java.util.Map;
 
-import util.Viewer;
+import util.ViewerOld;
 import edu.mines.jtk.awt.ColorMap;
+import edu.mines.jtk.dsp.HilbertTransformFilter;
 import edu.mines.jtk.dsp.LinearInterpolator;
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.dsp.SincInterp;
 import edu.mines.jtk.interp.BicubicInterpolator2;
+import edu.mines.jtk.interp.BilinearInterpolator2;
 import edu.mines.jtk.interp.CubicInterpolator;
 import edu.mines.jtk.interp.CubicInterpolator.Method;
 import edu.mines.jtk.interp.TricubicInterpolator3;
+import edu.mines.jtk.mosaic.PlotFrame;
 import edu.mines.jtk.mosaic.PlotPanel;
+import edu.mines.jtk.mosaic.PointsView;
+import edu.mines.jtk.mosaic.SimplePlot;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
@@ -128,12 +133,21 @@ public class DynamicWarpingC {
   }
   
   public void setInterpMethod(CubicInterpolator.Method m) {
-    _m = m;
+    _m1 = m;
+  }
+  public void setInterpMethod(BicubicInterpolator2.Method m) {
+    _m2 = m;
+  }
+  public void setInterpMethod(TricubicInterpolator3.Method m) {
+    _m3 = m;
   }
   
   /**
    * Find shifts for 1D traces. Shifts are computed on a sparse
-   * grid and then interpolated with a cubic interpolator.
+   * grid and then interpolated back to the fine grid. The
+   * sparse grid has a minimum interval of ceil(1/dr1). This
+   * interval is variable in order to include the first and last
+   * indices of the fine grid.
    * @param r1min minimum slope in first dimension.
    * @param r1max maximum slope in first dimension.
    * @param dr1 sparse grid increment in first dimension. 
@@ -142,56 +156,108 @@ public class DynamicWarpingC {
   public float[] findShifts(float r1min, float r1max, float dr1) {
     final float[][] e = computeErrors();
     final int dg1 = (int)ceil(1.0f/dr1);
-    final int[] g1 = Decompose.decompose(_ne1,dg1);
+    final int[] g1 = Subsample.subsample(_ne1,dg1);
+    System.out.println("ng="+g1.length);
     dump(g1);
-    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,dr1);
-    return interpolateSparseShifts(_ne1,g1,backtrackReverse(dm[0],dm[1]),_m);
+    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
+//    final float[][][] dm = accumulateReverseSparse(e,r1min,r1max,g1);
+//    final float[][][] dm = accumulateForwardSparse2(e,r1max,g1);
+//    final float[][][] dm = accumulateReverseSparse2(e,r1max,g1);
+    float[][] dt = DynamicWarpingC.transposeLag(dm[0]);
+    new ViewerOld(dt,null,null,"Accumulated Errors Max",null,null,
+        "sparse samples","lag (samples)","error",ColorMap.JET,0.0f,1.0f,
+        900,600,PlotPanel.Orientation.X1RIGHT_X2UP);
+    return interpolateSparseShifts(_ne1,g1,backtrackReverse(dm[0],dm[1]),_m1);
+//    return interpolateSparseShifts(_ne1,g1,backtrackForward(dm[0],dm[1]),_m);
   }
   
+  /**
+   * Find shifts for 1D traces. Shifts are computed on a sparse
+   * grid and then interpolated back to the fine grid. The
+   * sparse grid indices are selected preferentially by the 
+   * maximum amplitudes in the pp trace, however the indices 
+   * must have a minimum interval of ceil(1/dr1). 
+   * @param r1min minimum slope in first dimension.
+   * @param r1max maximum slope in first dimension.
+   * @param dr1 sparse grid increment in first dimension. 
+   * @return shifts for 1D traces.
+   */
+  public float[] findShiftsM(float r1min, float r1max, float dr1) {
+    float[][] e = computeErrors();
+    int dg1 = (int)ceil(1.0f/dr1);
+    int[] g1;
+    float[] ppe = new float[_ne1];
+    for (int i1=0; i1<_ne1; i1++)
+      ppe[i1] = _pp1[i1];
+    g1 = Subsample.subsample(ppe,dg1);
+    System.out.println("ng="+g1.length);
+    dump(g1);
+    float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
+//  float[][][] dm = accumulateReverseSparse(e,r1min,r1max,g1);
+//  float[][] dt = DynamicWarpingC.transposeLag(dm[0]);
+//  new Viewer(dt,null,null,"Accumulated Errors Max",null,null,
+//      "sparse samples","lag (samples)","error",ColorMap.JET,0.0f,0.05f,
+//      900,600,PlotPanel.Orientation.X1RIGHT_X2UP);
+    return interpolateSparseShifts(_ne1,g1,backtrackReverse(dm[0],dm[1]),_m1);
+//    return interpolateSparseShifts(_ne1,g1,backtrackForward(dm[0],dm[1]),_m);
+  }
+  
+  /**
+   * Find shifts for 1D traces. This method first smooths
+   * alignment errors. Shifts are computed on a sparse grid
+   * and then are interpolated back to the fine grid. The
+   * sparse grid has a minimum interval of ceil(1/dr1). This
+   * interval is variable in order to include the first and last
+   * indices of the fine grid.
+   * @param r1min minimum slope in first dimension.
+   * @param r1max maximum slope in first dimension.
+   * @param dr1 sparse grid increment in first dimension. 
+   * @return shifts for 1D traces.
+   */
   public float[] findShiftsSmooth(float r1min, float r1max, float dr1) {
     int dg1 = (int)ceil(1.0f/dr1);
-    int[] g1 = Decompose.decompose(_ne1,dg1);
-//    dump(g1);
-    float[][] e = smoothErrorsSparse(r1min,r1max,g1);
-    int k1min = (int)ceil( r1min/dr1);
-    int k1max = (int)floor(r1max/dr1);
-    float[][][] dm = accumulateForward(e,k1min,k1max);
+    int[] g1 = Subsample.subsample(_ne1,dg1);
+    dump(g1);
+    float[][] e = computeErrors();
+    float[][] es = smoothErrorsSparse(e,r1min,r1max,g1);
+    normalizeErrors(es);
+    float[][][] dm = accumulateForward(e,g1,r1min,r1max);
     float[] u = backtrackReverse(dm[0],dm[1]);
     float[][] dt = DynamicWarpingC.transposeLag(dm[0]);
-    new Viewer(dt,null,u,"Accumulated Errors "+dr1,null,null,
+    new ViewerOld(dt,null,u,"Accumulated Errors "+dr1,null,null,
         "sparse samples","lag (samples)","error",ColorMap.JET,0.0f,0.01f,
         900,600,PlotPanel.Orientation.X1RIGHT_X2UP);
-    return interpolateSparseShifts(_ne1,g1,u,_m);
+    return interpolateSparseShifts(_ne1,g1,u,_m1);
   }
   
   /**
    * Find shifts for 2D images. Shifts are computed on a sparse
-   * grid and then interpolated with a bicubic interpolator.
+   * grid and then interpolated back to the fine grid. The
+   * sparse grid has a minimum interval of ceil(1/dr1) in the
+   * first dimension and ceil(1/dr2) in the second dimension. 
+   * These intervals are variable in order to include the first 
+   * and last indices of the fine grid.
    * @param r1min minimum slope in first dimension.
    * @param r1max maximum slope in first dimension.
    * @param dr1 sparse grid increment in first dimension. 
-   * @param r2min minimum slope in second dimension.
    * @param r2max maximum slope in second dimension.
    * @param dr2 sparse grid increment in second dimension. 
    * @return shifts for 2D images.
    */
   public float[][] findShifts(
-      float r1min, float r1max, float dr1,
-      float r2min, float r2max, float dr2)
+      final float r1min, final float r1max, float dr1, float r2max, float dr2)
   {
     final int dg1 = (int)ceil(1.0f/dr1);
     final int dg2 = (int)ceil(1.0f/dr2);
-    final int[] g1 = Decompose.decompose(_ne1,dg1);
-    final int[] g2 = Decompose.decompose( _n2,dg2);
+    final int[] g1 = Subsample.subsample(_ne1,dg1);
+    final int[] g2 = Subsample.subsample( _n2,dg2);
     dump(g1); dump(g2);
-    final float[][][] es = smoothErrorsSparse(r1min,r1max,g1,r2min,r2max,g2);
+    final float[][][] es = smoothErrorsSparse(r1min,r1max,g1,r2max,g2);
     final int ng2 = es.length;
-    final int k1min = (int)ceil( r1min/dr1);
-    final int k1max = (int)floor(r1max/dr1);
     final float[][] u = new float[ng2][];
     Parallel.loop(ng2,new Parallel.LoopInt() {
     public void compute(int i2) {
-      float[][][] dm = accumulateForward(es[i2],k1min,k1max);
+      float[][][] dm = accumulateForward(es[i2],g1,r1min,r1max);
       u[i2] = backtrackReverse(dm[0],dm[1]);
     }});
 //    float[][][] et1 = transposeLag12(es);
@@ -206,46 +272,126 @@ public class DynamicWarpingC {
 //    new Viewer(vpvs(u),null,null,"VpVs before Interpolation",null,null,
 //        "sparse samples","sparse traces","shifts (samples)",ColorMap.JET,
 //        0,0,600,900,null);
-    return interpolateSparseShifts(_ne1,_n2,g1,g2,u);
+    return interpolateSparseShifts(_ne1,_n2,g1,g2,u,_m2);
   }
   
   /**
+   * Find shifts for 2D images. Shifts are computed on a sparse
+   * grid and then interpolated back to the fine grid. For the 
+   * first dimension, the sparse grid indices are selected 
+   * preferentially by the maximum amplitudes in the pp traces.
+   * The sparse grid has a minimum interval of ceil(1/dr2) in the 
+   * second dimension. This interval is variable in order to 
+   * include the first and last indices of the fine grid.
+   * @param r1min minimum slope in first dimension.
+   * @param r1max maximum slope in first dimension.
+   * @param dr1 sparse grid increment in first dimension. 
+   * @param r2max maximum slope in second dimension.
+   * @param dr2 sparse grid increment in second dimension. 
+   * @return shifts for 2D images.
+   */
+  public float[][] findShiftsM(
+      final float r1min, final float r1max, float dr1, float r2max, float dr2)
+  {
+//    final int[][] g1 = getSparseGrid2(dr1);
+    final int[] g1 = getSparseGrid(dr1);
+    final int dg2 = (int)ceil(1.0f/dr2);
+    final int[] g2 = Subsample.subsample( _n2,dg2);
+    dump(g1); dump(g2);
+//    final float[][][] es = smoothErrorsSparseM(r1min,r1max,g1,r2max,g2);
+    final float[][][] es = smoothErrorsSparse(r1min,r1max,g1,r2max,g2);
+    final int ng2 = es.length;
+    final float[][] u = new float[ng2][];
+    Parallel.loop(ng2,new Parallel.LoopInt() {
+    public void compute(int i2) {
+//      float[][][] dm = accumulateForward(es[i2],g1[i2],r1min,r1max);
+      float[][][] dm = accumulateForward(es[i2],g1,r1min,r1max);
+      u[i2] = backtrackReverse(dm[0],dm[1]);
+    }});
+//    float[][][] et1 = transposeLag12(es);
+//    new Viewer(et1,null,"Smoothed Errors 1",null,null,null,null,null,null,null,
+//        0f,1f,900,600,PlotPanel.Orientation.X1RIGHT_X2UP);
+//    float[][][] et2 = transposeLag12(transposeLag23(es));
+//    new Viewer(et2,null,"Smoothed Errors 2",null,null,null,null,null,null,null,
+//        0f,1f,900,600,PlotPanel.Orientation.X1RIGHT_X2UP);
+//    new Viewer(u,null,null,"Shifts before Interpolation",null,null,
+//        "sparse samples","sparse traces","shifts (samples)",ColorMap.JET,
+//        0,0,600,900,null);
+//    new Viewer(vpvs(u),null,null,"VpVs before Interpolation",null,null,
+//        "sparse samples","sparse traces","shifts (samples)",ColorMap.JET,
+//        0,0,600,900,null);
+    return interpolateSparseShifts(_ne1,_n2,g1,g2,u,_m2);
+  }
+  
+  private int[] getSparseGrid(float dr1) {
+    int dg1 = (int)ceil(1.0f/dr1);
+    float[] ea = new float[_ne1];
+    float[] et;
+    for (int i2=0; i2<_n2; i2++) {
+      et = getEnvelope(_pp2[i2]);
+      for (int i1=0; i1<_ne1; i1++) {
+        ea[i1] += et[i1];
+      }
+    }
+    return Subsample.subsample(ea,dg1);
+  }
+  
+  private int[][] getSparseGrid2(float dr1) {
+    int dg1 = (int)ceil(1.0f/dr1);
+    float[] ea = new float[_ne1];
+    float[] et;
+    for (int i2=0; i2<_n2; i2++) {
+      et = getEnvelope(_pp2[i2]);
+      for (int i1=0; i1<_ne1; i1++) {
+        ea[i1] += et[i1];
+      }
+    }
+    int[] gt = Subsample.subsample(ea,dg1);
+    int ng = gt.length;
+    int[][] g = new int[_n2][];
+    for (int i2=0; i2<_n2; i2++) {
+      float[] pp = new float[_ne1];
+      for (int i1=0; i1<_ne1; i1++) {
+        pp[i1] = _pp2[i2][i1];
+      }
+      g[i2] = Subsample.subsample(pp,dg1,ng);
+    }
+    return g;
+  }
+  
+    /**
    * Find shifts for 3D images. Shifts are computed on a sparse
    * grid and then interpolated with a tricubic interpolator.
    * @param r1min minimum slope in first dimension.
    * @param r1max maximum slope in first dimension.
    * @param dr1 sparse grid increment in first dimension. 
-   * @param r2min minimum slope in second dimension.
    * @param r2max maximum slope in second dimension.
    * @param dr2 sparse grid increment in second dimension. 
-   * @param r3min minimum slope in third dimension.
    * @param r3max maximum slope in third dimension.
    * @param dr3 sparse grid increment in third dimension.
    * @return shifts for 3D images.
    */
   public float[][][] findShifts(
-      float r1min, float r1max, float dr1,
-      float r2min, float r2max, float dr2,
-      float r3min, float r3max, float dr3)
+      final float r1min, final float r1max, float dr1,
+      float r2max, float dr2,
+      float r3max, float dr3)
   {
     final int dg1 = (int)ceil(1.0f/dr1);
     final int dg2 = (int)ceil(1.0f/dr2);
     final int dg3 = (int)ceil(1.0f/dr3);
-    final int[] g1 = Decompose.decompose(_ne1,dg1);
-    final int[] g2 = Decompose.decompose( _n2,dg2);
-    final int[] g3 = Decompose.decompose( _n3,dg3);
+    final int[] g1 = Subsample.subsample(_ne1,dg1);
+    final int[] g2 = Subsample.subsample( _n2,dg2);
+    final int[] g3 = Subsample.subsample( _n3,dg3);
     dump(g1); dump(g2); dump(g3);
     final float[][][][] es = smoothErrorsSparse(
-        r1min,r1max,g1,r2min,r2max,g2,r3min,r3max,g3);
+        r1min,r1max,g1,r2max,g2,r3max,g3);
     final int ng2 = es[0].length;
     final int ng3 = es.length;
-    final int k1min = (int)ceil( r1min/dr1);
-    final int k1max = (int)floor(r1max/dr1);
     final float[][][] u = new float[ng3][ng2][];
     Parallel.loop(ng3,new Parallel.LoopInt() {
     public void compute(int i3) {
       for (int i2=0; i2<ng2; i2++) {
-        float[][][] dm = accumulateForward(es[i3][i2],k1min,k1max);
+        float[][][] dm = accumulateForward(es[i3][i2],g1,r1min,r1max);
         u[i3][i2] = backtrackReverse(dm[0],dm[1]);  
       }
     }});
@@ -263,11 +409,46 @@ public class DynamicWarpingC {
   public float[][] findShifts2(float r1min, float r1max, float dr1) {
     final float[][] e = computeErrors2Average();
     final int dg1 = (int)ceil(1.0f/dr1);
-    final int[] g1 = Decompose.decompose(_ne1,dg1);
-//    dump(g1);
-    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,dr1);
+    final int[] g1 = Subsample.subsample(_ne1,dg1);
+    dump(g1);
+    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
     final float[] u1 = interpolateSparseShifts(_ne1,g1,
-        backtrackReverse(dm[0],dm[1]),_m);
+        backtrackReverse(dm[0],dm[1]),_m1);
+    final float[][] u = new float[_n2][];
+    for (int i2=0; i2<_n2; i2++) {
+      u[i2] = copy(u1);
+    }
+    return u;
+  }
+  
+  public float[][] findShifts2ndDim(float r2max, float dr2) {
+    float[][][] e = computeErrors2();
+    float[][][] et = transposeLag23(e);
+    int[] g2 = Subsample.subsample(_n2,(int)ceil(1.0f/dr2));
+    float[][] u = new float[_ne1][];
+    for (int i1=0; i1<_ne1; i1++) {
+      float[][][] dm = accumulateForwardSparse2(et[i1],r2max,g2);
+      u[i1] = interpolateSparseShifts(_n2,g2,backtrackReverse(dm[0],dm[1]),_m1);
+    }
+    return u;
+  }
+  
+  public float[][] findShifts2M(float r1min, float r1max, float dr1) {
+    final float[][] e = computeErrors2Average();
+    final int dg1 = (int)ceil(1.0f/dr1);
+    float[] ea = new float[_ne1];
+    float[] et;
+    for (int i2=0; i2<_n2; i2++) {
+      et = getEnvelope(_pp2[i2]);
+      for (int i1=0; i1<_ne1; i1++) {
+        ea[i1] += et[i1];
+      }
+    }
+    final int[] g1 = Subsample.subsample(ea,dg1);
+    dump(g1);
+    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
+    final float[] u1 = interpolateSparseShifts(_ne1,g1,
+        backtrackReverse(dm[0],dm[1]),_m1);
     final float[][] u = new float[_n2][];
     for (int i2=0; i2<_n2; i2++) {
       u[i2] = copy(u1);
@@ -286,11 +467,11 @@ public class DynamicWarpingC {
   public float[][][] findShifts3(float r1min, float r1max, float dr1) {
     final float[][] e = computeErrors3Average();
     final int dg1 = (int)ceil(1.0f/dr1);
-    final int[] g1 = Decompose.decompose(_ne1,dg1);
+    final int[] g1 = Subsample.subsample(_ne1,dg1);
     dump(g1);
-    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,dr1);
+    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
     final float[] u1 = interpolateSparseShifts(_ne1,g1,
-        backtrackReverse(dm[0],dm[1]),_m);
+        backtrackReverse(dm[0],dm[1]),_m1);
     final float[][][] u = new float[_n3][_n2][];
     for (int i3=0; i3<_n3; i3++) {
       for (int i2=0; i2<_n2; i2++) {
@@ -298,6 +479,106 @@ public class DynamicWarpingC {
       }
     }
     return u;
+  }
+  
+  private static float[] getEnvelope(float[] x) {
+    HilbertTransformFilter htf = new HilbertTransformFilter();
+    int n = x.length;
+    float[] y = new float[n];
+    float[] e = new float[n];
+    htf.apply(n,x,y);
+    for (int i=0; i<n; i++)
+      e[i] = sqrt(x[i]*x[i]+y[i]*y[i]);
+    return e;
+  }
+  
+  public float[][] getX1X2(float[] u, float dr1, boolean max) {
+    int dg1 = (int)ceil(1.0f/dr1);
+    int[] g1;
+    if (max) {
+      float[] ppe = new float[_ne1];
+      for (int i1=0; i1<_ne1; i1++)
+        ppe[i1] = _pp1[i1];
+      g1 = Subsample.subsample(ppe,dg1);
+    } else {
+      g1 = Subsample.subsample(_ne1,dg1);
+    }
+    int ng = g1.length;
+    float[] x1 = new float[ng];
+    float[] x2 = new float[ng];
+    for (int ig=0; ig<ng; ig++) {
+      x1[ig] = (float)g1[ig];
+      x2[ig] = (float)u[g1[ig]];
+    }
+    return new float[][]{x1,x2};
+  }
+  
+  public float[][][] getX1X2(
+      float[][] u, float dr1, boolean max, Sampling s1) {
+    int dg1 = (int)ceil(1.0f/dr1);
+    int[][] g = new int[_n2][];
+    if (max) {
+      float[] ea = new float[_ne1];
+      float[] et;
+      for (int i2=0; i2<_n2; i2++) {
+        et = getEnvelope(_pp2[i2]);
+        for (int i1=0; i1<_ne1; i1++) {
+          ea[i1] += et[i1];
+        }
+      }
+      int[] g1 = Subsample.subsample(ea,dg1);
+      for (int i2=0; i2<_n2; i2++)
+        g[i2] = copy(g1);
+//      float[] pp2t = new float[_ne1];
+//      for (int i2=0; i2<_n2; i2++) {
+//        for (int i1=0; i1<_ne1; i1++) {
+//          pp2t[i1] += _pp2[i2][i1];
+//        }
+//        g[i2] = Subsample.subsample(pp2t,dg1);
+//      }
+    } else {
+      int[] g1 = Subsample.subsample(_ne1,dg1);
+      for (int i2=0; i2<_n2; i2++) {
+        g[i2] = copy(g1);
+      }
+    }
+    int ng = g[0].length;
+    float[][] x1 = new float[_n2][ng];
+    float[][] x2 = new float[_n2][ng];
+    for (int i2=0; i2<_n2; i2++) {
+      for (int ig=0; ig<ng; ig++) {
+        x1[i2][ig] = (float)s1.getValue(g[i2][ig]);
+        x2[i2][ig] = (float)u[i2][g[i2][ig]];
+      }  
+    }
+    return new float[][][]{x1,x2};
+  }
+  
+  public float[][] getX1X2Avg2(
+      float[] u, float dr1, boolean max, Sampling s1) {
+    int dg1 = (int)ceil(1.0f/dr1);
+    int[] g1;
+    if (max) {
+      float[] ea = new float[_ne1];
+      float[] et;
+      for (int i2=0; i2<_n2; i2++) {
+        et = getEnvelope(_pp2[i2]);
+        for (int i1=0; i1<_ne1; i1++) {
+          ea[i1] += et[i1];
+        }
+      }
+      g1 = Subsample.subsample(ea,dg1);  
+    } else {
+      g1 = Subsample.subsample(_ne1,dg1);
+    }
+    int ng = g1.length;
+    float[] x1 = new float[ng];
+    float[] x2 = new float[ng];
+    for (int ig=0; ig<ng; ig++) {
+      x1[ig] = (float)s1.getValue(g1[ig]);
+      x2[ig] = (float)u[g1[ig]];
+    }
+    return new float[][]{x1,x2};
   }
   
   public float[] findShiftSums(float[][] u) {
@@ -380,42 +661,63 @@ public class DynamicWarpingC {
     return new float[][]{ps1w, ps2w};
   }
   
+  /**
+   * Computes an array of VpVs ratios an array of shifts u.
+   * The relationship is defined as vpvs(t) = 1+2*(du/dt)
+   * @param u
+   * @return computed vpvs values. 
+   */
   public static float[] vpvs(float[] u) {
-    int nu = u.length;
-    float[] vpvs = new float[nu];
-    float um1 = u[0] - (u[1]-u[0]);
-//    System.out.println(um1);
-    vpvs[0] = 1.0f + 2*(u[0]-um1);
-    for (int iu=1; iu<nu; ++iu) {
-      vpvs[iu] = 1.0f + 2*(u[iu]-u[iu-1]);
+    int n1 = u.length;
+    int n1m = n1-1;
+    float[] vpvs = new float[n1];
+    vpvs[ 0 ] = 1.0f;
+    vpvs[n1m] = 1.0f;
+    for (int i1=1; i1<n1m; ++i1) {
+      vpvs[i1] = 1.0f + 2*((u[i1+1]-u[i1-1])/2.0f);
     }
     return vpvs;
   }
   
+  /**
+   * Computes an array of VpVs ratios an array of shifts u.
+   * The relationship is defined as vpvs(t) = 1+2*(du/dt)
+   * @param u
+   * @return computed vpvs values. 
+   */
   public static float[][] vpvs(float[][] u) {
-    int nu = u[0].length;
+    int n1 = u[0].length;
+    int n1m = n1-1;
     int n2 = u.length;
-    float[][] vpvs = new float[n2][nu];
+    float[][] vpvs = new float[n2][n1];
     for (int i2=0; i2<n2; ++i2) {
-      float um1 = u[i2][0] - (u[i2][1]-u[i2][0]);
-      vpvs[i2][0] = 1.0f + 2*(u[i2][0]-um1);
-      for (int iu=1; iu<nu; ++iu) {
-        vpvs[i2][iu] = 1.0f+2*(u[i2][iu]-u[i2][iu-1]);
+      vpvs[i2][ 0 ] = 1.0f;
+      vpvs[i2][n1m] = 1.0f;
+      for (int i1=1; i1<n1m; ++i1) {
+        vpvs[i2][i1] = 1.0f+2*((u[i2][i1+1]-u[i2][i1-1])/2.0f);
       }
     }
     return vpvs;
   }
   
+  /**
+   * Computes an array of VpVs ratios an array of shifts u.
+   * The relationship is defined as vpvs(t) = 1+2*(du/dt)
+   * @param u
+   * @return computed vpvs values. 
+   */
   public static float[][][] vpvs(float[][][] u) {
     int n1 = u[0][0].length;
+    int n1m = n1-1;
     int n2 = u[0].length;
     int n3 = u.length;
     float[][][] vpvs = new float[n3][n2][n1];
     for (int i3=0; i3<n3; ++i3) {
       for (int i2=0; i2<n2; ++i2) {
-        vpvs[i3][i2][0] = 1.0f;
-        for (int i1=1; i1<n1; ++i1) {
-          vpvs[i3][i2][i1] = 1.0f+2*(u[i3][i2][i1]-u[i3][i2][i1-1]);
+        vpvs[i3][i2][ 0 ] = 1.0f;
+        vpvs[i3][i2][n1m] = 1.0f;
+        for (int i1=1; i1<n1m; ++i1) {
+          vpvs[i3][i2][i1] = 1.0f+2*((u[i3][i2][i1+1]-u[i3][i2][i1-1])/2.0f);
         }
       }  
     }
@@ -680,8 +982,6 @@ public class DynamicWarpingC {
     return e;
   }
 
-  
-  
   public static float[][] smoothErrors(float[][] e) {
     int n1 = e.length;
     int nl = e[0].length;
@@ -699,16 +999,24 @@ public class DynamicWarpingC {
     return es;
   }
   
-  public float[][] smoothErrorsSparse(float rmin, float rmax, int[] g)
+  /**
+   * Returns smooth alignment errors on a sparse grid. 
+   * @param e 2D array of alignment errors.
+   * @param rmin minimum slope in first dimension.
+   * @param rmax maximum slope in first dimension.
+   * @param g sparse grid points in first dimension.
+   * @return smoothed alignment errors.
+   */
+  public float[][] smoothErrorsSparse(
+      float[][] e, float rmin, float rmax, int[] g)
   {
     int ng = g.length;
-    float[][] e = computeErrors();
     float[][] ef = new float[ng][_nel];
     float[][] er = new float[ng][_nel];
     float[][] es = new float[ng][_nel];
     float[][] m  = new float[ng][_nel];
-    Map<Integer,float[][]> fmap = Decompose.getMXB(g,rmin,rmax,false);
-    Map<Integer,float[][]> rmap = Decompose.getMXB(g,rmin,rmax,true );
+    Map<Integer,float[][]> fmap = Subsample.getMXB(g,rmin,rmax,false);
+    Map<Integer,float[][]> rmap = Subsample.getMXB(g,rmin,rmax,true );
     accumulateSparse( 1,rmin,rmax,g,fmap,e,ef,m);
     accumulateSparse(-1,rmin,rmax,g,rmap,e,er,m);
     for (int i1=0; i1<ng; i1++) {
@@ -716,84 +1024,40 @@ public class DynamicWarpingC {
         es[i1][il] = ef[i1][il]+er[i1][il]-e[g[i1]][il];
       }
     }
-    normalizeErrors(es);
     return es;
   }
-  
+
   /**
    * Returns smooth alignment errors for 2D images on a sparse grid in
    * each dimension.
    * @param r1min minimum slope in first dimension.
    * @param r1max maximum slope in first dimension.
    * @param g1 sparse grid points in first dimension.
-   * @param r2min minimum slope in second dimension.
    * @param r2max maximum slope in second dimension.
    * @param g2 sparse grid points in second dimension.
    * @return smoothed alignment errors.
    */
   public float[][][] smoothErrorsSparse(
       final float r1min, final float r1max, final int[] g1,
-      final float r2min, final float r2max, final int[] g2)
+      final float r2max, final int[] g2)
   {
+    // Smooth alignment errors in first dimension for each trace.
     final int ng1 = g1.length;
-    final int ng2 = g2.length;
-    Stopwatch s = new Stopwatch();
-    s.start();
-    final float[][][] es2 = new float[_n2][ng1][_nel]; // smoothed trace errors
-    final Parallel.Unsafe<Map<Integer,float[][]>> fmap = 
-        new Parallel.Unsafe<Map<Integer,float[][]>>();
-    final Parallel.Unsafe<Map<Integer,float[][]>> rmap = 
-        new Parallel.Unsafe<Map<Integer,float[][]>>();
-    final Parallel.Unsafe<float[][][]> e2u = 
-        new Parallel.Unsafe<float[][][]>();
+//    Stopwatch s = new Stopwatch();
+//    s.start();
+    final float[][][] es2 = new float[_n2][ng1][_nel];
     Parallel.loop(_n2,new Parallel.LoopInt() {
     public void compute(int i2) {
-      Map<Integer,float[][]> fm = fmap.get();
-      Map<Integer,float[][]> rm = rmap.get();
-      float[][][] ee = e2u.get();
-      if (fm==null) fmap.set(fm=Decompose.getMXB(g1,r1min,r1max,false));
-      if (rm==null) rmap.set(rm=Decompose.getMXB(g1,r1min,r1max,true ));
-      if (ee==null) e2u.set(ee=new float[3][ng1][_nel]);
-      float[][]   m = ee[0]; // moves
-      float[][] ef2 = ee[1]; // forward errors
-      float[][] er2 = ee[2]; // reverse errors
-      float[][]   e = new float[_ne1][_nel]; // alignment errors
+      float [][] e = new float[_ne1][_nel];
       computeErrors(_pp2[i2],_ps2[i2],e);
-      accumulateSparse( 1,r1min,r1max,g1,fm,e,ef2,m);
-      accumulateSparse(-1,r1min,r1max,g1,rm,e,er2,m);
-      for (int i1=0; i1<ng1; i1++) {
-        for (int il=0; il<_nel; il++) {
-          es2[i2][i1][il] = ef2[i1][il]+er2[i1][il]-e[g1[i1]][il];
-        }
-      }
+      es2[i2] = smoothErrorsSparse(e,r1min,r1max,g1);
     }});
-//    final float[][][] es2 = new float[_n2][ng1][_nel]; // smoothed trace errors
-//    Map<Integer,float[][]> fm = Decompose.getMXB(g1,r1min,r1max,false);
-//    Map<Integer,float[][]> rm = Decompose.getMXB(g1,r1min,r1max,true );
-//    Stopwatch s = new Stopwatch();
-//    for (int i2=0; i2<_n2; i2++) {
-//      float[][]   m = new float[ng1][_nel]; // moves
-//      float[][] ef2 = new float[ng1][_nel]; // forward errors
-//      float[][] er2 = new float[ng1][_nel]; // reverse errors
-//      float[][]   e = new float[_ne1][_nel]; // alignment errors
-//      s.start();
-//      computeErrors(_pp2[i2],_ps2[i2],e);
-//      System.out.println("i2="+i2+": Compute Error time: "+s.time()+" seconds");
-//      s.restart();
-//      accumulateSparse( 1,r1min,r1max,g1,fm,e,ef2,m);
-//      System.out.println("i2="+i2+": Accumulation time: "+s.time()+" seconds");
-//      s.reset();
-////      accumulateSparse(-1,r1min,r1max,g1,rm,e,er2,m);
-//      for (int i1=0; i1<ng1; i1++) {
-//        for (int il=0; il<_nel; il++) {
-//          es2[i2][i1][il] = ef2[i1][il]+er2[i1][il]-e[g1[i1]][il];
-//        }
-//      }
-//    }
-    double s2 = s.time();
-    System.out.println("Finished 1st Dimension Smoothing in "+s2+" seconds");
+//    System.out.println("Finished 1st Dimension Smoothing in "+s.time()+
+//        " seconds");
     normalizeErrors(es2);
     
+//    s.restart();
+    final int ng2 = g2.length;
     final float[][][] es = new float[ng2][ng1][_nel]; // smoothed errors
     final Parallel.Unsafe<float[][][]> e1u = 
         new Parallel.Unsafe<float[][][]>();
@@ -816,8 +1080,8 @@ public class DynamicWarpingC {
       for (int i2=0; i2<_n2; ++i2) {
         e1[i2] = es2[i2][i1];
       }
-      accumulateSparse2( 1,r2min,r2max,g2,e1,ef1,m);
-      accumulateSparse2(-1,r2min,r2max,g2,e1,er1,m);
+      accumulateSparse2( 1,r2max,g2,e1,ef1,m);
+      accumulateSparse2(-1,r2max,g2,e1,er1,m);
       for (int i2=0; i2<ng2; ++i2) {
         for (int il=0; il<_nel; ++il) {
           es1[i2][il] = ef1[i2][il]+er1[i2][il]-e1[g2[i2]][il];
@@ -825,125 +1089,77 @@ public class DynamicWarpingC {
       }
     }});
     normalizeErrors(es);
-    double s1 = s.time();
-    System.out.println("Finished 2nd Dimension Smoothing in "+(s1-s2)+
-        " seconds");
-
+//    System.out.println("Finished 2nd Dimension Smoothing in "+s.time()+
+//        " seconds");
     return es;
   }
   
-//  /**
-//   * Returns smooth alignment errors for 3D images on a sparse grid in
-//   * each dimension.
-//   * @param r1min minimum slope in first dimension.
-//   * @param r1max maximum slope in first dimension.
-//   * @param g1 sparse grid points in first dimension.
-//   * @param r2min minimum slope in second dimension.
-//   * @param r2max maximum slope in second dimension.
-//   * @param g2 sparse grid points in second dimension.
-//   * @param r3min minimum slope in third dimension.
-//   * @param r3max maximum slope in third dimension.
-//   * @param g3 sparse grid points in third dimension.
-//   * @return smoothed alignment errors.
-//   */
-//  public float[][][][] smoothErrorsSparse(
-//      final float r1min, final float r1max, final int[] g1,
-//      final float r2min, final float r2max, final int[] g2,
-//      final float r3min, final float r3max, final int[] g3)
-//  {
-//    final int ng1 = g1.length;
-//    final int ng2 = g2.length;
-//    final int ng3 = g3.length;
-//    
-//    final float[][][][] es3 = new float[_n3][ng2][ng1][_nel]; // smoothed errors
-//    Parallel.loop(_n3,new Parallel.LoopInt() {
-//    public void compute(int i3) {
-//      Stopwatch s = new Stopwatch();
-//      s.start();
-//      System.out.println("Starting i3 "+i3);
-//      float[][][] es2 = new float[_n2][ng1][_nel]; // smoothed trace errors      
-//      for (int i2=0; i2<_n2; i2++) {
-//        float[][]   m = new float[ ng1][_nel]; // moves
-//        float[][] ef2 = new float[ ng1][_nel]; // forward errors
-//        float[][] er2 = new float[ ng1][_nel]; // reverse errors
-//        float[][]   e = new float[_ne1][_nel]; // alignment errors
-//        computeErrors(_pp3[i3][i2],_ps3[i3][i2],e);
-//        accumulateSparse( 1,r1min,r1max,g1,e,ef2,m);
-//        accumulateSparse(-1,r1min,r1max,g1,e,er2,m);
-//        for (int i1=0; i1<ng1; i1++) {
-//          for (int il=0; il<_nel; il++) {
-//            es2[i2][i1][il] = ef2[i1][il]+er2[i1][il]-e[g1[i1]][il];
-//          }
-//        }
-//      }
-//      normalizeErrors(es2);
-//      double s1 = s.time();
-//      System.out.println(i3+": Finished 1st Dimension Smoothing in "+s1);
-//      
-//      for (int i1=0; i1<ng1; i1++) {
-//        float[][]   m = new float[ng2][_nel]; // moves
-//        float[][] es1 = new float[ng2][_nel]; // smooth sparse errors at index i1 
-//        float[][] ef1 = new float[ng2][_nel]; // forward errors
-//        float[][] er1 = new float[ng2][_nel]; // reverse errors
-//        float[][]  e1 = new float[_n2][_nel]; // smooth errors at index i1
-//        for (int i2=0; i2<ng2; ++i2) {
-//          es1[i2] = es3[i3][i2][i1];
-//          for (int il=0; il<_nel; ++il) {
-//            ef1[i2][il] = 0.0f;
-//            er1[i2][il] = 0.0f;
-//          }
-//        }
-//        for (int i2=0; i2<_n2; ++i2) {
-//          e1[i2] = es2[i2][i1];
-//        }
-//        accumulateSparse2( 1,r2min,r2max,g2,e1,ef1,m);
-//        accumulateSparse2(-1,r2min,r2max,g2,e1,er1,m);
-//        for (int i2=0; i2<ng2; ++i2) {
-//          for (int il=0; il<_nel; ++il) {
-//            es1[i2][il] = ef1[i2][il]+er1[i2][il]-e1[g2[i2]][il];
-//          }
-//        }
-//      }
-//      double s2 = s.time();
-//      System.out.println(i3+": Finished 2nd Dimension Smoothing in "+(s2-s2));
-//    }});
-//    normalizeErrors(es3);
-//    
-//    final float[][][][] es = new float[ng3][ng2][ng1][_nel]; // smoothed errors
-//    final Parallel.Unsafe<float[][][]> e12u = 
-//        new Parallel.Unsafe<float[][][]>();
-//    Parallel.loop(ng1,new Parallel.LoopInt() {
-//    public void compute(int i1) {
-//      for (int i2=0; i2<ng2; i2++) {
-//        float[][][] ee = e12u.get();
-//        if (ee==null) e12u.set(ee=new float[4][ng3][_nel]);
-//        float[][]    m = ee[0]; // moves
-//        float[][] es12 = ee[1]; // smooth sparse errors at index i1 
-//        float[][] ef12 = ee[2]; // forward errors
-//        float[][] er12 = ee[3]; // reverse errors
-//        float[][]  e12 = new float[_n3][_nel]; // smooth errors at index i1
-//        for (int i3=0; i3<ng3; i3++) {
-//          es12[i3] = es3[i3][i2][i1];
-//          for (int il=0; il<_nel; ++il) {
-//            ef12[i3][il] = 0.0f;
-//            er12[i3][il] = 0.0f;
-//          }
-//        }
-//        for (int i3=0; i3<_n3; i3++) {
-//          e12[i3] = es3[i3][i2][i1];
-//        }
-//        accumulateSparse2( 1,r3min,r3max,g3,e12,ef12,m);
-//        accumulateSparse2(-1,r3min,r3max,g3,e12,er12,m);
-//        for (int i3=0; i3<ng3; i3++) {
-//          for (int il=0; il<_nel; ++il) {
-//            es12[i3][il] = ef12[i3][il]+er12[i3][il]-e12[g3[i3]][il];
-//          }
-//        }  
-//      }
-//    }});
-//    normalizeErrors(es);
-//    return es;
-//  }
+  /**
+   * Returns smooth alignment errors for 2D images on a sparse grid in
+   * each dimension.
+   * @param r1min minimum slope in first dimension.
+   * @param r1max maximum slope in first dimension.
+   * @param g1 sparse grid points in first dimension.
+   * @param r2max maximum slope in second dimension.
+   * @param g2 sparse grid points in second dimension.
+   * @return smoothed alignment errors.
+   */
+  public float[][][] smoothErrorsSparseM(
+      final float r1min, final float r1max, final int[][] g1,
+      final float r2max, final int[] g2)
+  {
+    // Smooth alignment errors in first dimension for each trace.
+//    Stopwatch s = new Stopwatch();
+//    s.start();
+    int ng1 = g1[0].length;
+    final float[][][] es2 = new float[_n2][ng1][_nel];
+    Parallel.loop(_n2,new Parallel.LoopInt() {
+    public void compute(int i2) {
+      float [][] e = new float[_ne1][_nel];
+      computeErrors(_pp2[i2],_ps2[i2],e);
+      es2[i2] = smoothErrorsSparse(e,r1min,r1max,g1[i2]);
+    }});
+//    System.out.println("Finished 1st Dimension Smoothing in "+s.time()+
+//        " seconds");
+    normalizeErrors(es2);
+    
+//    s.restart();
+    final int ng2 = g2.length;
+    final float[][][] es = new float[ng2][ng1][_nel]; // smoothed errors
+    final Parallel.Unsafe<float[][][]> e1u = 
+        new Parallel.Unsafe<float[][][]>();
+    Parallel.loop(ng1,new Parallel.LoopInt() {
+    public void compute(int i1) {
+      float[][][] ee = e1u.get();
+      if (ee==null) e1u.set(ee=new float[4][ng2][_nel]);
+      float[][]   m = ee[0]; // moves
+      float[][] es1 = ee[1]; // smooth sparse errors at index i1 
+      float[][] ef1 = ee[2]; // forward errors
+      float[][] er1 = ee[3]; // reverse errors
+      float[][]  e1 = new float[_n2][_nel]; // smooth errors at index i1
+      for (int i2=0; i2<ng2; ++i2) {
+        es1[i2] = es[i2][i1];
+        for (int il=0; il<_nel; ++il) {
+          ef1[i2][il] = 0.0f;
+          er1[i2][il] = 0.0f;
+        }
+      }
+      for (int i2=0; i2<_n2; ++i2) {
+        e1[i2] = es2[i2][i1];
+      }
+      accumulateSparse2( 1,r2max,g2,e1,ef1,m);
+      accumulateSparse2(-1,r2max,g2,e1,er1,m);
+      for (int i2=0; i2<ng2; ++i2) {
+        for (int il=0; il<_nel; ++il) {
+          es1[i2][il] = ef1[i2][il]+er1[i2][il]-e1[g2[i2]][il];
+        }
+      }
+    }});
+    normalizeErrors(es);
+//    System.out.println("Finished 2nd Dimension Smoothing in "+s.time()+
+//        " seconds");
+    return es;
+  }
   
   /**
    * Returns smooth alignment errors for 3D images on a sparse grid in
@@ -951,7 +1167,6 @@ public class DynamicWarpingC {
    * @param r1min minimum slope in first dimension.
    * @param r1max maximum slope in first dimension.
    * @param g1 sparse grid points in first dimension.
-   * @param r2min minimum slope in second dimension.
    * @param r2max maximum slope in second dimension.
    * @param g2 sparse grid points in second dimension.
    * @param r3min minimum slope in third dimension.
@@ -961,8 +1176,8 @@ public class DynamicWarpingC {
    */
   public float[][][][] smoothErrorsSparse(
       final float r1min, final float r1max, final int[] g1,
-      final float r2min, final float r2max, final int[] g2,
-      final float r3min, final float r3max, final int[] g3)
+      final float r2max, final int[] g2,
+      final float r3max, final int[] g3)
   {
     final int ng1 = g1.length;
     final int ng2 = g2.length;
@@ -985,8 +1200,8 @@ public class DynamicWarpingC {
         Map<Integer,float[][]> fm = fmap.get();
         Map<Integer,float[][]> rm = rmap.get();
         float[][][] ee = e2u.get();
-        if (fm==null) fmap.set(fm=Decompose.getMXB(g1,r1min,r1max,false));
-        if (rm==null) rmap.set(rm=Decompose.getMXB(g1,r1min,r1max,true ));
+        if (fm==null) fmap.set(fm=Subsample.getMXB(g1,r1min,r1max,false));
+        if (rm==null) rmap.set(rm=Subsample.getMXB(g1,r1min,r1max,true ));
         if (ee==null) e2u.set(ee=new float[3][ng1][_nel]);
         float[][]   m = ee[0]; // moves
         float[][] ef2 = ee[1]; // forward errors
@@ -1027,8 +1242,8 @@ public class DynamicWarpingC {
         for (int i2=0; i2<_n2; ++i2) {
           e1[i2] = es2[i2][i1];
         }
-        accumulateSparse2( 1,r2min,r2max,g2,e1,ef1,m);
-        accumulateSparse2(-1,r2min,r2max,g2,e1,er1,m);
+        accumulateSparse2( 1,r2max,g2,e1,ef1,m);
+        accumulateSparse2(-1,r2max,g2,e1,er1,m);
         for (int i2=0; i2<ng2; ++i2) {
           for (int il=0; il<_nel; ++il) {
             es1[i2][il] = ef1[i2][il]+er1[i2][il]-e1[g2[i2]][il];
@@ -1065,8 +1280,8 @@ public class DynamicWarpingC {
         for (int i3=0; i3<_n3; i3++) {
           e12[i3] = es3[i3][i2][i1];
         }
-        accumulateSparse2( 1,r3min,r3max,g3,e12,ef12,m);
-        accumulateSparse2(-1,r3min,r3max,g3,e12,er12,m);
+        accumulateSparse2( 1,r3max,g3,e12,ef12,m);
+        accumulateSparse2(-1,r3max,g3,e12,er12,m);
         for (int i3=0; i3<ng3; i3++) {
           for (int il=0; il<_nel; il++) {
             es12[i3][il] = ef12[i3][il]+er12[i3][il]-e12[g3[i3]][il];
@@ -1095,10 +1310,12 @@ public class DynamicWarpingC {
     return new float[][][]{d,m};
   }
   
-  public float[][][] accumulateForward(float[][] e, int kmin, int kmax) {
+  public float[][][] accumulateForward(
+      float[][] e, int[] g, float rmin, float rmax)
+  {
     float[][] d = like(e);
     float[][] m = like(e);
-    accumulate(1,e,d,m,kmin,kmax);
+    accumulate(1,e,d,m,g,rmin,rmax);
     normalizeErrors(d);
     return new float[][][]{d,m};
   }
@@ -1141,17 +1358,14 @@ public class DynamicWarpingC {
   }
   
   public float[][][] accumulateForwardSparse(
-      float[][] e, float rmin, float rmax, float dr)
+      float[][] e, float rmin, float rmax, int[] g)
   {
-    int n1 = e.length;
     int nl = e[0].length;
-    int dg = (int)ceil(1.0f/dr);
-    int[] g = Decompose.decompose(n1,dg);
     int ng = g.length;
-    System.out.println("ng="+ng+", dg="+dg);
     float[][] d = new float[ng][nl];
     float[][] m = new float[ng][nl];
-    Map<Integer,float[][]> mxbMap = Decompose.getMXB(g,rmin,rmax,false);
+    Map<Integer,float[][]> mxbMap = Subsample.getMXB(g,rmin,rmax,false);
+    System.out.println("slope map size="+mxbMap.size());
     Stopwatch s = new Stopwatch();
     s.start();
     accumulateSparse(1,rmin,rmax,g,mxbMap,e,d,m);
@@ -1161,48 +1375,42 @@ public class DynamicWarpingC {
   }
   
   public float[][][] accumulateForwardSparse2(
-      float[][] e, float rmin, float rmax, float dr)
+      float[][] e, float rmax, int[] g)
   {
-    int n1 = e.length;
-    int dg = (int)ceil(1.0f/dr);
-    int[] g = Decompose.decompose(n1,dg);
     int ng = g.length;
     int nl = e[0].length;
     float[][] d = new float[ng][nl];
     float[][] m = new float[ng][nl];
-    accumulateSparse2(1,rmin,rmax,g,e,d,m);  
+    accumulateSparse2(1,rmax,g,e,d,m);
     normalizeErrors(d);
     return new float[][][]{d,m};
   }
   
   public float[][][] accumulateReverseSparse(
-      float[][] e, float rmin, float rmax, float dr)
+      float[][] e, float rmin, float rmax, int[] g)
   {
-    int n1 = e.length;
-    int dg = (int)ceil(1.0f/dr);
-    int[] g = Decompose.decompose(n1,dg);
-    Map<Integer,float[][]> mxbMap = Decompose.getMXB(g,rmin,rmax,true);
-    int ng = g.length;
     int nl = e[0].length;
+    int ng = g.length;
     float[][] d = new float[ng][nl];
     float[][] m = new float[ng][nl];
+    Map<Integer,float[][]> mxbMap = Subsample.getMXB(g,rmin,rmax,true);
+    System.out.println("slope map size="+mxbMap.size());
+    Stopwatch s = new Stopwatch();
+    s.start();
     accumulateSparse(-1,rmin,rmax,g,mxbMap,e,d,m);
+    System.out.println("accumulateSparse time: "+s.time()+" seconds");
     normalizeErrors(d);
     return new float[][][]{d,m};
   }
   
   public float[][][] accumulateReverseSparse2(
-      float[][] e, float rmin, float rmax, float dr)
+      float[][] e, float rmax, int[] g)
   {
-    int n1 = e.length;
-    int dg = (int)ceil(1.0f/dr);
-    int[] g = Decompose.decompose(n1,dg);
     int ng = g.length;
     int nl = e[0].length;
-    System.out.println("dg="+dg+", ng="+ng);
     float[][] d = new float[ng][nl];
     float[][] m = new float[ng][nl];
-    accumulateSparse2(-1,rmin,rmax,g,e,d,m);  
+    accumulateSparse2(-1,rmax,g,e,d,m);  
     normalizeErrors(d);
     return new float[][][]{d,m};
   }
@@ -1283,7 +1491,8 @@ public class DynamicWarpingC {
   }
 
   public static float[][] interpolateSparseShifts(
-      int n1, int n2, int[] g1, int[] g2, float[][] u)
+      int n1, int n2, int[] g1, int[] g2, float[][] u, 
+      BicubicInterpolator2.Method m)
   {
     int ng1 = g1.length;
     int ng2 = g2.length;
@@ -1298,14 +1507,35 @@ public class DynamicWarpingC {
       g2f[ig] = (float)g2[ig];
     }
     
-    BicubicInterpolator2 bi = new BicubicInterpolator2(
-        BicubicInterpolator2.Method.MONOTONIC,
-        BicubicInterpolator2.Method.MONOTONIC,
-        g1f,g2f,u);
     Sampling s1 = new Sampling(n1,1.0,0.0);
     Sampling s2 = new Sampling(n2,1.0,0.0);
-    return bi.interpolate(s1,s2);
+    BilinearInterpolator2 bli = new BilinearInterpolator2(g1f,g2f,u);
+    return bli.interpolate(s1,s2);
+//    BicubicInterpolator2 bci = new BicubicInterpolator2(m,m,g1f,g2f,u);
+//    return bci.interpolate(s1,s2);
   }
+  
+//  public static float[][] interpolateSparseShifts(
+//      int n1, int n2, int[][] g1, int[] g2, float[][] u)
+//  {
+//    int ng1 = g1.length;
+//    int ng2 = g2.length;
+//    Check.argument(ng1==u[0].length,"ng1==u[0].length: "+ng1+"=="+u[0].length);
+//    Check.argument(ng2==u.length,"ng2==u.length: "+ng2+"=="+u.length);
+//    float[] g1f = new float[ng1];
+//    float[] g2f = new float[ng2];
+//    for (int ig=0; ig<ng1; ig++) {
+//      g1f[ig] = (float)g1[ig];
+//    }
+//    for (int ig=0; ig<ng2; ig++) {
+//      g2f[ig] = (float)g2[ig];
+//    }
+//    
+//    BicubicInterpolator2 bi = new BicubicInterpolator2(m,m,g1f,g2f,u);
+//    Sampling s1 = new Sampling(n1,1.0,0.0);
+//    Sampling s2 = new Sampling(n2,1.0,0.0);
+//    return bi.interpolate(s1,s2);
+//  }
   
   public static float[][][] interpolateSparseShifts(
       int n1, int n2, int n3, int[] g1, int[] g2, int[] g3, float[][][] u)
@@ -1599,7 +1829,12 @@ public class DynamicWarpingC {
   private float[][] _ps2; // ps traces
   private float[][][] _pp3; // pp traces
   private float[][][] _ps3; // ps traces
-  private CubicInterpolator.Method _m = CubicInterpolator.Method.MONOTONIC;
+  private CubicInterpolator.Method _m1 =  
+      CubicInterpolator.Method.MONOTONIC; // 1D shift interpolation method
+  private BicubicInterpolator2.Method _m2 = 
+      BicubicInterpolator2.Method.MONOTONIC; // 2D shift interpolation method
+  private TricubicInterpolator3.Method _m3 =
+      TricubicInterpolator3.Method.MONOTONIC; // 3D shift interpolation method
   private int _fr; // fractional shift factor (1.0/_fr is the shift interval)
   private int _frMax; // fractional shift max. Controls maximum strain.
   private int _k2Min; // minimum constraint on second derivative of u
@@ -1903,7 +2138,9 @@ public class DynamicWarpingC {
   }
   
   private static void accumulate(
-      int dir, float[][] e, float[][] d, float[][] m, int kmin, int kmax) {
+      int dir, float[][] e, float[][] d, float[][] m, int[] g,
+      float rmin, float rmax)
+  {
     int nl = e[0].length;
     int nlm1 = nl-1;
     int ni = e.length;
@@ -1920,34 +2157,24 @@ public class DynamicWarpingC {
     ii+=is;
     for (; ii!=ie; ii+=is) {
       int ji = ii-is;
+      int iemax = g[ii];
+      int iemin = g[ji];
+      int dg = abs(iemax-iemin); // sparse grid delta
+      int kmin = (int)ceil( rmin*dg);
+      int kmax = (int)floor(rmax*dg);
+      
       for (int il=0; il<nl; ++il) {
-        int ks = kmin;
-        int ke = kmax;
-//        while ((il+ke*ic)<0) ke+=ic;
-//        while ((il+ke*ic)>nlm1) ke-=ic;
-        if (dir>0) {
-          if ((il+ks*ic)<0) {
-            m[ji][il] = 0;
-            d[ii][il] = dmax+e[ii][il];
-            continue;
-          }
-          while ((il+ke*ic)<0) ke+=ic;
-        } else {
-          if ((il+ks*ic)>nlm1) {
-            m[ji][il] = 0;
-            d[ii][il] = dmax+e[ii][il];
-            continue;
-          }
-          while ((il+ke*ic)>nlm1) ke-=ic;
-        }
-        
         float dm = dmax;
         int mi = 0;
-        for (int k=ks; k<=ke; k++) {
-          float dc = d[ji][il+k*ic];
+        for (int k=kmin; k<=kmax; k++) {
+          int rk = k*ic;
+          int ik = il+rk;
+          if (ik<0 || ik>nlm1)
+            continue;
+          float dc = d[ji][ik];
           if (dc<dm) {
             dm = dc;
-            mi = k*ic;
+            mi = rk;
           }
         }
         m[ji][il] = mi;
@@ -2056,7 +2283,7 @@ public class DynamicWarpingC {
     }
   }
   
-private static void accumulateSparse(
+  private static void accumulateSparse(
       int dir, float rmin, float rmax, int[] g, Map<Integer,float[][]> mxbMap,
       float[][] e, float[][] d, float[][] m)
   {
@@ -2072,11 +2299,6 @@ private static void accumulateSparse(
     int isp = ib; // sparse grid index
     int ier = g[isp]; // error index
     float dmax = n1; // default accumulation max value
-//    Stopwatch liTimer = new Stopwatch();
-    
-    // Setup interpolation for alignment errors
-    LinearInterpolator li = new LinearInterpolator();
-    li.setUniform(nl,1.0,0.0,n1,1.0,0.0,e);
     
     // Initialize accumulation values
     for (int il=0; il<nl; ++il) {
@@ -2089,7 +2311,6 @@ private static void accumulateSparse(
       int ispm = isp-is; // previous sparse grid index
       ier = g[isp]; // new error index
       int iermin = g[ispm]; // min error index for interpolation.
-      int i1x = iermin*is;
       int dg = abs(ier-iermin); // sparse grid delta
       float[][] dgmxb = mxbMap.get(dg);
       int kmin = (int)ceil( rmin*dg);
@@ -2107,13 +2328,8 @@ private static void accumulateSparse(
           int ik = il+rk;
           if (ik<0 || ik>nlm1)
             continue;
-          float[] mxb = dgmxb[k];
-          float dc = d[ispm][ik];
-//          liTimer.start();
-          for (int x=1; x<dg; x++) {
-            dc += li.interpolate(il+mxb[x],i1x+x);
-          }
-//          liTimer.stop();
+//          float dc = interpSlope(rk,is,dg,il,iermin,ier,d[ispm][ik],e);
+          float dc = interpSlope(rk,is,il,iermin,ier,dgmxb[k],d[ispm][ik],e);
           if (dc<dm) {
             dm = dc;
             mi = rk;
@@ -2123,12 +2339,54 @@ private static void accumulateSparse(
         d[isp ][il] = dm+e[ier][il];
       }
     }
-//    System.out.println("Linear Interpolation time: "+liTimer.time()+" seconds");
+  }
+  
+  private static float interpSlope (
+      int k, int is, int dg, int il, int iemin, int iemax, 
+      float dp, float[][] e) 
+  {
+    float dc = dp;
+    if (k==0) {
+      for (int x=iemin+is; x!=iemax; x+=is) {
+        dc += e[x][il]; 
+      }
+    } else {
+      double slope = (double)-k*is/dg;
+      for (int x=iemin+is; x!=iemax; x+=is) {
+        double y = il+(slope*(x-iemin)+k);
+        int y1 = (int)y;
+        int y2 = y1+1;
+        dc += (y2-y)*e[x][y1]+(y-y1)*e[x][y2];
+      }
+    }
+    return dc;
+  }
+  
+  private static float interpSlope (
+      int k, int is, int il, int iemin, int iemax, 
+      float[] mxb, float dp, float[][] e) 
+  {
+    float dc = dp;
+    if (k==0) {
+      for (int x=iemin+is; x!=iemax; x+=is) {
+        dc += e[x][il]; 
+      }
+    } else {
+      int n = mxb.length;
+      int nm = n-1;
+      for (int x=1; x<nm; x++) {
+        int ex = iemin+is*x;
+        double y = il+mxb[x];
+        int y1 = (int)y;
+        int y2 = y1+1;
+        dc += (y2-y)*e[ex][y1]+(y-y1)*e[ex][y2];
+      }
+    }
+    return dc;
   }
   
   private static void accumulateSparse2(
-      int dir, float rmin, float rmax, int[] g,
-      float[][] e, float[][] d, float[][] m)
+      int dir, float rmax, int[] g, float[][] e, float[][] d, float[][] m)
   {
     int n1   = e.length;
     int nl   = e[0].length;
@@ -2141,10 +2399,6 @@ private static void accumulateSparse(
     int isp = ib; // sparse grid index
     int ier = g[isp]; // error index
     float dmax = n1; // default accumulation max value
-    
-    // Setup interpolation for alignment errors
-    LinearInterpolator li = new LinearInterpolator();
-    li.setUniform(nl,1.0,0.0,n1,1.0,0.0,e);
     
     // Initialize accumulation values
     for (int il=0; il<nl; ++il) {
@@ -2161,40 +2415,17 @@ private static void accumulateSparse(
       
       // Loop over all lags.
       for (int il=0; il<nl; ++il) {
-        int kminU = (int)ceil(rmin*dg);
-        int kmaxU = (int)floor(rmax*dg);
-        int kminD = -kminU;
-        int kmaxD = -kmaxU;
+        int kmax = (int)floor(rmax*dg);
+        int kmin = -kmax;
+        while ((il+kmin)<0) kmin++;
+        while ((il+kmax)>nlm1) kmax--;
         float dm = dmax; // Initialize minimum accumulation error.
         int mi = 0; // Initalize move index
         
         // Loop over all possible slopes, interpolating the alignment
         // errors between the sparse grid points.
-        for (int k=kmaxD; k<=kminD; k++) {
-          if ((il+k)<0)
-            continue;
-          float slope = abs((float)k/dg);
-          float dc = d[ispm][il+k];
-          for (int j=iermin+is; j!=ier; j+=is) {
-            double x1 = il+(slope*is*(j-iermin)+k);
-            double x2 = j;
-            dc += li.interpolate(x1,x2);
-          }
-          if (dc<dm) {
-            dm = dc;
-            mi = k;
-          }
-        }
-        for (int k=kminU; k<=kmaxU; k++) {
-          if ((il+k)>nlm1)
-            continue;
-          float slope = (float)k/dg;
-          float dc = d[ispm][il+k];
-          for (int j=iermin+is; j!=ier; j+=is) {
-            double x1 = il+(-slope*is*(j-iermin)+k);
-            double x2 = j;
-            dc += li.interpolate(x1,x2);
-          }
+        for (int k=kmin; k<=kmax; k++) {
+          float dc = interpSlope(k,is,dg,il,iermin,ier,d[ispm][il+k],e);
           if (dc<dm) {
             dm = dc;
             mi = k;

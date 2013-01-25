@@ -2,6 +2,7 @@ package util;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.IndexColorModel;
@@ -28,13 +29,14 @@ import edu.mines.jtk.util.Check;
 import edu.mines.jtk.util.Clips;
 
 public class Viewer {
-  
+
   public enum CMaps {
     GRAY("gray",ColorMap.GRAY),
     JET("jet",ColorMap.JET),
     HUE("hue",ColorMap.HUE),
     BWR("blue white red",ColorMap.BLUE_WHITE_RED),
-    PRISM("prism",ColorMap.PRISM);
+    PRISM("prism",ColorMap.PRISM),
+    AT("alpha test",ColorMap.JET);
     
     private CMaps(String s, IndexColorModel cim) {
       _s = s;
@@ -59,149 +61,78 @@ public class Viewer {
   }
   
   public Viewer(float[][] f) {
-    this(f,null,null,null,null,null,null,null,null,null,0.0f,0.0f,0,0,null);
+    this(f,null);
   }
   
-  public Viewer(float[][] f, float[][] g, float[] points, String title, 
-      Sampling s1, Sampling s2, String s1Label, String s2Label, String cbar, 
-      float clipMin, float clipMax, int width, int height,
-      Orientation orientation) 
-  {
-    this(f,g,points,title,s1,s2,s1Label,s2Label,cbar,null,clipMin,clipMax,
-        width,height,orientation);
+  public Viewer(float[][] f, Orientation o) {
+    this(null,null,f,o);
   }
   
-  public Viewer(float[][] f, float[][] g, float[] points, String title, 
-      Sampling s1, Sampling s2, String s1Label, String s2Label, String cbar, 
-      IndexColorModel cmap, float clipMin, float clipMax, int width, int height,
-      Orientation orientation) 
-  {
-    title = (title==null)?"":title;
-    s1 = (s1==null)?new Sampling(f[0].length):s1;
-    s2 = (s2==null)?new Sampling(f.length   ):s2;
-    s1Label = (s1Label==null)?"":s1Label;
-    s2Label = (s2Label==null)?"":s2Label;
-    orientation = (orientation==null)?Orientation.X1DOWN_X2RIGHT:orientation;
+  public Viewer(Sampling s1, Sampling s2, float[][] f) {
+    this(s1,s2,f,null);
+  }
+  
+  public Viewer(Sampling s1, Sampling s2, float[][] f, Orientation o) {
+    _s1 = (s1==null)?new Sampling(f[0].length):s1;
+    _s2 = (s2==null)?new Sampling(f.length   ):s2;
+    o  = (o==null )?Orientation.X1DOWN_X2RIGHT:o;
     
-    init2D(
-        f,g,points,title,s1,s2,s1Label,s2Label,cbar,cmap,clipMin,clipMax,
-        width,height,orientation);
+    // Make initial panel.
+    _pp = new PlotPanel(o);
+//    Font font = _pp.getFont();
+//    System.out.println(_pp.getFont().getName());
+    _pv1 = _pp.addPixels(_s1,_s2,f);
+    
+    JMenuBar menuBar = new JMenuBar();
+    _options = new JMenu("Options");
+    addClipOptions(_options,_pv1,null);
+    addColorOptions(_options,_pv1,null);
+    menuBar.add(_options);
+    
+    // Add everything to the PlotFrame, and display.
+    _pf = new PlotFrame(_pp);
+//    _pf.setFont(font);
+    _pf.setJMenuBar(menuBar);
+    _pf.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
   }
   
   public Viewer(float[][][] f) {
-    this(f,null,null,null,null,null,null,null,null,null,0.0f,0.0f,0,0,null);
+    this(f,null);
   }
   
-  public Viewer(float[][][] f, float[][] points, String title, 
-      Sampling s1, Sampling s2, Sampling s3,
-      String s1Label, String s2Label, String s3Label, String cbar,
-      float clipMin, float clipMax, int width, int height,
-      Orientation orientation) 
-  {
-    this(f,points,title,s1,s2,s3,s1Label,s2Label,s3Label,cbar,null,
-        clipMin,clipMax,width,height,orientation);
+  public Viewer(float[][][] f, Orientation o) {
+    this(null,null,null,f,o);
   }
   
-  public Viewer(float[][][] f, float[][] points, String title, 
-      Sampling s1, Sampling s2, Sampling s3,
-      String s1Label, String s2Label, String s3Label, String cbar,
-      IndexColorModel cmap, float clipMin, float clipMax, int width, int height,
-      Orientation orientation) 
+  public Viewer(Sampling s1, Sampling s2, Sampling s3, float[][][] f) {
+    this(s1,s2,s3,f,null);
+  }
+  
+  public Viewer(
+      Sampling s1, Sampling s2, Sampling s3, float[][][] f, Orientation o)
   {
-    title = (title==null)?"":title;
-    s1 = (s1==null)?new Sampling(f[0][0].length):s1;
-    s2 = (s2==null)?new Sampling(f[0].length   ):s2;
-    s3 = (s3==null)?new Sampling(f.length      ):s3;
-    s1Label = (s1Label==null)?"":s1Label;
-    s2Label = (s2Label==null)?"":s2Label;
-    s3Label = (s3Label==null)?"":s3Label;
-    orientation = (orientation==null)?Orientation.X1DOWN_X2RIGHT:orientation;
+    _f = f;
+    _s1 = (s1==null)?new Sampling(f[0][0].length):s1;
+    _s2 = (s2==null)?new Sampling(f[0].length   ):s2;
+    _s3 = (s3==null)?new Sampling(f.length      ):s2;
+    o  = (o==null )?Orientation.X1DOWN_X2RIGHT:o;
     
-    init3D(f,points,title,s1,s2,s3,s1Label,s2Label,s3Label,cbar,cmap,
-        clipMin,clipMax,width,height,orientation);
-  }
-  
-  private void init2D(
-      float[][] f, float[][] g, float[] points, String title,
-      Sampling s1, Sampling s2, String s1Label, String s2Label, String cbar, 
-      IndexColorModel cmap, float clipMin, float clipMax, int width, int height,
-      Orientation orientation)
-  {
-    
-    PlotPanel pp = new PlotPanel(orientation);
-    pp.setTitle(title);
-    final PixelsView pv = pp.addPixels(s1,s2,f);
-    if (clipMin!=0.0f || clipMax!=0.0f) {
-      pv.setClips(clipMin,clipMax);
-    }
-    if (cmap!=null) {
-      pv.setColorModel(cmap);  
-    }
-    if (orientation.equals(Orientation.X1DOWN_X2RIGHT)) {
-      pp.setHLabel(s2Label);
-      pp.setVLabel(s1Label);
-    } else {
-      pp.setHLabel(s1Label);
-      pp.setVLabel(s2Label);
-    }
-    pp.addColorBar(cbar);
-    if (points!=null) {
-      PointsView ptv = pp.addPoints(s1,points);
-      ptv.setLineColor(Color.WHITE);
-    }
+    // Make initial panel, displaying the middle frame.
+    int n3 = s3.getCount();
+    _i3 = n3/2;
+    int r3 = (int)s3.getValue(_i3);
+    _pp = new PlotPanel(o);
+    _pv1 = _pp.addPixels(s1,s2,f[_i3]);
+    Clips clips = new Clips(f);
+    _pv1.setClips(clips.getClipMin(),clips.getClipMax());
     
     JMenuBar menuBar = new JMenuBar();
-    JMenu options = new JMenu("Options");
-    addClipOptions(options,pv);
-    addColorOptions(options,pv);
-    menuBar.add(options);
-
-    PlotFrame pf = new PlotFrame(pp);
-    pf.setJMenuBar(menuBar);
-    if (width!=0 && height!=0)
-      pf.setSize(width,height);
-    pf.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-    pf.setVisible(true);
-  }
-  
-  private void init3D(float[][][] f, float[][] points, String title, 
-      Sampling s1, Sampling s2, Sampling s3,
-      String s1Label, String s2Label, String s3Label, String cbar,
-      IndexColorModel cmap, float clipMin, float clipMax, int width, int height,
-      Orientation orientation)
-  {
-    int n3 = s3.getCount();
-    int i3 = n3/2;
-    int r3 = (int)s3.getValue(i3);
-    PlotPanel pp = new PlotPanel(orientation);
-    final PixelsView pv = pp.addPixels(s1,s2,f[i3]);
-    if (clipMin==0.0f && clipMax==0.0f) {
-      Clips clips = new Clips(f);
-      pv.setClips(clips.getClipMin(),clips.getClipMax());
-    } else {
-      pv.setClips(clipMin,clipMax);
-    }
-    if (cmap!=null) {
-      pv.setColorModel(cmap);  
-    }
-    title = title+" "+s3Label;
-    pp.setTitle(title+" "+r3);
-    if (orientation.equals(Orientation.X1DOWN_X2RIGHT)) {
-      pp.setHLabel(s2Label);
-      pp.setVLabel(s1Label);
-    } else {
-      pp.setHLabel(s1Label);
-      pp.setVLabel(s2Label);
-    }
-    pp.addColorBar(cbar);
-    PointsView ptv = null;
-    if (points!=null) {
-      Check.argument(points.length==f.length,"points.length==f.length");
-      ptv = pp.addPoints(s1,points[i3]);
-      ptv.setLineColor(Color.WHITE);
-    }
+    _options = new JMenu("Options");
+    addClipOptions(_options,_pv1,null);
+    addColorOptions(_options,_pv1,null);
+    menuBar.add(_options);
     
-    SliderListener sl = new SliderListener(pp,pv,ptv,s1,f,points,title);
+    SliderListener sl = new SliderListener();
     DefaultBoundedRangeModel brm = 
         new DefaultBoundedRangeModel(r3,0,(int)s3.getFirst(),(int)s3.getLast());
     JSlider slider = new JSlider(brm);
@@ -210,20 +141,113 @@ public class Viewer {
     slider.setPaintLabels(true);
     slider.setPaintTicks(true);
     slider.addChangeListener(sl);
-    
-    JMenuBar menuBar = new JMenuBar();
-    JMenu options = new JMenu("Options");
-    addClipOptions(options,pv);
-    addColorOptions(options,pv);
-    menuBar.add(options);
+      
+    _pf = new PlotFrame(_pp);
+    _pf.add(slider,BorderLayout.SOUTH);
+    _pf.setJMenuBar(menuBar);
+    _pf.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+  }
+  
+  public void addPixels(float[][] f) {
+    Check.argument(f.length==_s2.getCount(),
+        "f.length is not consistent with sampling");
+    Check.argument(f[0].length==_s1.getCount(),
+        "f[0].length is not consistent with sampling");
+    _pv2 = _pp.addPixels(f);
+    updateOptions(_pv2,"2");
+  }
+  
+  public void addPixels(float[][][] f) {
+    Check.argument(f.length==_s3.getCount(),
+        "f.length is not consistent with sampling");
+    Check.argument(f[0].length==_s2.getCount(),
+        "f[0].length is not consistent with sampling");
+    Check.argument(f[0][0].length==_s1.getCount(),
+        "f[0][0].length is not consistent with sampling");
+    _g = f;
+    _pv2 = _pp.addPixels(f[_i3]);
+    updateOptions(_pv2,"2");
+  }
+  
+  public void addPoints(float[] x2) {
+    addPoints(new Sampling(x2.length),x2);
+  }
+  
+  public void addPoints(Sampling s1, float[] x2) {
+    Check.argument(s1.isEquivalentTo(_s1),"s1.isEquivalentTo(_s1)");
+    _pt1 = _pp.addPoints(s1,x2);
+    _pt1.setLineColor(Color.WHITE);
+  }
+  
+  public void addPoints(Sampling s1, float[][] x2) {
+    Check.argument(s1.isEquivalentTo(_s1),"s1.isEquivalentTo(_s1)");
+    _pt1 = _pp.addPoints(s1,x2[_i3]);
+    _pt1.setLineColor(Color.WHITE);
+  }
+  
+  public void addPoints(float[] x1, float[] x2) {
+    _pt2 = _pp.addPoints(x1,x2);
+    _pt2.setStyle("rO");
+  }
+  
+  public void addPoints(float[][] x1, float[][] x2) {
+    Check.argument(x1.length==_f.length,"x1.length==f.length");
+    Check.argument(x2.length==_f.length,"x2.length==f.length");
+    _pt2 = _pp.addPoints(x1[_i3],x2[_i3]);
+    _pt2.setStyle("rO");
+  }
 
-    PlotFrame pf = new PlotFrame(pp);
-    pf.add(slider,BorderLayout.SOUTH);
-    pf.setJMenuBar(menuBar);
-    if (width!=0 && height!=0)
-      pf.setSize(width,height);
-    pf.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-    pf.setVisible(true);
+  public void setTitle(String title) {
+    _pp.setFont(Font.getFont("LucidaGrande"));
+    _pp.setTitle(title);
+    _title = title;
+  }
+
+  public void setHLabel(String label) {
+    _pp.setHLabel(label);
+  }
+  
+  public void setVLabel(String label) {
+    _pp.setVLabel(label);
+  }
+  
+  public void setHLimits(double hmin, double hmax) {
+    _pp.setHLimits(hmin,hmax);
+  }
+  
+  public void setVLimits(double vmin, double vmax) {
+    _pp.setVLimits(vmin,vmax);
+  }
+  
+  public void setClips1(float clipMin, float clipMax) {
+    _pv1.setClips(clipMin,clipMax);
+  }
+  
+  public void setClips2(float clipMin, float clipMax) {
+    if (_pv2==null)
+      throw new IllegalStateException(
+          "Second PixelsView has not been added to plot panel.");
+    _pv2.setClips(clipMin,clipMax);
+  }
+
+  public void setColorModel1(IndexColorModel colorModel) {
+    _pv1.setColorModel(colorModel);
+  }
+  
+  public void setColorModel2(IndexColorModel colorModel) {
+    _pv2.setColorModel(colorModel);
+  }
+  
+  public void addColorBar(String label) {
+    _pp.addColorBar(label);
+  }
+  
+  public void setSize(int width, int height) {
+    _pf.setSize(width,height);
+  }
+  
+  public void show() {
+    _pf.setVisible(true);
   }
   
   public static void main(String[] args) throws IOException {
@@ -239,11 +263,41 @@ public class Viewer {
     ais.readFloats(f);
     ais.close();
     
-    new Viewer(f);
+    new ViewerOld(f);
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  // Private
+  
+  private PlotFrame _pf;
+  private PlotPanel _pp;
+  private PixelsView _pv1;
+  private PixelsView _pv2;
+  private PointsView _pt1;
+  private PointsView _pt2;
+  private Sampling _s1;
+  private Sampling _s2;
+  private Sampling _s3;
+  private JMenu _options;
+  private String _title = "";
+  private float[][][] _f;
+  private float[][][] _g;
+  private float[][] _p;
+  private float[][] _x1;
+  private float[][] _x2;
+  private int _i3;
+
+  private void updateOptions(PixelsView pv, String label) {
+    addClipOptions(_options,pv,label);
+    addColorOptions(_options,pv,label);
+    addAlphaOptions(_options,pv,label);
   }
   
-  private void addClipOptions(JMenu options, final PixelsView pv) {
-    JMenuItem changeClips = new JMenuItem("Change Clips");
+  private void addClipOptions(
+      JMenu options, final PixelsView pv, String label)
+  {
+    String name = (label==null)?"Change Clips":"Change Clips ("+label+")";
+    JMenuItem changeClips = new JMenuItem(name);
     changeClips.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent e) {
@@ -255,8 +309,26 @@ public class Viewer {
     options.add(changeClips);
   }
   
-  private void addColorOptions(JMenu options, final PixelsView pv) {
-    JMenu changeCmap = new JMenu("Change Colormap");
+  private void addAlphaOptions(
+      JMenu options, final PixelsView pv, String label)
+  {
+    String name = (label==null)?"Change Alpha":"Change Alpha("+label+")";
+    JMenuItem changeAlpha = new JMenuItem(name);
+    changeAlpha.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        float a = pv.getColorModel().getAlpha(0)/255.0f;
+        new AlphaFrame(a,pv);
+      }
+    });
+    options.add(changeAlpha);
+  }
+  
+  private void addColorOptions(
+      JMenu options, final PixelsView pv, String label)
+  {
+    String name = (label==null)?"Change Colormap":"Change Colormap ("+label+")";
+    JMenu changeCmap = new JMenu(name);
     JMenuItem gray = new JMenuItem(CMaps.GRAY.toString());
     JMenuItem jet = new JMenuItem(CMaps.JET.toString());
     JMenuItem bwr = new JMenuItem(CMaps.BWR.toString());
@@ -277,60 +349,40 @@ public class Viewer {
   }
   
   private class SliderListener implements ChangeListener {
-
-    public SliderListener(
-        PlotPanel pp, PixelsView pv, PointsView ptv, Sampling s1, 
-        float[][][] f, float[][] points, String title)
-    {
-      _pp = pp;
-      _pv = pv;
-      _ptv = ptv;
-      _s1 = s1;
-      _f = f;
-      _points = points;
-      _title = title;
-    }
-    
     @Override
     public void stateChanged(ChangeEvent e) {
       JSlider source = (JSlider)e.getSource();
       int i3 = (int)source.getValue();
-      _pv.set(_f[i3]);
-      if (_points!=null) {
-        _ptv.set(_s1,_points[i3]);
-      }
+      _pv1.set(_f[i3]);
+      if (_g!=null)
+        _pv2.set(_g[i3]);
+      if (_p!=null)
+        _pt1.set(_s1,_p[i3]);
+      if (_x1!=null && _x2!=null)
+        _pt2.set(_x1[i3],_x2[i3]);
 //      _pp.removeTitle();
       _pp.setTitle(_title+" "+i3);
     }
-    
-    private PlotPanel _pp;
-    private PixelsView _pv;
-    private PointsView _ptv;
-    private Sampling _s1;
-    private float[][][] _f;
-    private float[][] _points;
-    private String _title;
   }
   
   private static class ChangeColorMapListener implements ActionListener {
-
-    public ChangeColorMapListener(PixelsView pv) {
-      _pv = pv;
-    }
-    
+    public ChangeColorMapListener(PixelsView pv) {_pv = pv;}
     @Override
     public void actionPerformed(ActionEvent e) {
       CMaps source = CMaps.fromString(e.getActionCommand());
+      float a = _pv.getColorModel().getAlpha(0)/255.0f;
+      IndexColorModel icm;
       switch (source) {
-        case GRAY: _pv.setColorModel(CMaps.GRAY._cim); break;
-        case JET: _pv.setColorModel(CMaps.JET._cim); break;
-        case BWR: _pv.setColorModel(CMaps.BWR._cim); break;
-        case HUE: _pv.setColorModel(CMaps.HUE._cim); break;
-        case PRISM: _pv.setColorModel(CMaps.PRISM._cim); break;
+        case GRAY:  icm = ColorMap.setAlpha(CMaps.GRAY._cim, a); break;
+        case JET:   icm = ColorMap.setAlpha(CMaps.JET._cim,  a); break;
+        case BWR:   icm = ColorMap.setAlpha(CMaps.BWR._cim,  a); break;
+        case HUE:   icm = ColorMap.setAlpha(CMaps.HUE._cim,  a); break;
+        case PRISM: icm = ColorMap.setAlpha(CMaps.PRISM._cim,a); break;
+        default: throw new IllegalArgumentException(
+            source+" is not a valid color map");
       }
+      _pv.setColorModel(icm);
     }
-    
     private PixelsView _pv;
   }
-
 }

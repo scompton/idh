@@ -145,6 +145,13 @@ public class LocalSlopeFinder {
     float[][] u2 = p2;
     LocalOrientFilter lof = new LocalOrientFilter(_sigma1,_sigma2);
     lof.applyForNormalLinear(f,u1,u2,el);
+    
+    for (int i2=0; i2<n2; i2++) {
+      for (int i1=0; i1<n1; i1++) {
+        if (Float.isNaN(el[i2][i1]))
+          el[i2][i1] = 0.0f;
+      }
+    }
 
     // Compute slopes from normal vectors.
     for (int i2=0; i2<n2; ++i2) {
