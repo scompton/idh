@@ -2,7 +2,6 @@ package util;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.IndexColorModel;
@@ -79,8 +78,6 @@ public class Viewer {
     
     // Make initial panel.
     _pp = new PlotPanel(o);
-//    Font font = _pp.getFont();
-//    System.out.println(_pp.getFont().getName());
     _pv1 = _pp.addPixels(_s1,_s2,f);
     
     JMenuBar menuBar = new JMenuBar();
@@ -91,7 +88,6 @@ public class Viewer {
     
     // Add everything to the PlotFrame, and display.
     _pf = new PlotFrame(_pp);
-//    _pf.setFont(font);
     _pf.setJMenuBar(menuBar);
     _pf.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
   }
@@ -118,11 +114,13 @@ public class Viewer {
     o  = (o==null )?Orientation.X1DOWN_X2RIGHT:o;
     
     // Make initial panel, displaying the middle frame.
-    int n3 = s3.getCount();
+    int n3 = _s3.getCount();
     _i3 = n3/2;
-    int r3 = (int)s3.getValue(_i3);
+    int r3 = (int)_s3.getValue(_i3);
     _pp = new PlotPanel(o);
-    _pv1 = _pp.addPixels(s1,s2,f[_i3]);
+    _title = String.valueOf(_i3);
+    _pp.setTitle(_title);
+    _pv1 = _pp.addPixels(_s1,_s2,f[_i3]);
     Clips clips = new Clips(f);
     _pv1.setClips(clips.getClipMin(),clips.getClipMax());
     
@@ -133,8 +131,8 @@ public class Viewer {
     menuBar.add(_options);
     
     SliderListener sl = new SliderListener();
-    DefaultBoundedRangeModel brm = 
-        new DefaultBoundedRangeModel(r3,0,(int)s3.getFirst(),(int)s3.getLast());
+    DefaultBoundedRangeModel brm = new DefaultBoundedRangeModel(
+        r3,0,(int)_s3.getFirst(),(int)_s3.getLast());
     JSlider slider = new JSlider(brm);
     slider.setMajorTickSpacing(n3/10);
     slider.setMinorTickSpacing(n3/150);
@@ -153,7 +151,7 @@ public class Viewer {
         "f.length is not consistent with sampling");
     Check.argument(f[0].length==_s1.getCount(),
         "f[0].length is not consistent with sampling");
-    _pv2 = _pp.addPixels(f);
+    _pv2 = _pp.addPixels(_s1,_s2,f);
     updateOptions(_pv2,"2");
   }
   
@@ -165,23 +163,22 @@ public class Viewer {
     Check.argument(f[0][0].length==_s1.getCount(),
         "f[0][0].length is not consistent with sampling");
     _g = f;
-    _pv2 = _pp.addPixels(f[_i3]);
+    _pv2 = _pp.addPixels(_s1,_s2,f[_i3]);
     updateOptions(_pv2,"2");
   }
   
   public void addPoints(float[] x2) {
-    addPoints(new Sampling(x2.length),x2);
-  }
-  
-  public void addPoints(Sampling s1, float[] x2) {
-    Check.argument(s1.isEquivalentTo(_s1),"s1.isEquivalentTo(_s1)");
-    _pt1 = _pp.addPoints(s1,x2);
+    Check.argument(_s1.getCount()==x2.length,
+        "x2.length is not consistend with sampling");
+    _pt1 = _pp.addPoints(_s1,x2);
     _pt1.setLineColor(Color.WHITE);
   }
   
-  public void addPoints(Sampling s1, float[][] x2) {
-    Check.argument(s1.isEquivalentTo(_s1),"s1.isEquivalentTo(_s1)");
-    _pt1 = _pp.addPoints(s1,x2[_i3]);
+  public void addPoints(float[][] x2) {
+    Check.argument(_s1.getCount()==x2[0].length,
+        "x2.length is not consistend with sampling");
+    _p = x2;
+    _pt1 = _pp.addPoints(_s1,x2[_i3]);
     _pt1.setLineColor(Color.WHITE);
   }
   
@@ -190,17 +187,26 @@ public class Viewer {
     _pt2.setStyle("rO");
   }
   
+  public void addPoints2(float[][] x1, float[][] x2) {
+    _pt2 = _pp.addPoints(x1,x2);
+    _pt2.setStyle("rO");
+  }
+  
   public void addPoints(float[][] x1, float[][] x2) {
     Check.argument(x1.length==_f.length,"x1.length==f.length");
     Check.argument(x2.length==_f.length,"x2.length==f.length");
+    _x1 = x1;
+    _x2 = x2;
     _pt2 = _pp.addPoints(x1[_i3],x2[_i3]);
     _pt2.setStyle("rO");
   }
 
   public void setTitle(String title) {
-    _pp.setFont(Font.getFont("LucidaGrande"));
-    _pp.setTitle(title);
     _title = title;
+    if (_i3!=Integer.MIN_VALUE)
+      _pp.setTitle(_title+" "+_i3);
+    else
+      _pp.setTitle(_title);
   }
 
   public void setHLabel(String label) {
@@ -262,8 +268,8 @@ public class Viewer {
     float[][][] f = new float[n3][n2][n1]; 
     ais.readFloats(f);
     ais.close();
-    
-    new ViewerOld(f);
+    Viewer v = new Viewer(f);
+    v.show();
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -285,7 +291,7 @@ public class Viewer {
   private float[][] _p;
   private float[][] _x1;
   private float[][] _x2;
-  private int _i3;
+  private int _i3 = Integer.MIN_VALUE;
 
   private void updateOptions(PixelsView pv, String label) {
     addClipOptions(_options,pv,label);
@@ -360,8 +366,9 @@ public class Viewer {
         _pt1.set(_s1,_p[i3]);
       if (_x1!=null && _x2!=null)
         _pt2.set(_x1[i3],_x2[i3]);
-//      _pp.removeTitle();
-      _pp.setTitle(_title+" "+i3);
+      _i3 = i3;
+      _pp.removeTitle();
+      _pp.setTitle(_title+" "+_i3);  
     }
   }
   
