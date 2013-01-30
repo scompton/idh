@@ -8,6 +8,9 @@ package dnp;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import util.Viewer;
+
+import edu.mines.jtk.awt.ColorMap;
 import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
@@ -64,7 +67,8 @@ public class FlattenerCg {
     s2.applyTranspose(r);
     cs.solve(a2,vr,vs);
     s2.apply(s);
-    invertShifts(s);
+//    float[][] sr = copy(s);
+//    invertShifts(s);
     return s;
   }
 
@@ -89,9 +93,10 @@ public class FlattenerCg {
     return s;
   }
 
-  public float[][] applyShifts(float[][] f, float[][] s) {
+  public static float[][] applyShifts(float[][] f, float[][] s) {
     int n1 = f[0].length;
     int n2 = f.length;
+    invertShifts(s);
     SincInterp si = new SincInterp();
     float[] r = rampfloat(0.0f,1.0f,n1);
     float[] t = zerofloat(n1);
@@ -101,6 +106,20 @@ public class FlattenerCg {
       si.interpolate(n1,1.0,0.0,f[i2],n1,t,g[i2]);
     }
     return g;
+  }
+
+  public static float[][] unapplyShifts(float[][] g, float[][] s) {
+    int n1 = g[0].length;
+    int n2 = g.length;
+    SincInterp si = new SincInterp();
+    float[] r = rampfloat(0.0f,1.0f,n1);
+    float[] t = zerofloat(n1);
+    float[][] f = zerofloat(n1,n2);
+    for (int i2=0; i2<n2; ++i2) {
+      add(r,s[i2],t);
+      si.interpolate(n1,1.0,0.0,g[i2],n1,t,f[i2]);
+    }
+    return f;
   }
 
   public float[][][] applyShifts(float[][][] f, float[][][] s) {
@@ -789,7 +808,7 @@ public class FlattenerCg {
       s[i1] = u[i1]-t[i1];
     }
   }
-  private static void invertShifts(float[][] s) {
+  public static void invertShifts(float[][] s) {
     int n1 = s[0].length;
     int n2 = s.length;
     float[] u = rampfloat(0.0f,1.0f,n1);
