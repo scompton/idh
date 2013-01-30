@@ -20,10 +20,12 @@ import edu.mines.jtk.awt.ColorMap;
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.io.ArrayInputStream;
 import edu.mines.jtk.mosaic.PixelsView;
+import edu.mines.jtk.mosaic.PixelsView.Interpolation;
 import edu.mines.jtk.mosaic.PlotFrame;
 import edu.mines.jtk.mosaic.PlotPanel;
 import edu.mines.jtk.mosaic.PlotPanel.Orientation;
 import edu.mines.jtk.mosaic.PointsView;
+import edu.mines.jtk.mosaic.TiledView;
 import edu.mines.jtk.util.Check;
 import edu.mines.jtk.util.Clips;
 
@@ -79,6 +81,7 @@ public class Viewer {
     // Make initial panel.
     _pp = new PlotPanel(o);
     _pv1 = _pp.addPixels(_s1,_s2,f);
+//    _pv1.setInterpolation(Interpolation.NEAREST);
     
     JMenuBar menuBar = new JMenuBar();
     _options = new JMenu("Options");
@@ -172,6 +175,7 @@ public class Viewer {
         "x2.length is not consistend with sampling");
     _pt1 = _pp.addPoints(_s1,x2);
     _pt1.setLineColor(Color.WHITE);
+    addRemoveOptions(_options,_pt1,"pt1");
   }
   
   public void addPoints(float[][] x2) {
@@ -180,16 +184,19 @@ public class Viewer {
     _p = x2;
     _pt1 = _pp.addPoints(_s1,x2[_i3]);
     _pt1.setLineColor(Color.WHITE);
+    addRemoveOptions(_options,_pt1,"pt1");
   }
   
   public void addPoints(float[] x1, float[] x2) {
     _pt2 = _pp.addPoints(x1,x2);
     _pt2.setStyle("rO");
+    addRemoveOptions(_options,_pt2,"pt2");
   }
   
   public void addPoints2(float[][] x1, float[][] x2) {
     _pt2 = _pp.addPoints(x1,x2);
     _pt2.setStyle("rO");
+    addRemoveOptions(_options,_pt2,"pt2");
   }
   
   public void addPoints(float[][] x1, float[][] x2) {
@@ -199,6 +206,7 @@ public class Viewer {
     _x2 = x2;
     _pt2 = _pp.addPoints(x1[_i3],x2[_i3]);
     _pt2.setStyle("rO");
+    addRemoveOptions(_options,_pt2,"pt2");
   }
 
   public void setTitle(String title) {
@@ -352,6 +360,34 @@ public class Viewer {
     changeCmap.add(hue);
     changeCmap.add(prism);
     options.add(changeCmap);
+  }
+  
+  private void addRemoveOptions(
+      JMenu options, final TiledView tv, String label)
+  {
+    String name = "Add/Remove "+label;
+    JMenuItem addRemove = new JMenuItem(name);
+    addRemove.addActionListener(new AddRemoveListener(tv));
+    options.add(addRemove);
+  }
+  
+  private class AddRemoveListener implements ActionListener {
+    public AddRemoveListener(TiledView tv) {
+      _tv = tv;
+      _tvLive = true;
+    }
+    @Override
+    public void actionPerformed(ActionEvent e) {
+      if (_tvLive) {
+        _pp.remove(_tv);
+        _tvLive = false;
+      } else {
+        _pp.addTiledView(_tv);
+        _tvLive = true;
+      }
+    }
+    private TiledView _tv;
+    private boolean _tvLive;
   }
   
   private class SliderListener implements ChangeListener {
