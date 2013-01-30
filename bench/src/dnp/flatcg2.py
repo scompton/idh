@@ -13,73 +13,25 @@ from edu.mines.jtk.util import *
 from edu.mines.jtk.util.ArrayMath import *
 
 from dnp import *
-from dnp.FlattenerVS import *
 from util import FakeData
 
-#seismicDir = "/data/seis/tp/csm/oldslices/"
-seismicDir = "/Users/dhale/Home/box/jtk/trunk/data/"
+seismicDir = "/data/seis/tpd/csm/oldslices/"
 ffile = "tp73"
+s1 = Sampling(251,1.000,0.000)
+s2 = Sampling(357,1.000,0.000)
+n1,n2 = s1.count,s2.count
 #s1 = Sampling(251,0.004,0.500)
 #s2 = Sampling(357,0.025,0.000)
 #n1,n2 = s1.count,s2.count
 
-s1 = Sampling(251,1.000,0.500)
-s2 = Sampling(501,1.000,0.000)
-n1,n2 = s1.count,s2.count
+#s1 = Sampling(251,1.000,0.500)
+#s2 = Sampling(501,1.000,0.000)
+#n1,n2 = s1.count,s2.count
 
 def main(args):
-  #showFake()
   flatten()
-  #flattenTest()
   #slopes()
-
-def showFake():
-  clip = 0.85
-  f,g,s1,s2,r1,r2 = FakeData.seismicAndShifts2d2011A(n1,n2,45)
-  plot(f,cmin=-clip,cmax=clip)
-  plot(g,cmin=-clip,cmax=clip)
-  plot(r1,jet)
-  plot(r2,jet)
-  d = getDeterminantsFromShifts([r1,r2])
-  plot(d,jet)
-  a = getAFromShifts([r1,r2])
-  plot(a,jet,cmin=-1,cmax=2)
-  a = applyInverseShiftsL([s1,s2],a)
-  plot(a,jet,cmin=-1,cmax=2)
-
-
-def flatten():
-  clip = 0.85
-  #f = readImage(ffile)
-  #sigma = 8.0
-  f,g,s1,s2,r1,r2 = FakeData.seismicAndShifts2d2011A(n1,n2,45)
-  f = g
-  d = getDeterminantsFromShifts([r1,r2])
-  plot(f,cmin=-clip,cmax=clip)
-  #plot(r1,jet)
-  #plot(r2,jet)
-  #plot(d,jet,cmin=0.65,cmax=1.35)
-  sigma,pmax = 1.0,10.0
-  lsf = LocalSlopeFinder(sigma,pmax)
-  p2 = zerofloat(n1,n2)
-  el = zerofloat(n1,n2)
-  lsf.findSlopes(f,p2,el)
-  el = pow(el,6)
-  sigma1,sigma2 = 6.0,6.0
-  fl = FlattenerS(sigma1,sigma2)
-  #plot(el,gray)
-  #plot(p2,gray,-1,1)
-  for rotate in [0.0]:
-    s = fl.findShifts(rotate,p2,el)
-    g = fl.applyShifts(s,f)
-    plot(g,cmin=-clip,cmax=clip)
-    s1,s2 = s[0],s[1]
-    plot(s1,jet)
-    plot(s2,jet)
-    d = getDeterminantsFromShifts(s)
-    plot(d,jet,cmin=0.65,cmax=1.35)
-    print "average s1 =",sum(s1)/n1/n2,"samples"
-    print "average s2 =",sum(s2)/n1/n2,"samples"
+  #flattenTest()
 
 def slopes():
   f = readImage(ffile)
@@ -93,6 +45,29 @@ def slopes():
   plot(f)
   plot(p2,jet)
   plot(el,jet)
+
+def flatten():
+  f = readImage(ffile)
+  #f = FakeData.seismic2d2011A(n1,n2,45)
+  sigma = 8.0
+  pmax = 10.0
+  lsf = LocalSlopeFinder(sigma,pmax)
+  sigma1 = 6.0
+  sigma2 = 12.0
+  fl = FlattenerCg(sigma1,sigma2)
+  p2 = zerofloat(n1,n2)
+  el = zerofloat(n1,n2)
+  lsf.findSlopes(f,p2,el)
+  el = pow(el,6)
+  #plot(el,gray)
+  #plot(p2,gray,-1,1)
+  #el = None
+  s = fl.findShifts(p2,el)
+  g = fl.applyShifts(f,s)
+  plot(f)
+  plot(g)
+  plot(s,jet)
+  print "average shift =",sum(s)/(n1*n2),"samples"
 
 def flattenTest():
   """Test for t(tau,x) = tau*(1+a*sin(b*x))"""
@@ -119,10 +94,8 @@ gray = ColorMap.GRAY
 jet = ColorMap.JET
 def plot(x,cmap=ColorMap.GRAY,cmin=0,cmax=0):
   sp = SimplePlot(SimplePlot.Origin.UPPER_LEFT)
-  #sp.setSize(600,900)
-  sp.setSize(1530,770)
-  sp.plotPanel.setColorBarWidthMinimum(80)
   sp.addColorBar();
+  sp.setSize(600,900)
   pv = sp.addPixels(x)
   pv.setColorModel(cmap)
   if cmin<cmax:
