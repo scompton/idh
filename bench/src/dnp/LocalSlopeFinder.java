@@ -190,6 +190,19 @@ public class LocalSlopeFinder {
     LocalOrientFilter lof = new LocalOrientFilter(_sigma1,_sigma2,_sigma3);
     lof.applyForNormalPlanar(f,u1,u2,u3,ep);
 
+    for (int i3=0; i3<n3; i3++) {
+      for (int i2=0; i2<n2; i2++) {
+        for (int i1=0; i1<n1; i1++) {
+          if (Float.isNaN(ep[i3][i2][i1]))
+            ep[i3][i2][i1] = 0.0f;
+          if (Float.isNaN(p2[i3][i2][i1]))
+            p2[i3][i2][i1] = 0.0f;
+          if (Float.isNaN(p3[i3][i2][i1]))
+            p3[i3][i2][i1] = 0.0f;
+        }
+      }
+    }
+
     // Compute slopes from normal vectors.
     for (int i3=0; i3<n3; ++i3) {
       for (int i2=0; i2<n2; ++i2) {

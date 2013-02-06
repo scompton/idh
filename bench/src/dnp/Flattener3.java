@@ -259,7 +259,7 @@ public class Flattener3 {
   private float _sigma2 = 6.0f; // precon smoothing extent for 2nd dim
   private float _sigma3 = 6.0f; // precon smoothing extent for 3rd dim
   private float _small = 0.01f; // stop CG iterations if residuals small
-  private int _niter = 1000; // maximum number of CG iterations
+  private int _niter = 50; // maximum number of CG iterations
 
   // Conjugate-gradient operators.
   private static class A3 implements CgSolver.A {

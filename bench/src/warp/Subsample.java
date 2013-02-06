@@ -50,11 +50,11 @@ public class Subsample {
     int[] i = rampint(0,1,n);
     float[] fa = abs(f);
     quickIndexSort(fa,i);
-    StringBuffer sb = new StringBuffer();
-    for (int ii=0; ii<10; ii++) {
-      sb.append(i[nm-ii]+",");
-    }
-    System.out.println("Top 10: "+sb.toString());
+//    StringBuffer sb = new StringBuffer();
+//    for (int ii=0; ii<10; ii++) {
+//      sb.append(i[nm-ii]+",");
+//    }
+//    System.out.println("Top 10: "+sb.toString());
     
     // Get maximum amplitute indices as long as they
     // are greater than or equal to d.
@@ -88,11 +88,11 @@ public class Subsample {
     int[] i = rampint(0,1,n);
     float[] fa = abs(f);
     quickIndexSort(fa,i);
-    StringBuffer sb = new StringBuffer();
-    for (int ii=0; ii<10; ii++) {
-      sb.append(i[nm-ii]+",");
-    }
-    System.out.println("Top 10: "+sb.toString());
+//    StringBuffer sb = new StringBuffer();
+//    for (int ii=0; ii<10; ii++) {
+//      sb.append(i[nm-ii]+",");
+//    }
+//    System.out.println("Top 10: "+sb.toString());
     
     // Get maximum amplitude indices, adjusting the interval
     // d so that the subsampled array contains ng samples.

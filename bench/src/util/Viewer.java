@@ -81,10 +81,10 @@ public class Viewer {
     // Make initial panel.
     _pp = new PlotPanel(o);
     _pv1 = _pp.addPixels(_s1,_s2,f);
-//    _pv1.setInterpolation(Interpolation.NEAREST);
     
     JMenuBar menuBar = new JMenuBar();
     _options = new JMenu("Options");
+    addInterpolationOption(_options,_pv1);
     addClipOptions(_options,_pv1,null);
     addColorOptions(_options,_pv1,null);
     menuBar.add(_options);
@@ -113,7 +113,7 @@ public class Viewer {
     _f = f;
     _s1 = (s1==null)?new Sampling(f[0][0].length):s1;
     _s2 = (s2==null)?new Sampling(f[0].length   ):s2;
-    _s3 = (s3==null)?new Sampling(f.length      ):s2;
+    _s3 = (s3==null)?new Sampling(f.length      ):s3;
     o  = (o==null )?Orientation.X1DOWN_X2RIGHT:o;
     
     // Make initial panel, displaying the middle frame.
@@ -129,6 +129,7 @@ public class Viewer {
     
     JMenuBar menuBar = new JMenuBar();
     _options = new JMenu("Options");
+    addInterpolationOption(_options,_pv1);
     addClipOptions(_options,_pv1,null);
     addColorOptions(_options,_pv1,null);
     menuBar.add(_options);
@@ -199,6 +200,14 @@ public class Viewer {
     addRemoveOptions(_options,_pt2,"pt2");
   }
   
+  public void addPoints3(float[][][] x1, float[][][] x2) {
+    _x13 = x1;
+    _x23 = x2;
+    _pt2 = _pp.addPoints(x1[_i3],x2[_i3]);
+    _pt2.setStyle("rO");
+    addRemoveOptions(_options,_pt2,"pt2");
+  }
+  
   public void addPoints(float[][] x1, float[][] x2) {
     Check.argument(x1.length==_f.length,"x1.length==f.length");
     Check.argument(x2.length==_f.length,"x2.length==f.length");
@@ -254,6 +263,7 @@ public class Viewer {
   
   public void addColorBar(String label) {
     _pp.addColorBar(label);
+    _pp.setColorBarWidthMinimum(100);
   }
   
   public void setSize(int width, int height) {
@@ -299,6 +309,8 @@ public class Viewer {
   private float[][] _p;
   private float[][] _x1;
   private float[][] _x2;
+  private float[][][] _x13;
+  private float[][][] _x23;
   private int _i3 = Integer.MIN_VALUE;
 
   private void updateOptions(PixelsView pv, String label) {
@@ -336,6 +348,21 @@ public class Viewer {
       }
     });
     options.add(changeAlpha);
+  }
+  
+  private void addInterpolationOption(
+      JMenu options, final PixelsView pv)
+  {
+    String name = "Change Interpolation";
+    JMenu changeInterp = new JMenu(name);
+    JMenuItem nearest = new JMenuItem("Nearest Neighbor");
+    JMenuItem linear  = new JMenuItem("Linear");
+    ChangeInterpolationListener cil = new ChangeInterpolationListener(pv);
+    nearest.addActionListener(cil);
+    linear.addActionListener(cil);
+    changeInterp.add(nearest);
+    changeInterp.add(linear);
+    options.add(changeInterp);
   }
   
   private void addColorOptions(
@@ -402,6 +429,8 @@ public class Viewer {
         _pt1.set(_s1,_p[i3]);
       if (_x1!=null && _x2!=null)
         _pt2.set(_x1[i3],_x2[i3]);
+      if (_x13!=null && _x23!=null)
+        _pt2.set(_x13[i3],_x23[i3]);
       _i3 = i3;
       _pp.removeTitle();
       _pp.setTitle(_title+" "+_i3);  
@@ -425,6 +454,19 @@ public class Viewer {
             source+" is not a valid color map");
       }
       _pv.setColorModel(icm);
+    }
+    private PixelsView _pv;
+  }
+  
+  private static class ChangeInterpolationListener implements ActionListener {
+    public ChangeInterpolationListener(PixelsView pv) {_pv = pv;}
+    @Override
+    public void actionPerformed(ActionEvent e) {
+      String interp = e.getActionCommand();
+      if (interp.equals("Nearest Neighbor"))
+        _pv.setInterpolation(Interpolation.NEAREST);
+      else
+        _pv.setInterpolation(Interpolation.LINEAR);
     }
     private PixelsView _pv;
   }

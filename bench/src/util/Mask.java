@@ -32,6 +32,36 @@ public class Mask {
   }
   
   /**
+   * Returns a mask for the input array f. The mask has zero
+   * values at indices that correspond to zero amplitudes in f,
+   * and values of one everywhere else. This mask can be
+   * applied later to any processed version of f where computed
+   * values at originally zero amplitude locations should be 
+   * replaced.
+   * @param f the input array.
+   * @return an mask array with size equal to f, containing
+   *  zero values for zero amplitudes in f and values of one
+   *  everywhere else.
+   */
+  public static float[][][] getMask(float[][][] f) {
+    int n3 = f.length;
+    int n2 = f[0].length;
+    int n1 = f[0][0].length;
+    float[][][] m = new float[n3][n2][n1];
+    for (int i3=0; i3<n3; i3++) {
+      for (int i2=0; i2<n2; i2++) {
+        for (int i1=0; i1<n1; i1++) {
+          if (f[i3][i2][i1]==0.0f)
+            m[i3][i2][i1] = 0.0f;
+          else
+            m[i3][i2][i1] = 1.0f;
+        }
+      }
+    }
+    return m;
+  }
+  
+  /**
    * Applies a precomputed mask m, to an input array f.
    * Amplitudes in f will zeroed at indices i2,i1 where
    * m[i2][i1]==0.
@@ -46,6 +76,26 @@ public class Mask {
     for (int i2=0; i2<n2; i2++)
       for (int i1=0; i1<n1; i1++)
         f[i2][i1] = f[i2][i1]*m[i2][i1];
+  }
+  
+  /**
+   * Applies a precomputed mask m, to an input array f.
+   * Amplitudes in f will zeroed at indices i2,i1 where
+   * m[i2][i1]==0.
+   * @param f the input array
+   * @param m the mask array
+   */
+  public static void applyMask(float[][][] f, float[][][] m) {
+    int n3 = f.length;
+    int n2 = f[0].length;
+    int n1 = f[0][0].length;
+    Check.argument(n3==m.length,"f.length==m.length");
+    Check.argument(n2==m[0].length,"f[0].length==m[0].length");
+    Check.argument(n1==m[0][0].length,"f[0][0].length==m[0][0].length");
+    for (int i3=0; i3<n3; i3++)
+      for (int i2=0; i2<n2; i2++)
+        for (int i1=0; i1<n1; i1++)
+          f[i3][i2][i1] = f[i3][i2][i1]*m[i3][i2][i1];
   }
   
   /**
