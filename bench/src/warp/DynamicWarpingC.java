@@ -5,6 +5,7 @@ import java.util.Map;
 import util.L1C2Interpolator;
 import util.Viewer;
 
+import edu.mines.jtk.awt.ColorMap;
 import edu.mines.jtk.dsp.HilbertTransformFilter;
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.dsp.SincInterp;
@@ -14,6 +15,7 @@ import edu.mines.jtk.interp.CubicInterpolator;
 import edu.mines.jtk.interp.CubicInterpolator.Method;
 import edu.mines.jtk.interp.TricubicInterpolator3;
 import edu.mines.jtk.interp.TrilinearInterpolator3;
+import edu.mines.jtk.mosaic.PlotPanel.Orientation;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
@@ -58,10 +60,12 @@ public class DynamicWarpingC {
     int[] el = computeErrorLengths(n1pp,n1ps,0);
     _nel = el[1];
     _ne1 = el[0];
-    _n1 = n1pp; 
+    _n1pp = n1pp;
+    _n1ps = n1ps;
     _pp1 = pp;
     _ps1 = ps;
-    System.out.println("PP Length="+_n1+", PP Length for Warping="+_ne1+
+    System.out.println("PP/PS Traces="+_n2+", PP Sample Length="+_n1pp+
+        ", PP Sample Length for Warping="+_ne1+", PS Sample Length="+_n1ps+
         ", Number of Lags="+_nel);
     _si = new SincInterp();
   }
@@ -87,12 +91,14 @@ public class DynamicWarpingC {
     int[] el = computeErrorLengths(n1pp,n1ps,0);
     _nel = el[1];
     _ne1 = el[0];
-    _n1 = n1pp; 
+    _n1pp = n1pp;
+    _n1ps = n1ps;
     _n2 = pp.length;
     _pp2 = pp;
     _ps2 = ps;
-    System.out.println("PP/PS Traces="+_n2+", PP Sample Length="+_n1+
-        ", PP Sample Length for Warping="+_ne1+", Number of Lags="+_nel);
+    System.out.println("PP/PS Traces="+_n2+", PP Sample Length="+_n1pp+
+        ", PP Sample Length for Warping="+_ne1+", PS Sample Length="+_n1ps+
+        ", Number of Lags="+_nel);
     _si = new SincInterp();
   }
   
@@ -118,15 +124,16 @@ public class DynamicWarpingC {
     int[] el = computeErrorLengths(n1pp,n1ps,0);
     _nel = el[1];
     _ne1 = el[0];
-    _n1 = n1pp; 
+    _n1pp = n1pp;
+    _n1ps = n1ps;
     _n2 = pp[0].length;
     _n3 = pp.length;
     _pp3 = pp;
     _ps3 = ps;
     System.out.println("PP/PS Ensembles="+_n3+", PP/PS Traces="+_n2+
-        ", PP Sample Length="+_n1+", PP Sample Length for Warping="+_ne1+
-        ", Number of Lags="+_nel);
-    _si = new SincInterp();
+        ", PP Sample Length="+_n1pp+", PP Sample Length for Warping="+_ne1+
+        ", PS Sample Length="+_n1ps+", Number of Lags="+_nel);
+_si = new SincInterp();
   }
   
   public void setInterpMethod(CubicInterpolator.Method m) {
@@ -410,7 +417,7 @@ public class DynamicWarpingC {
     dump(g2); dump(g3);
     final float[][][][] es = smoothErrorsSparse(
         r1min,r1max,g1,r2max,g2,r3max,g3);
-//    smoothSparseErrors(es,r1min,r1max,g1,g2,g3,r2max,r3max);
+    smoothSparseErrors(es,r1min,r1max,g1,g2,g3,r2max,r3max);
     final int ng2 = es[0].length;
     final int ng3 = es.length;
     final float[][][] u = new float[ng3][ng2][];
@@ -583,7 +590,7 @@ public class DynamicWarpingC {
       float[][] e3AvgF, float[][][] ppf, float[][][] x1,
       float r1min, float r1max, float dr1) 
   {
-    int nppf = ppf[0].length;
+    int nppf = ppf[0][0].length;
     int dg1 = (int)ceil(1.0f/dr1);
     float[] ea = new float[nppf];
     float[] et;
@@ -632,9 +639,6 @@ public class DynamicWarpingC {
    *  the second dimension. 
    */
   public int[][][] getSparseGrid(float[][] ppf, float[][] x1, float dr1) {
-//    float[][] ppf = fm.flatten(_pp2);
-//    int ppfMax = (int)(fm.u1[0][_ne1]);
-//    int nppf = ppfMax+1;
     int nppf = ppf[0].length;
     int dg1 = (int)ceil(1.0f/dr1);
     float[] ea = new float[nppf];
@@ -699,8 +703,6 @@ public class DynamicWarpingC {
   public int[][][][] getSparseGrid(
       float[][][] ppf, float[][][] x1, float dr1) 
   {
-//    int ppfMax = (int)(u1[0][0][_ne1]);
-//    int nppf = ppfMax+1;
     int nppf = ppf[0][0].length;
     int dg1 = (int)ceil(1.0f/dr1);
     float[] ea = new float[nppf];
@@ -749,8 +751,6 @@ public class DynamicWarpingC {
   public void plotSparseGrid(
       float[][] ppf, int[][] gf, int[][] gw, float dr2) 
   {
-//    float[][] ppf = fm.flatten(_pp2);
-//    int ppfMax = (int)(fm.u1[0][_ne1]);
     int[] g2 = Subsample.subsample(_n2,(int)ceil(1.0f/dr2));
     int ng1 = gf[0].length;
     int ng2 = g2.length;
@@ -798,12 +798,9 @@ public class DynamicWarpingC {
   public void plotSparseGrid(
       float[][][] ppf, int[][][] gf, int[][][] gw, float dr2) 
   {
-//    int ppfMax = (int)(u1[0][0][_ne1]);
     int[] g2 = Subsample.subsample(_n2,(int)ceil(1.0f/dr2));
-//    int[] g3 = Subsample.subsample(_n3,(int)ceil(1.0f/dr3));
     int ng1 = gf[0][0].length;
     int ng2 = g2.length;
-//    int ng3 = g3.length;
     float[][][] x1f = new float[_n3][ng2][ng1];
     float[][][] x2f = new float[_n3][ng2][ng1];
     for (int i3=0; i3<_n3; i3++) {
@@ -945,7 +942,7 @@ public class DynamicWarpingC {
     return new float[][]{x1,x2};
   }
   
-  public float[][] getX1X2AvgMFlat(
+  public float[][] getX1X2AvgMFlat2(
       float[] u, float[][] ppf, float dr1, Sampling s1, boolean useNG) 
   {
     s1 = (s1==null)?new Sampling(u.length):s1;
@@ -956,6 +953,38 @@ public class DynamicWarpingC {
       et = getEnvelope(ppf[i2]);
       for (int i1=0; i1<nppf; i1++) {
         ea[i1] += et[i1];
+      }
+    }
+    int dg1 = (int)ceil(1.0f/dr1);
+    int[] g1;
+    if (useNG) {
+      int ng = 1+(nppf-1)/dg1;
+      g1 = Subsample.subsample(ea,dg1,ng);
+    } else
+      g1 = Subsample.subsample(ea,dg1);
+    int ng = g1.length;
+    float[] x1 = new float[ng];
+    float[] x2 = new float[ng];
+    for (int ig=0; ig<ng; ig++) {
+      x1[ig] = (float)s1.getValue(g1[ig]);
+      x2[ig] = (float)u[g1[ig]];
+    }
+    return new float[][]{x1,x2};
+  }
+  
+  public float[][] getX1X2AvgMFlat3(
+      float[] u, float[][][] ppf, float dr1, Sampling s1, boolean useNG) 
+  {
+    s1 = (s1==null)?new Sampling(u.length):s1;
+    int nppf = ppf[0][0].length;
+    float[] ea = new float[nppf];
+    float[] et;
+    for (int i3=0; i3<_n3; i3++) {
+      for (int i2=0; i2<_n2; i2++) {
+        et = getEnvelope(ppf[i3][i2]);
+        for (int i1=0; i1<nppf; i1++) {
+          ea[i1] += et[i1];
+        }
       }
     }
     int dg1 = (int)ceil(1.0f/dr1);
@@ -1077,12 +1106,12 @@ public class DynamicWarpingC {
   public float[] applyShifts(float[] u) {
     int nu = u.length;
     int num = nu-1;
-    float[] h = new float[_n1];
+    float[] h = new float[_n1pp];
     for (int iu=0; iu<nu; ++iu) {
-      h[iu] = _si.interpolate(_n1,1.0,0.0,_ps1,iu+u[iu]);
+      h[iu] = _si.interpolate(_n1ps,1.0,0.0,_ps1,iu+u[iu]);
     }
-    for (int i1=nu; i1<_n1; ++i1) {
-      h[i1] = _si.interpolate(_n1,1.0,0.0,_ps1,i1+u[num]);
+    for (int i1=nu; i1<_n1pp; ++i1) {
+      h[i1] = _si.interpolate(_n1ps,1.0,0.0,_ps1,i1+u[num]);
     }
     return h;
   }
@@ -1091,14 +1120,14 @@ public class DynamicWarpingC {
     final int n1u = u[0].length;
     final int n1um = n1u-1;
     final float[][] uf = u;
-    final float[][] hf = new float[_n2][_n1];
+    final float[][] hf = new float[_n2][_n1pp];
     Parallel.loop(_n2,new Parallel.LoopInt() {
     public void compute(int i2) {
       for (int i1=0; i1<n1u; ++i1) {
-        hf[i2][i1] = _si.interpolate(_n1,1.0,0.0,_ps2[i2],i1+uf[i2][i1]);
+        hf[i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps2[i2],i1+uf[i2][i1]);
       }
-      for (int i1=n1u; i1<_n1; ++i1) {
-        hf[i2][i1] = _si.interpolate(_n1,1.0,0.0,_ps2[i2],i1+uf[i2][n1um]);
+      for (int i1=n1u; i1<_n1pp; ++i1) {
+        hf[i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps2[i2],i1+uf[i2][n1um]);
       }
     }});
     return hf;
@@ -1108,16 +1137,16 @@ public class DynamicWarpingC {
     final int n1u = u[0][0].length;
     final int n1um = n1u-1;
     final float[][][] uf = u;
-    final float[][][] hf = new float[_n3][_n2][_n1];
+    final float[][][] hf = new float[_n3][_n2][_n1pp];
     Parallel.loop(_n3,new Parallel.LoopInt() {
     public void compute(int i3) {
       for (int i2=0; i2<_n2; i2++) {
         for (int i1=0; i1<n1u; i1++) {
-          hf[i3][i2][i1] = _si.interpolate(_n1,1.0,0.0,_ps3[i3][i2],
+          hf[i3][i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps3[i3][i2],
               i1+uf[i3][i2][i1]);
         }
-        for (int i1=n1u; i1<_n1; i1++) {
-          hf[i3][i2][i1] = _si.interpolate(_n1,1.0,0.0,_ps3[i3][i2],
+        for (int i1=n1u; i1<_n1pp; i1++) {
+          hf[i3][i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps3[i3][i2],
               i1+uf[i3][i2][n1um]);
         }  
       }
@@ -2514,7 +2543,8 @@ public class DynamicWarpingC {
 
   private int _nel; // number of lags
   private int _ne1; // number of alignment error samples
-  private int _n1; // number of samples before scaling
+  private int _n1pp; // number of pp samples before scaling
+  private int _n1ps; // number of pp samples before scaling
   private int _n2; // number of traces
   private int _n3; // number of ensembles
   private float[] _pp1; // pp trace
@@ -3088,7 +3118,8 @@ public class DynamicWarpingC {
           if (ik<0 || ik>nlm1)
             continue;
 //          float dc = interpSlope(rk,is,dg,il,iermin,ier,d[ispm][ik],e);
-          float dc = interpSlope(rk,is,il,iermin,ier,dgmxb[k],d[ispm][ik],e);
+//          float dc = interpSlope(rk,is,il,iermin,ier,dgmxb[k],d[ispm][ik],e);
+          float dc = interpSlopeNN(rk,is,il,iermin,ier,dgmxb[k],d[ispm][ik],e);
           if (dc<dm) {
             dm = dc;
             mi = rk;
@@ -3100,7 +3131,7 @@ public class DynamicWarpingC {
     }
   }
   
-  private static float interpSlope (
+  private static float interpSlope(
       int k, int is, int dg, int il, int iemin, int iemax, 
       float dp, float[][] e) 
   {
@@ -3122,7 +3153,7 @@ public class DynamicWarpingC {
     return dc;
   }
   
-  private static float interpSlope (
+  private static float interpSlope(
       int k, int is, int il, int iemin, int iemax, 
       float[] mxb, float dp, float[][] e) 
   {
@@ -3141,6 +3172,46 @@ public class DynamicWarpingC {
         int y2 = y1+1;
 //        dc += (y2-y)*e[ex][y1]+(y-y1)*e[ex][y2];
         dc += e[ex][y1]+(y-y1)*(e[ex][y2]-e[ex][y1]);
+      }
+    }
+    return dc;
+  }
+  
+  private static float interpSlopeNN(
+      int k, int is, int dg, int il, int iemin, int iemax, 
+      float dp, float[][] e) 
+  {
+    float dc = dp;
+    if (k==0) {
+      for (int x=iemin+is; x!=iemax; x+=is) {
+        dc += e[x][il]; 
+      }
+    } else {
+      double slope = (double)-k*is/dg;
+      for (int x=iemin+is; x!=iemax; x+=is) {
+        int y = (int)(il+(slope*(x-iemin)+k)+0.5);
+        dc += e[x][y];
+      }
+    }
+    return dc;
+  }
+  
+  private static float interpSlopeNN(
+      int k, int is, int il, int iemin, int iemax, 
+      float[] mxb, float dp, float[][] e)
+  {
+    float dc = dp;
+    if (k==0) {
+      for (int x=iemin+is; x!=iemax; x+=is) {
+        dc += e[x][il]; 
+      }
+    } else {
+      int n = mxb.length;
+      int nm = n-1;
+      for (int x=1; x<nm; x++) {
+        int ex = iemin+is*x;
+        int y = (int)(il+mxb[x]+0.5);
+        dc += e[ex][y];
       }
     }
     return dc;
@@ -3186,7 +3257,8 @@ public class DynamicWarpingC {
         // Loop over all possible slopes, interpolating the alignment
         // errors between the sparse grid points.
         for (int k=kmin; k<=kmax; k++) {
-          float dc = interpSlope(k,is,dg,il,iermin,ier,d[ispm][il+k],e);
+//          float dc = interpSlope(k,is,dg,il,iermin,ier,d[ispm][il+k],e);
+          float dc = interpSlopeNN(k,is,dg,il,iermin,ier,d[ispm][il+k],e);
           if (dc<dm) {
             dm = dc;
             mi = k;

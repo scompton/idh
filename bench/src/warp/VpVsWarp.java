@@ -2,7 +2,8 @@ package warp;
 
 import static edu.mines.jtk.util.ArrayMath.*;
 import edu.mines.jtk.dsp.Sampling;
-import edu.mines.jtk.dsp.SincInterpolator;
+import edu.mines.jtk.dsp.SincInterp;
+import edu.mines.jtk.interp.CubicInterpolator;
 import edu.mines.jtk.util.Check;
 
 public class VpVsWarp {
@@ -74,29 +75,61 @@ public class VpVsWarp {
     int npp = (int)ceil(2.0f*nps/(vpvsAvg+1.0f));
     System.out.println("Average Vp/Vs: "+vpvsAvg+", npp="+npp+", nps="+nps);
     float[] u = getU(vpvs,s);
-    SincInterpolator si = new SincInterpolator();
-    si.setUniform(nps,1.0,0.0,ps);
-    SincInterpolator siu = new SincInterpolator();
-    siu.setUniform(u.length,1.0,0.0,u);
+    SincInterp si = new SincInterp();
     float[] pp = new float[npp];
     for (int i=0; i<npp; ++i) {
       double y = i;
-//      double x = y-uy(y,siu);
-//      ps[i] = si.interpolate(x);
-      pp[i] = si.interpolate(y+u[i]);
+      pp[i] = si.interpolate(nps,1.0,0.0,ps,y+u[i]);
     }
     return pp;
   }
   
-  public static double uy(double y, SincInterpolator si) {
-    double uy = 0.0;
-    double up;
-    do {
-      up = uy;
-      uy = si.interpolate(y-uy);
-    } while (abs(uy-up)>0.0001);
-    return uy;
+  public static float[][] shift2(int n2, float[] x, double scale, double f) {
+    int n1 = x.length;
+    float[][] s = new float[n2][n1];
+    float[] r = new float[n1];
+    ramp(0.0f,1.0f,r);
+    CubicInterpolator ci = 
+        new CubicInterpolator(CubicInterpolator.Method.LINEAR,r,x);
+    for (int i2=0; i2<n2; i2++) {
+      float s2 = (float)cos(2.0*PI*f*i2);
+      for (int i1=0; i1<n1; i1++) {
+        s[i2][i1] = ci.interpolate((float)(s2*scale)+i1);
+      }
+    }
+    return s;
   }
+  
+  public static float[][][] shift3(
+      int n3, float[][] x, double scale, double f)
+  {
+    int n2 = x.length;
+    int n1 = x[0].length;
+    float[][][] s = new float[n3][n2][n1];
+    float[] r = new float[n1];
+    ramp(0.0f,1.0f,r);
+    for (int i3=0; i3<n3; i3++) {
+      for (int i2=0; i2<n2; i2++) {
+        CubicInterpolator ci = 
+            new CubicInterpolator(CubicInterpolator.Method.LINEAR,r,x[i2]);
+        float s2 = (float)sin(2.0*PI*f*i2);
+        for (int i1=0; i1<n1; i1++) {
+          s[i3][i2][i1] = ci.interpolate((float)(s2*scale)+i1);
+        }
+      }
+    }
+    return s;
+  }
+  
+//  public static double uy(double y, SincInterpolator si) {
+//    double uy = 0.0;
+//    double up;
+//    do {
+//      up = uy;
+//      uy = si.interpolate(y-uy);
+//    } while (abs(uy-up)>0.0001);
+//    return uy;
+//  }
   
 //  public static float[] warp(float[] f, float[] vpvs) {
 //    int n1 = f.length;
