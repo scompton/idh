@@ -9,7 +9,7 @@ import java.util.Set;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
 
-public class JTestSubsample extends  TestCase {
+public class JTestSubsample extends TestCase {
   
   public void testSubsample1() {
     int nmax = 1500;

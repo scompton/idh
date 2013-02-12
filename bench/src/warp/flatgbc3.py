@@ -3,8 +3,8 @@ from imports import *
 from dnp import *
 from tp import *
 
-#pngDir = None
-pngDir = "./png/"
+pngDir = None
+#pngDir = "./png/"
 seismicDir = "/data/seis/gbc/dat/suba/"
 n1all = 2000
 n1,n2,n3 = 1001,150,145
@@ -15,14 +15,14 @@ n1,n2,n3 = s1.count,s2.count,s3.count
 d1,d2,d3 = s1.delta,s2.delta,s3.delta
 
 def main(args):
-  #subset()
-  #zeromask()
-  #slopes()
+#  subset()
+#  zeromask()
+#  slopes()
   flatten()
 
 def subset():
   f = zerofloat(n1all,n2,n3)
-  ais = ArrayInputStream(seismicDir+"../p.dat")
+  ais = ArrayInputStream(seismicDir+"../pp.dat")
   ais.readFloats(f)
   ais.close()
   f = copy(n1,n2,n3,f)
@@ -65,7 +65,7 @@ def slopes():
     makeFrame(world)
 
 def flatten():
-  findShifts = False
+  findShifts = True
   if findShifts:
     f = readImage("p")
     p2 = readImage("p2")

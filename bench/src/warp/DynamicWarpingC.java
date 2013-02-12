@@ -252,16 +252,20 @@ _si = new SincInterp();
       float[][][] dm = accumulateForward(es[i2],g1,r1min,r1max);
       u[i2] = backtrackReverse(dm[0],dm[1]);
     }});
-//    float[][][] et1 = transposeLag12(es);
-//    Viewer ve = new Viewer(et1,Orientation.X1RIGHT_X2UP);
-//    ve.setTitle("Smoothed Errros");
-//    ve.setSize(900,600);
-//    ve.show();
-//    float[][][] et2 = transposeLag12(transposeLag23(es));
-//    Viewer vet = new Viewer(et2,Orientation.X1RIGHT_X2UP);
-//    vet.setTitle("Smoothed Errros Transposed");
-//    vet.setSize(900,600);
-//    vet.show();
+    float[][][] et1 = transposeLag12(es);
+    Viewer ve = new Viewer(et1,Orientation.X1RIGHT_X2UP);
+    ve.setTitle("Smoothed Errros");
+    ve.addPoints(u);
+    ve.setColorModel1(ColorMap.JET);
+    ve.setSize(900,600);
+    ve.show();
+    float[][][] et2 = transposeLag12(transposeLag23(es));
+    Viewer vet = new Viewer(et2,Orientation.X1RIGHT_X2UP);
+    vet.setTitle("Smoothed Errros Transposed");
+    vet.addPoints(transposeLag(u));
+    vet.setColorModel1(ColorMap.JET);
+    vet.setSize(900,600);
+    vet.show();
     return interpolateSparseShifts(_ne1,_n2,g1,g2,u,_m2);
   }
   
@@ -343,7 +347,7 @@ _si = new SincInterp();
 //    ve.setSize(900,600);
 //    ve.setColorModel1(ColorMap.JET);
 //    ve.setClips1(0.0f,0.5f);
-////    ve.addPoints(u);
+//    ve.addPoints(u);
 //    ve.show();
 //    Viewer vet = new Viewer(
 //        transposeLag12(transposeLag23(es)),Orientation.X1RIGHT_X2UP);
@@ -351,10 +355,10 @@ _si = new SincInterp();
 //    vet.setSize(900,600);
 //    vet.setColorModel1(ColorMap.JET);
 //    vet.setClips1(0.1f,0.5f);
-////    vet.addPoints(transposeLag(u));
+//    vet.addPoints(transposeLag(u));
 //    vet.show();
     
-    smoothSparseErrors(es,r1min,r1max,g1,g2,r2max);
+//    smoothSparseErrors(es,r1min,r1max,g1,g2,r2max);
     
     final int ng2 = es.length;
     final float[][] u = new float[ng2][];
@@ -363,21 +367,21 @@ _si = new SincInterp();
       float[][][] dm = accumulateForward(es[i2],g1[i2],r1min,r1max);
       u[i2] = backtrackReverse(dm[0],dm[1]);
     }});
-//    Viewer ve2 = new Viewer(transposeLag12(es),Orientation.X1RIGHT_X2UP);
-//    ve2.setTitle("Smoothed Errros 2");
-//    ve2.setSize(900,600);
-//    ve2.setColorModel1(ColorMap.JET);
-//    ve2.setClips1(0.0f,0.9f);
-//    ve2.addPoints(u);
-//    ve2.show();
-//    Viewer vet2 = new Viewer(
-//        transposeLag12(transposeLag23(es)),Orientation.X1RIGHT_X2UP);
-//    vet2.setTitle("Smoothed Errros 2 Transposed");
-//    vet2.setSize(900,600);
-//    vet2.setColorModel1(ColorMap.JET);
-//    vet2.setClips1(0.0f,0.9f);
-//    vet2.addPoints(transposeLag(u));
-//    vet2.show();
+    Viewer ve2 = new Viewer(transposeLag12(es),Orientation.X1RIGHT_X2UP);
+    ve2.setTitle("Smoothed Errros 2");
+    ve2.setSize(900,600);
+    ve2.setColorModel1(ColorMap.JET);
+    ve2.setClips1(0.0f,0.9f);
+    ve2.addPoints(u);
+    ve2.show();
+    Viewer vet2 = new Viewer(
+        transposeLag12(transposeLag23(es)),Orientation.X1RIGHT_X2UP);
+    vet2.setTitle("Smoothed Errros 2 Transposed");
+    vet2.setSize(900,600);
+    vet2.setColorModel1(ColorMap.JET);
+    vet2.setClips1(0.0f,0.9f);
+    vet2.addPoints(transposeLag(u));
+    vet2.show();
     return interpolateSparseShiftsFlat(_ne1,_n2,grids[1][0],g2,u);
   }
   
@@ -1024,7 +1028,7 @@ _si = new SincInterp();
   }
   
   public float[][][] getX1X2T(float[][] u, float dr2, Sampling s2) {
-    s2 = (s2==null)?new Sampling(u.length):s2;
+    s2 = (s2==null)?new Sampling(u[0].length):s2;
     int dg2 = (int)ceil(1.0f/dr2);
     int[][] g = new int[_ne1][];
     int[] g2 = Subsample.subsample(_n2,dg2);
@@ -1120,14 +1124,36 @@ _si = new SincInterp();
     final int n1u = u[0].length;
     final int n1um = n1u-1;
     final float[][] uf = u;
-    final float[][] hf = new float[_n2][_n1pp];
+//    final float[][] hf = new float[_n2][_n1pp];
+    final float[][] hf = new float[_n2][n1u];
     Parallel.loop(_n2,new Parallel.LoopInt() {
     public void compute(int i2) {
       for (int i1=0; i1<n1u; ++i1) {
         hf[i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps2[i2],i1+uf[i2][i1]);
       }
-      for (int i1=n1u; i1<_n1pp; ++i1) {
-        hf[i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps2[i2],i1+uf[i2][n1um]);
+//      for (int i1=n1u; i1<_n1pp; ++i1) {
+//        hf[i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps2[i2],i1+uf[i2][n1um]);
+//      }
+    }});
+    return hf;
+  }
+  
+  public float[][] applyShifts(float[][] u, float[][] u1m) {
+    final float[][] uf = u;
+    final float[][] uuf = new float[_n2][_ne1];
+    final float[][] u1mf = u1m;
+    final float[][] hf = new float[_n2][_ne1];
+    final float[] r = new float[_ne1];
+    ramp(0.0f,1.0f,r);
+    Parallel.loop(_n2,new Parallel.LoopInt() {
+    public void compute(int i2) {
+      float[] u1 = new float[_ne1];
+      for (int i1=0; i1<_ne1; ++i1) {
+        u1[i1] = u1mf[i2][i1];      
+      }
+      _si.interpolate(_ne1,1.0,0.0,uf[i2],_ne1,u1,uuf[i2]);
+      for (int i1=0; i1<_ne1; ++i1) {
+        hf[i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps2[i2],i1+uuf[i2][i1]);
       }
     }});
     return hf;
@@ -1239,7 +1265,7 @@ _si = new SincInterp();
       float[] u1 = new float[n1];
       for (int i1=0; i1<n1; i1++)
         u1[i1] = u1m[i2][i1];
-      CubicInterpolator civ = new CubicInterpolator(r,vpvs[i2]);
+      CubicInterpolator civ = new CubicInterpolator(Method.LINEAR,r,vpvs[i2]);
       vpvsi[i2] = civ.interpolate(u1);
     }
     return vpvsi;
@@ -1317,7 +1343,7 @@ _si = new SincInterp();
       float[] u1s = new float[n1];
       for (int i1=0; i1<n1; i1++)
         u1s[i1] = u1m[i2][i1];
-      CubicInterpolator civ = new CubicInterpolator(r,uf[i2]);
+      CubicInterpolator civ = new CubicInterpolator(Method.LINEAR,r,uf[i2]);
       u[i2] = civ.interpolate(u1s);
     }
     return u;
@@ -1662,20 +1688,33 @@ _si = new SincInterp();
    * @param g sparse grid points in first dimension.
    * @return smoothed alignment errors.
    */
-  public float[][] smoothErrorsSparse(
+  public static float[][] smoothErrorsSparse(
       float[][] e, float rmin, float rmax, int[] g, 
       Map<Integer,float[][]> fmap, Map<Integer,float[][]> rmap)
   {
     int ng = g.length;
-    float[][] ef = new float[ng][_nel];
-    float[][] er = new float[ng][_nel];
-    float[][] es = new float[ng][_nel];
-    float[][] m  = new float[ng][_nel];
+    int nel = e[0].length;
+    float[][] ef = new float[ng][nel];
+    float[][] er = new float[ng][nel];
+    float[][] es = new float[ng][nel];
+    float[][] m  = new float[ng][nel];
     accumulateSparse( 1,rmin,rmax,g,fmap,e,ef,m);
     accumulateSparse(-1,rmin,rmax,g,rmap,e,er,m);
+//    Viewer vef = new Viewer(transposeLag(ef),Orientation.X1RIGHT_X2UP);
+//    vef.setTitle("Smoothed Errros Forward");
+//    vef.setSize(900,600);
+//    vef.setColorModel1(ColorMap.JET);
+//    vef.setClips1(0.0f,100.0f);
+//    vef.show();
+//    Viewer veb = new Viewer(transposeLag(er),Orientation.X1RIGHT_X2UP);
+//    veb.setTitle("Smoothed Errros Backward");
+//    veb.setSize(900,600);
+//    veb.setColorModel1(ColorMap.JET);
+//    veb.setClips1(0.0f,100.0f);
+//    veb.show();
     float scale = 1.0f/ng;
     for (int i1=0; i1<ng; i1++) {
-      for (int il=0; il<_nel; il++) {
+      for (int il=0; il<nel; il++) {
         es[i1][il] = scale*(ef[i1][il]+er[i1][il]-e[g[i1]][il]);
       }
     }
@@ -1969,7 +2008,7 @@ _si = new SincInterp();
     return new float[][][]{d,m};
   }
   
-  public float[][][] accumulateForwardSparse(
+  public static float[][][] accumulateForwardSparse(
       float[][] e, float rmin, float rmax, int[] g)
   {
     int nl = e[0].length;
@@ -1998,7 +2037,7 @@ _si = new SincInterp();
     return new float[][][]{d,m};
   }
   
-  public float[][][] accumulateReverseSparse(
+  public static float[][][] accumulateReverseSparse(
       float[][] e, float rmin, float rmax, int[] g)
   {
     int nl = e[0].length;
@@ -2165,19 +2204,26 @@ _si = new SincInterp();
     for (int ig=0; ig<ng2; ig++)
       g2f[ig] = (float)g2[ig];
 
+    Viewer vu = new Viewer(u);
+    vu.setTitle("Shifts Before Interpolation");
+    vu.setVLabel("Time (sparse samples)");
+    vu.setHLabel("Crossline (sparse samples)");
+    vu.setColorModel1(ColorMap.JET);
+    vu.addColorBar("shift");
+    vu.setSize(600,900);
+    vu.show();
     Sampling s1 = new Sampling(n1,1.0,0.0);
     Sampling s2 = new Sampling(n2,1.0,0.0);
     BilinearInterpolator2 bli = new BilinearInterpolator2(g1f,g2f,u);
     float[][] uiFlat = bli.interpolate(s1,s2);
-//    Viewer vuif = new Viewer(uiFlat);
-//    vuif.setTitle("Interpolated Shifts Flattened");
-//    vuif.setVLabel("Time (samples)");
-//    vuif.setHLabel("Crossline (samples)");
-//    vuif.setColorModel1(ColorMap.JET);
-//    vuif.addColorBar("shift");
-//    vuif.setClips1(100f,400f);
-//    vuif.setSize(600,900);
-//    vuif.show();
+    Viewer vuif = new Viewer(uiFlat);
+    vuif.setTitle("Interpolated Shifts Flattened");
+    vuif.setVLabel("Time (samples)");
+    vuif.setHLabel("Crossline (samples)");
+    vuif.setColorModel1(ColorMap.JET);
+    vuif.addColorBar("shift");
+    vuif.setSize(600,900);
+    vuif.show();
     return uiFlat;
 
 //    float[][] ui = new float[n2][n1];
@@ -2227,15 +2273,15 @@ _si = new SincInterp();
     Sampling s3 = new Sampling(n3,1.0,0.0);
     TrilinearInterpolator3 tli = new TrilinearInterpolator3(g1f,g2f,g3f,u);
     float[][][] uiFlat = tli.interpolate(s1,s2,s3);
-//    Viewer vuif = new Viewer(uiFlat);
-//    vuif.setTitle("Interpolated Shifts Flattened");
-//    vuif.setVLabel("Time (samples)");
-//    vuif.setHLabel("Crossline (samples)");
-//    vuif.setColorModel1(ColorMap.JET);
-//    vuif.addColorBar("shift");
-//    vuif.setClips1(100f,400f);
-//    vuif.setSize(600,900);
-//    vuif.show();
+    Viewer vuif = new Viewer(uiFlat);
+    vuif.setTitle("Interpolated Shifts Flattened");
+    vuif.setVLabel("Time (samples)");
+    vuif.setHLabel("Crossline (samples)");
+    vuif.setColorModel1(ColorMap.JET);
+    vuif.addColorBar("shift");
+    vuif.setClips1(100f,400f);
+    vuif.setSize(600,900);
+    vuif.show();
     return uiFlat;
 
 //    float[][] ui = new float[n2][n1];

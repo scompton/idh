@@ -11,7 +11,7 @@ from edu.mines.jtk.io import *
 from edu.mines.jtk.mosaic import *
 from edu.mines.jtk.ogl.Gl import *
 from edu.mines.jtk.sgl import *
-from edu.mines.jtk.util import *
+from edu.mines.jtk.util import SimpleFloat3
 from edu.mines.jtk.util.ArrayMath import *
 
 from dnp import *
@@ -44,10 +44,10 @@ fmin,fmax = -5.5,5.5
 
 def main(args):
   #display("tpst"); display("tpsf")
-  #displayHorizons()
+  displayHorizons()
   #figures()
   #slopes()
-  flatten()
+#  flatten()
 
 def figures():
   f = readImage("tpst")
@@ -88,13 +88,36 @@ def displayHorizons():
   t = add(s1.first,mul(s1.delta,sub(r,s)))
   for h1 in k1s:
     h = slice23(h1,t)
-    world = World()
-    ipg = addImageToWorld(world,f)
-    ipg.setSlices(k1,k2,k3)
-    tg = TriangleGroup(True,s3,s2,h)
-    tg.setColor(Color.YELLOW)
-    world.addChild(tg)
-    makeFrame(world)
+#    world = World()
+    sf = SimpleFrame()
+#    ipg = sf.addImagePanels(f)
+#    ipg = addImageToWorld(world,f)
+#    ipg.setSlices(k1,k2,k3);
+    hf = flatten(h)
+    minh = min(hf)
+    maxh = max(hf)
+    map = ColorMap(minh,maxh,ColorMap.JET)
+    rgb = map.getRgbFloats(hf)
+    n2h = len(h)
+    n1h = len(h[0])
+    r = zerofloat(n1h,n2h)
+    g = zerofloat(n1h,n2h)
+    b = zerofloat(n1h,n2h)
+    k = 0
+    for i2 in range(n2h):
+      for i1 in range(n1h):
+        r[i2][i1] = rgb[k]
+        g[i2][i1] = rgb[k+1]
+        b[i2][i1] = rgb[k+2]
+        k=k+3
+    tg = TriangleGroup(True,s3,s2,h,r,g,b)
+#    tg.setColor(Color.YELLOW)
+    tg.setColorModel(ColorMap.JET)
+    sf.addTriangles(tg)
+    sf.setSize(1000,900)
+    sf.setVisible(True)
+#    world.addChild(tg)
+#    makeFrame(world)
 
 def slopes():
   f = readImage("tpst")
@@ -118,7 +141,7 @@ def slopes():
     addImage2ToWorld(world,f,g)
     makeFrame(world)
 
-def flatten():
+def flattener():
   findShifts = True
   f = readImage("tpst")
   p2 = readImage("tpp2")

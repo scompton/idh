@@ -93,8 +93,10 @@ public class VpVsWarp {
         new CubicInterpolator(CubicInterpolator.Method.LINEAR,r,x);
     for (int i2=0; i2<n2; i2++) {
       float s2 = (float)cos(2.0*PI*f*i2);
+      float s2s = (float)(s2*scale);
+      assert(abs(s2s)>=0 && abs(s2s)<=scale):"|s2s|="+abs(s2s)+", scale="+scale;
       for (int i1=0; i1<n1; i1++) {
-        s[i2][i1] = ci.interpolate((float)(s2*scale)+i1);
+        s[i2][i1] = ci.interpolate(s2s+i1);
       }
     }
     return s;
