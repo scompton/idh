@@ -21,7 +21,7 @@ public class Subsample {
    */ 
   public static int[] subsample(int n, int d) {
     if (d>=n)
-      d = n-1;
+      d = max(n-1,1);
     int m = 1+(n-1)/d;
     double dd = (double)(n-1)/(double)(m-1);
     int[] g = new int[m];

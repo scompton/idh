@@ -24,6 +24,27 @@ public class Taper {
         f[i2] = copy(tr);
   }
   
+  public static void taperConstant(float[][][] f, int wl, int wr) {
+    int n3 = f.length;
+    int n2 = f[0].length;
+    
+    while ((wl+1)>(n2-1)) wl--;
+    wl = max(0,wl);
+    for (int i3=0; i3<n3; i3++) {
+      float[] tl = copy(f[i3][wl]);
+      for (int i2=0; i2<=wl; i2++)
+        f[i3][i2] = copy(tl);  
+    }
+    
+    while ((n2-1-wr-1)<0) wr++;
+    wr = min(n2-1,wr);
+    for (int i3=0; i3<n3; i3++) {
+      float[] tr = copy(f[i3][n2-1-wr]);
+      for (int i2=n2-1; i2>=n2-1-wr; i2--)
+          f[i3][i2] = copy(tr);  
+    }
+  }
+  
   public static void main(String[] args) {
     int n2 = 50;
     int n1=100;
