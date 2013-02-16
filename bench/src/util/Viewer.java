@@ -13,6 +13,7 @@ import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JSlider;
+import javax.swing.KeyStroke;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
@@ -176,7 +177,7 @@ public class Viewer {
         "x2.length is not consistend with sampling");
     _pt1 = _pp.addPoints(_s1,x2);
     _pt1.setLineColor(Color.WHITE);
-    addRemoveOptions(_options,_pt1,"pt1");
+    addRemoveOptions(_options,_pt1,"pt1","1");
   }
   
   public void addPoints(float[][] x2) {
@@ -185,19 +186,19 @@ public class Viewer {
     _p = x2;
     _pt1 = _pp.addPoints(_s1,x2[_i3]);
     _pt1.setLineColor(Color.WHITE);
-    addRemoveOptions(_options,_pt1,"pt1");
+    addRemoveOptions(_options,_pt1,"pt1","1");
   }
   
   public void addPoints(float[] x1, float[] x2) {
     _pt2 = _pp.addPoints(x1,x2);
     _pt2.setStyle("rO");
-    addRemoveOptions(_options,_pt2,"pt2");
+    addRemoveOptions(_options,_pt2,"pt2","2");
   }
   
   public void addPoints2(float[][] x1, float[][] x2) {
     _pt2 = _pp.addPoints(x1,x2);
     _pt2.setStyle("rO");
-    addRemoveOptions(_options,_pt2,"pt2");
+    addRemoveOptions(_options,_pt2,"pt2","2");
   }
   
   public void addPoints3(float[][][] x1, float[][][] x2) {
@@ -205,7 +206,7 @@ public class Viewer {
     _x23 = x2;
     _pt2 = _pp.addPoints(x1[_i3],x2[_i3]);
     _pt2.setStyle("rO");
-    addRemoveOptions(_options,_pt2,"pt2");
+    addRemoveOptions(_options,_pt2,"pt2","2");
   }
   
   public void addPoints(float[][] x1, float[][] x2) {
@@ -215,7 +216,7 @@ public class Viewer {
     _x2 = x2;
     _pt2 = _pp.addPoints(x1[_i3],x2[_i3]);
     _pt2.setStyle("rO");
-    addRemoveOptions(_options,_pt2,"pt2");
+    addRemoveOptions(_options,_pt2,"pt2","2");
   }
 
   public void setTitle(String title) {
@@ -390,11 +391,12 @@ public class Viewer {
   }
   
   private void addRemoveOptions(
-      JMenu options, final TiledView tv, String label)
+      JMenu options, final TiledView tv, String label, String key)
   {
     String name = "Add/Remove "+label;
     JMenuItem addRemove = new JMenuItem(name);
     addRemove.addActionListener(new AddRemoveListener(tv));
+    addRemove.setAccelerator(KeyStroke.getKeyStroke(key));
     options.add(addRemove);
   }
   
