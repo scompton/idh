@@ -1,7 +1,5 @@
 package warp;
 
-import java.util.Map;
-
 import util.Viewer;
 
 import edu.mines.jtk.awt.ColorMap;
@@ -12,7 +10,6 @@ import edu.mines.jtk.interp.BicubicInterpolator2;
 import edu.mines.jtk.interp.BilinearInterpolator2;
 import edu.mines.jtk.interp.CubicInterpolator;
 import edu.mines.jtk.interp.CubicInterpolator.Method;
-import edu.mines.jtk.interp.TricubicInterpolator3;
 import edu.mines.jtk.interp.TrilinearInterpolator3;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
@@ -22,23 +19,6 @@ import static edu.mines.jtk.util.ArrayMath.*;
  */
 public class DynamicWarpingC {
 
-  /**
-   * Constructor that specifies the maximum shift (computed
-   * from vpvsAvg) and how finely to interpolate when computing
-   * errors. Reasonable defaults are vpvsAvg=2.0f, fr=2, frMax=2.
-   * @param vpvsAvg
-   * @param fr
-   * @param frMax
-   */
-  public DynamicWarpingC(float vpvsAvg, int fr, int frMax) {
-    Check.argument(vpvsAvg>=1,"vpvsAvg>=1");
-    Check.argument(fr>0,"fr>0");
-    _fr = fr;
-    _frMax = frMax;
-    _scale = 2.0f/(vpvsAvg+1.0f);
-    _si = new SincInterp();
-  }
-  
   /**
    * Constructor for dynamic warping of a PP and PS trace. The 
    * PS trace is warped to the PP trace. Note that the PP and
@@ -54,7 +34,6 @@ public class DynamicWarpingC {
     int n1pp = pp.length;
     int n1ps = ps.length;
     _fr = 1;
-    _frMax = 1;
     int[] el = computeErrorLengths(n1pp,n1ps,0);
     _nel = el[1];
     _ne1 = el[0];
@@ -62,7 +41,7 @@ public class DynamicWarpingC {
     _n1ps = n1ps;
     _pp1 = pp;
     _ps1 = ps;
-    System.out.println("PP/PS Traces="+_n2+", PP Sample Length="+_n1pp+
+    print("PP/PS Traces="+_n2+", PP Sample Length="+_n1pp+
         ", PP Sample Length for Warping="+_ne1+", PS Sample Length="+_n1ps+
         ", Number of Lags="+_nel);
     _si = new SincInterp();
@@ -71,9 +50,9 @@ public class DynamicWarpingC {
   /**
    * Constructor for dynamic warping of 2D PP and PS images. The 
    * PS traces are warped to the PP traces. Note that the number of 
-   * PP and PS traces must be the same, but the number of samples 
-   * do not need to be the same length. The maximum shift is 
-   * determined by the given {@code vpvsAvg}.
+   * PP and PS traces must be the same, but the traces do not need
+   * to be the same length. The maximum shift is determined by the
+   * given {@code vpvsAvg}.
    * @param pp 
    * @param ps
    * @param vpvsAvg
@@ -85,7 +64,6 @@ public class DynamicWarpingC {
     int n1pp = pp[0].length;
     int n1ps = ps[0].length;
     _fr = 1;
-    _frMax = 1;
     int[] el = computeErrorLengths(n1pp,n1ps,0);
     _nel = el[1];
     _ne1 = el[0];
@@ -94,7 +72,7 @@ public class DynamicWarpingC {
     _n2 = pp.length;
     _pp2 = pp;
     _ps2 = ps;
-    System.out.println("PP/PS Traces="+_n2+", PP Sample Length="+_n1pp+
+    print("PP/PS Traces="+_n2+", PP Sample Length="+_n1pp+
         ", PP Sample Length for Warping="+_ne1+", PS Sample Length="+_n1ps+
         ", Number of Lags="+_nel);
     _si = new SincInterp();
@@ -103,9 +81,9 @@ public class DynamicWarpingC {
   /**
    * Constructor for dynamic warping of 3D PP and PS images. The 
    * PS traces are warped to the PP traces. Note that the number of 
-   * PP and PS traces must be the same, but the number of samples 
-   * do not need to be the same length. The maximum shift is 
-   * determined by the given {@code vpvsAvg}.
+   * PP and PS traces must be the same, but the traces do not need 
+   * to be the same length. The maximum shift is determined by the
+   * given {@code vpvsAvg}. 
    * @param pp 
    * @param ps
    * @param vpvsAvg
@@ -118,7 +96,6 @@ public class DynamicWarpingC {
     int n1pp = pp[0][0].length;
     int n1ps = ps[0][0].length;
     _fr = 1;
-    _frMax = 1;
     int[] el = computeErrorLengths(n1pp,n1ps,0);
     _nel = el[1];
     _ne1 = el[0];
@@ -128,63 +105,81 @@ public class DynamicWarpingC {
     _n3 = pp.length;
     _pp3 = pp;
     _ps3 = ps;
-    System.out.println("PP/PS Ensembles="+_n3+", PP/PS Traces="+_n2+
+    print("PP/PS Ensembles="+_n3+", PP/PS Traces="+_n2+
         ", PP Sample Length="+_n1pp+", PP Sample Length for Warping="+_ne1+
         ", PS Sample Length="+_n1ps+", Number of Lags="+_nel);
-_si = new SincInterp();
+    _si = new SincInterp();
   }
   
-  public void setInterpMethod(CubicInterpolator.Method m) {
-    _m1 = m;
-  }
-  public void setInterpMethod(BicubicInterpolator2.Method m) {
-    _m2 = m;
-  }
-  public void setInterpMethod(TricubicInterpolator3.Method m) {
-    _m3 = m;
-  }
-  
+  /**
+   * Returns the number of PP samples used for alignment errors.
+   * This length is computed from the average Vp/Vs given in the 
+   * constructor. 
+   * @return the number of PP samples used for alignment errors.
+   */
   public int getPPErrorLength() {
     return _ne1;
   }
   
+  /**
+   * Returns the number of lags. The number of lags is computed from
+   * the average Vp/Vs given in the constructor. It is the difference
+   * between the scaled PP trace and PS trace length. 
+   * @return the number of lags.
+   */
   public int getNumberOfLags() {
     return _nel;
   }
   
   /**
-   * Find shifts for 1D traces. Shifts are computed on a sparse
-   * grid and then interpolated back to the fine grid. The
-   * sparse grid has a minimum interval of ceil(1/dr1). This
+   * Find shifts for 1D traces. Shifts are computed for PP(g1),
+   * where g1 are sparse samples of PP(x1). The sparse shifts 
+   * are then interpolated back to the fine grid.
+   * <p>
+   * The minimum interval of g1 and samples is ceil(1/dr1). This
    * interval is variable in order to include the first and last
    * indices of the fine grid.
    * @param r1min minimum slope in first dimension.
-   * @param r1max maximum slope in first dimension.
-   * @param dr1 sparse grid increment in first dimension. 
+   * @param r1max maximum slope in first dimension. If |r1max|&lt
+   *  dr1. Then the maximum slope is zero.
+   * @param dr1 controls the sparse grid interval in the first 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts.
    * @return shifts for 1D traces.
    */
-  public float[] findShifts(float r1min, float r1max, float dr1) {
+  public float[] findShifts(
+      final float r1min, final float r1max, final float dr1) 
+  {
     float[][] e = computeErrors();
     int dg1 = (int)ceil(1.0f/dr1);
     int[] g1 = Subsample.subsample(_ne1,dg1);
-    dump(g1);
+    print("g1:"); dump(g1);
     float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
     float[] u = backtrackReverse(dm[0],dm[1]);
-    return interpolateSparseShifts(_ne1,g1,u,_m1);
+    return interpolateSparseShifts(_ne1,g1,u);
   }
   
   /**
-   * Find shifts for 2D images. Shifts are computed on a sparse
-   * grid and then interpolated back to the fine grid. The
-   * sparse grid has a minimum interval of ceil(1/dr1) in the
-   * first dimension and ceil(1/dr2) in the second dimension. 
-   * These intervals are variable in order to include the first 
-   * and last indices of the fine grid.
+   * Find shifts for 2D images. Shifts are computed for PP(g1,g2),
+   * where g1 and g2 are sparse samples of PP(x1,x2). The sparse 
+   * shifts are then interpolated back to the fine grid. The 
+   * sparse samples g1 are constant for each g2. 
+   * <p>
+   * The minimum interval of g1 and g2 samples is ceil(1/dr1) and
+   * ceil(1/dr2) respectively. These intervals are variable in 
+   * order to include the first and last indices of the fine grid.
    * @param r1min minimum slope in first dimension.
-   * @param r1max maximum slope in first dimension.
-   * @param dr1 sparse grid increment in first dimension. 
-   * @param r2max maximum slope in second dimension.
-   * @param dr2 sparse grid increment in second dimension. 
+   * @param r1max maximum slope in first dimension. If |r1max|&lt
+   *  dr1. Then the maximum slope is zero.
+   * @param dr1 controls the sparse grid interval in the first 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts.
+   * @param r2min minimum slope in second dimension.
+   * @param r2max maximum slope in second dimension. If |r2max|&lt
+   *  dr2. Then the maximum slope is zero.
+   * @param dr2 controls the sparse grid interval in the second 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts. 
    * @return shifts for 2D images.
    */
   public float[][] findShifts(
@@ -195,18 +190,21 @@ _si = new SincInterp();
     final int dg2 = (int)ceil(1.0f/dr2);
     final int[] g1 = Subsample.subsample(_ne1,dg1);
     final int[] g2 = Subsample.subsample( _n2,dg2);
-    dump(g1); dump(g2);
+    print("g1:"); dump(g1); print("g2"); dump(g2);
+    
     Stopwatch s = new Stopwatch();
     s.start();
+    print("Smoothing 1st dimension...");
     final float[][][] es1 = smoothErrors1(_pp2,_ps2,r1min,r1max,g1);
-    System.out.println("Finished 1st Dimension Smoothing in "+s.time()+
-        " seconds");
+    print("Finished 1st dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es1);
+    
     s.restart();
+    print("Smoothing 2nd dimension...");
     final float[][][] es = smoothErrors2(es1,r2min,r2max,g2);
-    System.out.println("Finished 2nd Dimension Smoothing in "+s.time()+
-        " seconds");
+    print("Finished 2nd dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es);
+    
     final int ng2 = es.length;
     final float[][] u = new float[ng2][];
     Parallel.loop(ng2,new Parallel.LoopInt() {
@@ -217,6 +215,36 @@ _si = new SincInterp();
     return interpolateSparseShifts(_ne1,_n2,g1,g2,u);
   }
   
+  /**
+   * Find shifts for 3D images. Shifts are computed for PP(g1,g2,g3),
+   * where g1, g2, and g3 are sparse samples of PP(x1,x2,x3). The
+   * sparse shifts are then interpolated back to the fine grid. The 
+   * sparse samples g1 are constant for every g2 and g3. 
+   * <p>
+   * The minimum interval of g1, g2, and g3 samples is ceil(1/dr1),
+   * ceil(1/dr2), and ceil(1/dr3) respectively. These intervals are
+   * variable in order to include the first and last indices of the
+   * fine grid.
+   * @param r1min minimum slope in first dimension.
+   * @param r1max maximum slope in first dimension. If |r1max|&lt
+   *  dr1. Then the maximum slope is zero.
+   * @param dr1 controls the sparse grid interval in the first 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts.
+   * @param r2min minimum slope in second dimension.
+   * @param r2max maximum slope in second dimension. If |r2max|&lt
+   *  dr2. Then the maximum slope is zero.
+   * @param dr2 controls the sparse grid interval in the second 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts. 
+   * @param r3min minimum slope in third dimension.
+   * @param r3max maximum slope in third dimension. If |r3max|&lt
+   *  dr3. Then the maximum slope is zero.
+   * @param dr3 controls the sparse grid interval in the third 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts. 
+   * @return shifts for 3D images.
+   */
   public float[][][] findShifts(
       final float r1min, final float r1max, final float dr1, 
       final float r2min, final float r2max, final float dr2,
@@ -228,20 +256,27 @@ _si = new SincInterp();
     final int[] g1 = Subsample.subsample(_ne1,dg1);
     final int[] g2 = Subsample.subsample( _n2,dg2);
     final int[] g3 = Subsample.subsample( _n3,dg3);
-    dump(g1); dump(g2); dump(g3);
-//    Stopwatch s = new Stopwatch();
-//    s.start();
-//    final float[][][][] es1 = smoothErrors1(_pp3,_ps3,r1min,r1max,g1);
-//    System.out.println("Finished 1st Dimension Smoothing in "+s.time()+
-//        " seconds");
-//    normalizeErrors(es1);
-//    s.restart();
-//    final float[][][] es = smoothErrors2(es1,r2min,r2max,g2);
-//    System.out.println("Finished 2nd Dimension Smoothing in "+s.time()+
-//        " seconds");
-//    normalizeErrors(es);
-    final float[][][][] es = 
-        smoothErrorsSparse(r1min,r1max,g1,r3min,r2max,g2,r3min,r3max,g3);
+    print("g1:"); dump(g1); print("g2"); dump(g2); print("g3"); dump(g3);
+    
+    Stopwatch s = new Stopwatch();
+    s.start();
+    print("Smoothing 1st dimension...");
+    final float[][][][] es1 = smoothErrors1(_pp3,_ps3,r1min,r1max,g1);
+    print("Finished 1st dimension smoothing in "+s.time()+" seconds");
+    normalizeErrors(es1);
+    
+    s.restart();
+    print("Smoothing 2nd dimension...");
+    final float[][][][] es12 = smoothErrors2(es1,r2min,r2max,g2);
+    print("Finished 2nd dimension smoothing in "+s.time()+" seconds");
+    normalizeErrors(es12);
+    
+    s.restart();
+    print("Smoothing 3rd dimension...");
+    final float[][][][] es = smoothErrors3(es12,r3min,r3max,g3);
+    print("Finished 3rd dimension smoothing in "+s.time()+" seconds");
+    normalizeErrors(es);
+    
     final int ng3 = es.length;
     final int ng2 = es[0].length;
     final float[][][] u = new float[ng3][ng2][];
@@ -256,42 +291,24 @@ _si = new SincInterp();
   }
   
   /**
-   * Find shifts for 1D traces. This method first smooths
-   * alignment errors. Shifts are computed on a sparse grid
-   * and then are interpolated back to the fine grid. The
-   * sparse grid has a minimum interval of ceil(1/dr1). This
-   * interval is variable in order to include the first and last
-   * indices of the fine grid.
+   * Find shifts for 1D traces. Shifts are computed for PP(g1),
+   * where g1 are sparse samples of PP(x1). The sparse shifts 
+   * are then interpolated back to the fine grid.  
+   * <p>
+   * The sparse grid indices are selected preferentially by the 
+   * maximum amplitudes of the envelope of PP(x1). However, the 
+   * selected sparse grid points must satisfy the minimum interval
+   * of ceil(1/dr1) and must include the first and last indices.
    * @param r1min minimum slope in first dimension.
-   * @param r1max maximum slope in first dimension.
-   * @param dr1 sparse grid increment in first dimension. 
-   * @return shifts for 1D traces.
-   */
-  public float[] findShiftsSmooth(float r1min, float r1max, float dr1) {
-    int dg1 = (int)ceil(1.0f/dr1);
-    int[] g1 = Subsample.subsample(_ne1,dg1);
-    dump(g1);
-    float[][] e = computeErrors();
-    float[][] es = smoothErrorsSparse(e,r1min,r1max,g1);
-    normalizeErrors(es);
-    float[][][] dm = accumulateForward(es,g1,r1min,r1max);
-    float[] u = backtrackReverse(dm[0],dm[1]);
-    return interpolateSparseShifts(_ne1,g1,u,_m1);
-  }
-  
-  /**
-   * Find shifts for 1D traces. Shifts are computed on a sparse
-   * grid and then interpolated back to the fine grid. The
-   * sparse grid indices are selected preferentially by the 
-   * maximum amplitudes in the pp trace, however the indices 
-   * must have a minimum interval of ceil(1/dr1). 
-   * @param r1min minimum slope in first dimension.
-   * @param r1max maximum slope in first dimension.
-   * @param dr1 sparse grid increment in first dimension. 
+   * @param r1max maximum slope in first dimension. If |r1max|&lt
+   *  dr1. Then the maximum slope is zero.
+   * @param dr1 controls the sparse grid interval in the first 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts.
    * @return shifts for 1D traces.
    */
   public float[] findShiftsM(
-      float r1min, float r1max, float dr1, boolean useNG)
+      final float r1min, final float r1max, final float dr1)
   {
     float[][] e = computeErrors();
     float[] ppe = getEnvelope(_pp1);
@@ -300,31 +317,51 @@ _si = new SincInterp();
       pp[i1] = ppe[i1]; // use envelope of trace
     int[] g1;
     int dg1 = (int)ceil(1.0f/dr1);
-    if (useNG) {
-      int ng = 1+(_ne1-1)/dg1;
-      g1 = Subsample.subsample(pp,dg1,ng);
-    } else
-      g1 = Subsample.subsample(pp,dg1);
-    System.out.println("ng="+g1.length);
-    dump(g1);
+//    if (useNG) {
+//      int ng = 1+(_ne1-1)/dg1;
+//      g1 = Subsample.subsample(pp,dg1,ng);
+//    } else
+    g1 = Subsample.subsample(pp,dg1);
+    print("g1:"); dump(g1);
     float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
     float[] u = backtrackReverse(dm[0],dm[1]);
-    return interpolateSparseShifts(_ne1,g1,u,_m1);
+    return interpolateSparseShifts(_ne1,g1,u);
   }
   
   /**
-   * Find shifts for 2D images. Shifts are computed on a sparse
-   * grid and then interpolated back to the fine grid. For the 
-   * first dimension, the sparse grid indices are selected 
-   * preferentially by the maximum amplitudes in the pp traces.
-   * The sparse grid has a minimum interval of ceil(1/dr2) in the 
-   * second dimension. This interval is variable in order to 
-   * include the first and last indices of the fine grid.
+   * Find shifts for 2D images. Shifts are computed for PP(g1,g2),
+   * where g1 and g2 are sparse samples of PP(x1,x2). The sparse 
+   * shifts are then interpolated back to the fine grid. The 
+   * sparse samples g1 and g2 are aligned with the strongest 
+   * reflectors in the PP image. Sparse samples h1 and h2 are 
+   * found for a flattened image PPF(y1,y2)=PP(x1(y1,y2),y2) by
+   * preferentially selecting the maximum amplitudes of the sum
+   * of the envelopes of all traces in the flattened image. 
+   * Using the flattening mappings, we can convert PPF(h1,h2) to
+   * PP(g1,g2) where g1 and g2 are now aligned to with the 
+   * maximum amplitude events in the unflattened image. Warping
+   * is performed in the unflattened space.
+   * <p>
+   * The selection of sparse grid points h1 and h2 must satisfy 
+   * the minimum intervals of ceil(1/dr1) and ceil(1/dr2) 
+   * respectively and must include the first and last indices of 
+   * the fine grid in each dimension.
+   * @param ppf the flattened PP image. 
+   * @param x1 the mappings x1(y1,y2) to convert flattened sparse
+   *  grid points h1,h2 to unflattened structurally aligned sparse
+   *  grid points g1,g2.
    * @param r1min minimum slope in first dimension.
-   * @param r1max maximum slope in first dimension.
-   * @param dr1 sparse grid increment in first dimension. 
-   * @param r2max maximum slope in second dimension.
-   * @param dr2 sparse grid increment in second dimension. 
+   * @param r1max maximum slope in first dimension. If |r1max|&lt
+   *  dr1. Then the maximum slope is zero.
+   * @param dr1 controls the sparse grid interval in the first 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts.
+   * @param r2min minimum slope in second dimension.
+   * @param r2max maximum slope in second dimension. If |r2max|&lt
+   *  dr2. Then the maximum slope is zero.
+   * @param dr2 controls the sparse grid interval in the second 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts. 
    * @return shifts for 2D images.
    */
   public float[][] findShiftsM(
@@ -336,22 +373,20 @@ _si = new SincInterp();
     final int[][] g1 = grids[0];
     final int dg2 = (int)ceil(1.0f/dr2);
     final int[] g2 = Subsample.subsample(_n2,dg2);
-    dump(g2);
+    print("g2:"); dump(g2);
+    
     Stopwatch s = new Stopwatch();
     s.start();
+    print("Smoothing 1st dimension...");
     final float[][][] es1 = smoothErrors1(_pp2,_ps2,r1min,r1max,g1);
-    System.out.println("Finished 1st Dimension Smoothing in "+s.time()+
-        " seconds");
+    print("Finished 1st dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es1);
+    
     s.restart();
+    print("Smoothing 2nd dimension...");
     final float[][][] es = smoothErrors2(es1,r2min,r2max,g2);
-    System.out.println("Finished 2nd Dimension Smoothing in "+s.time()+
-        " seconds");
+    print("Finished 2nd dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es);
-//    final float[][][] es = 
-//        smoothErrorsSparseM(_pp2,_ps2,r1min,r1max,g1,r2min,r2max,g2);
-    // Second smoothing iteration
-//    smoothSparseErrors(es,r1min,r1max,g1,g2,r2max);
     
     final int ng2 = es.length;
     final float[][] u = new float[ng2][];
@@ -360,43 +395,49 @@ _si = new SincInterp();
       float[][][] dm = accumulateForward(es[i2],g1[i2],r1min,r1max);
       u[i2] = backtrackReverse(dm[0],dm[1]);
     }});
-//    Viewer ve2 = new Viewer(transposeLag12(es),Orientation.X1RIGHT_X2UP);
-//    ve2.setTitle("Smoothed Errros 2");
-//    ve2.setSize(900,600);
-//    ve2.setColorModel1(ColorMap.JET);
-//    ve2.setClips1(0.0f,0.9f);
-//    ve2.addPoints(u);
-//    ve2.show();
-//    Viewer vet2 = new Viewer(
-//        transposeLag12(transposeLag23(es)),Orientation.X1RIGHT_X2UP);
-//    vet2.setTitle("Smoothed Errros 2 Transposed");
-//    vet2.setSize(900,600);
-//    vet2.setColorModel1(ColorMap.JET);
-//    vet2.setClips1(0.0f,0.9f);
-//    vet2.addPoints(transposeLag(u));
-//    vet2.show();
     return interpolateSparseShifts(_ne1,_n2,grids[1][0],g2,u,x1);
   }
   
   /**
-   * Find shifts for 3D images. Shifts are computed on a sparse
-   * grid and then interpolated back to the fine grid. For the 
-   * first dimension, the sparse grid indices are selected 
-   * preferentially by the maximum amplitudes in the pp traces.
-   * The sparse grid has a minimum interval of ceil(1/dr2) in the 
-   * second dimension. and a minimum interval of ceil(1/dr3) in 
-   * the third dimension. These intervals are variable in order to 
-   * include the first and last indices of the fine grid.
-   * @param ppf flattened pp image for computing sparse grid points.
-   * @param u1 
-   * @param x1 
+   * Find shifts for 3D images. Shifts are computed for PP(g1,g2,g3),
+   * where g1, g2, and g3 are sparse samples of PP(x1,x2,x3). The 
+   * sparse shifts are then interpolated back to the fine grid. The 
+   * sparse samples g1, g2, and g3 are aligned with the strongest 
+   * reflectors in the PP image. Sparse samples h1, h2, and h3 are 
+   * found for a flattened image PPF(y1,y2,y3)=PP(x1(y1,y2,y3),y2,y3)
+   * by preferentially selecting the maximum amplitudes of the sum
+   * of the envelopes of all traces in the flattened image. Using the
+   * flattening mappings, we can convert PPF(h1,h2,h3) to 
+   * PP(g1,g2,g3) where g1, g2, and g3 are now aligned to with the 
+   * maximum amplitude events in the unflattened image. Warping
+   * is performed in the unflattened space.
+   * <p>
+   * The selection of sparse grid points h1, h2, and h3 must satisfy 
+   * the minimum intervals of ceil(1/dr1), ceil(1/dr2), and 
+   * ceil(1/dr3) respectively and must include the first and last 
+   * indices of the fine grid in each dimension.
+   * @param ppf the flattened PP image. 
+   * @param x1 the mappings x1(y1,y2,y3) to convert flattened sparse
+   *  grid points h1,h2,h3 to unflattened structurally aligned sparse
+   *  grid points g1,g2,g3.
    * @param r1min minimum slope in first dimension.
-   * @param r1max maximum slope in first dimension.
-   * @param dr1 sparse grid increment in first dimension. 
-   * @param r2max maximum slope in second dimension.
-   * @param dr2 sparse grid increment in second dimension. 
-   * @param r3max maximum slope in third dimension.
-   * @param dr3 sparse grid increment in third dimension.
+   * @param r1max maximum slope in first dimension. If |r1max|&lt
+   *  dr1. Then the maximum slope is zero.
+   * @param dr1 controls the sparse grid interval in the first 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts.
+   * @param r2min minimum slope in second dimension.
+   * @param r2max maximum slope in second dimension. If |r2max|&lt
+   *  dr2. Then the maximum slope is zero.
+   * @param dr2 controls the sparse grid interval in the second 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts. 
+   * @param r3min minimum slope in third dimension.
+   * @param r3max maximum slope in third dimension. If |r3max|&lt
+   *  dr3. Then the maximum slope is zero.
+   * @param dr3 controls the sparse grid interval in the third 
+   *  dimension. A smaller value results in a larger interval and 
+   *  smoother shifts. 
    * @return shifts for 3D images.
    */
   public float[][][] findShiftsM(
@@ -411,10 +452,27 @@ _si = new SincInterp();
     final int[][][] g1 = grids[0];
     final int[] g2 = Subsample.subsample(_n2,dg2);
     final int[] g3 = Subsample.subsample(_n3,dg3);
-    dump(g2); dump(g3);
-    final float[][][][] es = smoothErrorsSparseM(
-        r1min,r1max,g1,r2min,r2max,g2,r3min,r3max,g3);
-    smoothSparseErrors(es,r1min,r1max,g1,g2,g3,r2max,r3max);
+    print("g2:"); dump(g2); print("g3:"); dump(g3);
+    
+    Stopwatch s = new Stopwatch();
+    s.start();
+    print("Smoothing 1st dimension...");
+    final float[][][][] es1 = smoothErrors1(_pp3,_ps3,r1min,r1max,g1);
+    print("Finished 1st dimension smoothing in "+s.time()+" seconds");
+    normalizeErrors(es1);
+
+    s.restart();
+    print("Smoothing 2nd dimension...");
+    final float[][][][] es12 = smoothErrors2(es1,r2min,r2max,g2);
+    print("Finished 2nd dimension smoothing in "+s.time()+" seconds");
+    normalizeErrors(es12);
+    
+    s.restart();
+    print("Smoothing 3rd dimension...");
+    final float[][][][] es = smoothErrors3(es12,r3min,r3max,g3);
+    normalizeErrors(es);
+    print("Finished 3rd dimension smoothing in "+s.time()+" seconds");
+    
     final int ng2 = es[0].length;
     final int ng3 = es.length;
     final float[][][] u = new float[ng3][ng2][];
@@ -425,185 +483,13 @@ _si = new SincInterp();
         u[i3][i2] = backtrackReverse(dm[0],dm[1]);  
       }
     }});
-//    interpolateSparseShiftsFlat(_ne1,_n2,_n3,grids[1][0][0],g2,g3,u);
     return interpolateSparseShifts(_ne1,_n2,_n3,grids[1][0][0],g2,g3,u,x1);
   }
   
-  /**
-   * Find shifts for 2D images from averaged alignment errors. These
-   * shifts are constant for all traces.
-   * @param r1min minimum slope in first dimension.
-   * @param r1max maximum slope in first dimension.
-   * @param dr1 sparse grid increment in first dimension. 
-   * @return shifts for 2D images from averaged alignment errors.
-   */
-  public float[][] findShifts2(float r1min, float r1max, float dr1) {
-    final float[][] e = computeErrors2Average();
-    final int dg1 = (int)ceil(1.0f/dr1);
-    final int[] g1 = Subsample.subsample(_ne1,dg1);
-    dump(g1);
-    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
-    final float[] u1 = interpolateSparseShifts(_ne1,g1,
-        backtrackReverse(dm[0],dm[1]),_m1);
-    final float[][] u = new float[_n2][];
-    for (int i2=0; i2<_n2; i2++) {
-      u[i2] = copy(u1);
-    }
-    return u;
-  }
-  
-  public float[][] findShifts2M(float r1min, float r1max, float dr1) {
-    final float[][] e = computeErrors2Average();
-    final int dg1 = (int)ceil(1.0f/dr1);
-    float[] ea = new float[_ne1];
-    float[] et;
-    for (int i2=0; i2<_n2; i2++) {
-      et = getEnvelope(_pp2[i2]);
-      for (int i1=0; i1<_ne1; i1++) {
-        ea[i1] += et[i1];
-      }
-    }
-    final int[] g1 = Subsample.subsample(ea,dg1);
-    dump(g1);
-    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
-    final float[] u1 = interpolateSparseShifts(_ne1,g1,
-        backtrackReverse(dm[0],dm[1]),_m1);
-    final float[][] u = new float[_n2][];
-    for (int i2=0; i2<_n2; i2++) {
-      u[i2] = copy(u1);
-    }
-    return u;
-  }
-  
-  public float[][] findShifts2MFlat(
-      float[][] ppf, float[][] x1, float r1min, float r1max, float dr1) 
-  {
-    final float[][] e = computeErrors2Average(x1);
-    int nppf = ppf[0].length;
-    int dg1 = (int)ceil(1.0f/dr1);
-    float[] ea = new float[nppf];
-    float[] et;
-    for (int i2=0; i2<_n2; i2++) {
-      et = getEnvelope(ppf[i2]);
-      for (int i1=0; i1<nppf; i1++)
-        ea[i1] += et[i1];
-    }
-    int[] g1 = Subsample.subsample(ea,dg1);
-    dump(g1);
-    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
-    final float[] u1 = interpolateSparseShifts(_ne1,g1,
-        backtrackReverse(dm[0],dm[1]),_m1);
-    final float[][] u = new float[_n2][];
-    for (int i2=0; i2<_n2; i2++) {
-      u[i2] = copy(u1);
-    }
-    return u;
-  }
-  
-  /**
-   * Find shifts for 2D images from averaged alignment errors. These
-   * shifts are constant for all traces.
-   * @param r1min minimum slope in first dimension.
-   * @param r1max maximum slope in first dimension.
-   * @param dr1 sparse grid increment in first dimension. 
-   * @return shifts for 2D images from averaged alignment errors.
-   */
-  public float[][][] findShifts3(float r1min, float r1max, float dr1) {
-    float[][] e3Avg = computeErrors3Average();
-    return findShifts3(e3Avg,r1min,r1max,dr1);
-  }
-  
-  public float[][][] findShifts3(
-      float[][] e3Avg, float r1min, float r1max, float dr1) 
-  {
-    final int dg1 = (int)ceil(1.0f/dr1);
-    final int[] g1 = Subsample.subsample(_ne1,dg1);
-    dump(g1);
-    final float[][][] dm = accumulateForwardSparse(e3Avg,r1min,r1max,g1);
-    final float[] u1 = interpolateSparseShifts(_ne1,g1,
-        backtrackReverse(dm[0],dm[1]),_m1);
-    final float[][][] u = new float[_n3][_n2][];
-    for (int i3=0; i3<_n3; i3++) {
-      for (int i2=0; i2<_n2; i2++) {
-        u[i3][i2] = copy(u1);
-      }
-    }
-    return u;
-  }
-  
-  public float[][][] findShifts3M(float r1min, float r1max, float dr1) {
-    final float[][] e3Avg = computeErrors3Average();
-    return findShifts3M(e3Avg,r1min,r1max,dr1); 
-  }
-  
-  public float[][][] findShifts3M(
-      float[][] e3Avg, float r1min, float r1max, float dr1) 
-  {
-    final float[][] e = computeErrors3Average();
-    final int dg1 = (int)ceil(1.0f/dr1);
-    float[] ea = new float[_ne1];
-    float[] et;
-    for (int i3=0; i3<_n3; i3++) {
-      for (int i2=0; i2<_n2; i2++) {
-        et = getEnvelope(_pp3[i3][i2]);
-        for (int i1=0; i1<_ne1; i1++) {
-          ea[i1] += et[i1];
-        }
-      }
-    }
-    final int[] g1 = Subsample.subsample(ea,dg1);
-    dump(g1);
-    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
-    final float[] u1 = interpolateSparseShifts(_ne1,g1,
-        backtrackReverse(dm[0],dm[1]),_m1);
-    final float[][][] u = new float[_n3][_n2][];
-    for (int i3=0; i3<_n3; i3++) {
-      for (int i2=0; i2<_n2; i2++) {
-        u[i3][i2] = copy(u1);
-      }
-    }
-    return u;
-  }
-  
-  public float[][][] findShifts3MFlat(
-      float[][][] ppf, float[][][] x1, float r1min, float r1max, float dr1)
-  {
-    float[][] e3AvgF = computeErrors3Average(x1);
-    return findShifts3MFlat(e3AvgF,ppf,x1,r1min,r1max,dr1);
-  }
-  
-  public float[][][] findShifts3MFlat(
-      float[][] e3AvgF, float[][][] ppf, float[][][] x1,
-      float r1min, float r1max, float dr1) 
-  {
-    int nppf = ppf[0][0].length;
-    int dg1 = (int)ceil(1.0f/dr1);
-    float[] ea = new float[nppf];
-    float[] et;
-    for (int i3=0; i3<_n3; i3++) {
-      for (int i2=0; i2<_n2; i2++) {
-        et = getEnvelope(ppf[i3][i2]);
-        for (int i1=0; i1<nppf; i1++)
-          ea[i1] += et[i1];
-      }
-    }
-    int[] g1 = Subsample.subsample(ea,dg1);
-    dump(g1);
-    final float[][][] dm = accumulateForwardSparse(e3AvgF,r1min,r1max,g1);
-    final float[] u1 = interpolateSparseShifts(_ne1,g1,
-        backtrackReverse(dm[0],dm[1]),_m1);
-    final float[][][] u = new float[_n3][_n2][];
-    for (int i3=0; i3<_n3; i3++) {
-      for (int i2=0; i2<_n2; i2++) {
-        u[i3][i2] = copy(u1);
-      }
-    }
-    return u;
-  }
-  
+  //TODO update doc
   /**
    * Gets a sparse grid for warping in the first dimension
-   * of the pp image. This method flattens the PP image using 
+   * of the pp image. This method uses the flattened PP image using 
    * given mappings, fm. From the flattened image the average of
    * envelopes of all the traces is computed and used to 
    * preferentially select grid locations with the highest
@@ -664,6 +550,7 @@ _si = new SincInterp();
     return new int[][][]{gw,g};
   }
 
+  //TODO update doc
   /**
    * Gets a sparse grid for warping in the first dimension
    * of the pp image. This method uses the flattened PP image, 
@@ -734,6 +621,313 @@ _si = new SincInterp();
     return new int[][][][]{gw,g};
   }
 
+  public float[] applyShifts(float[] u) {
+    int nu = u.length;
+    int num = nu-1;
+    float[] h = new float[_n1pp];
+    for (int iu=0; iu<nu; ++iu) {
+      h[iu] = _si.interpolate(_n1ps,1.0,0.0,_ps1,iu+u[iu]);
+    }
+    for (int i1=nu; i1<_n1pp; ++i1) {
+      h[i1] = _si.interpolate(_n1ps,1.0,0.0,_ps1,i1+u[num]);
+    }
+    return h;
+  }
+  
+  public float[][] applyShifts(float[][] u) {
+    final int n1u = u[0].length;
+    final int n1um = n1u-1;
+    final float[][] uf = u;
+    final float[][] hf = new float[_n2][_n1pp];
+    Parallel.loop(_n2,new Parallel.LoopInt() {
+    public void compute(int i2) {
+      for (int i1=0; i1<n1u; ++i1) {
+        hf[i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps2[i2],i1+uf[i2][i1]);
+      }
+      for (int i1=n1u; i1<_n1pp; ++i1) {
+        hf[i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps2[i2],i1+uf[i2][n1um]);
+      }
+    }});
+    return hf;
+  }
+  
+  public float[][][] applyShifts(float[][][] u) {
+    final int n1u = u[0][0].length;
+    final int n1um = n1u-1;
+    final float[][][] uf = u;
+    final float[][][] hf = new float[_n3][_n2][_n1pp];
+    Parallel.loop(_n3,new Parallel.LoopInt() {
+    public void compute(int i3) {
+      for (int i2=0; i2<_n2; i2++) {
+        for (int i1=0; i1<n1u; i1++) {
+          hf[i3][i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps3[i3][i2],
+              i1+uf[i3][i2][i1]);
+        }
+        for (int i1=n1u; i1<_n1pp; i1++) {
+          hf[i3][i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps3[i3][i2],
+              i1+uf[i3][i2][n1um]);
+        }  
+      }
+    }});
+    return hf;
+  }
+  
+  public float[][] applyShifts(
+      float[] u1, float[] uS, float[] ps1, float[] ps2)
+  {
+    int n1 = ps1.length;
+    float[] ps1w = new float[n1]; 
+    float[] ps2w = new float[n1];
+    int nu = u1.length;
+    int num = nu-1;
+    for (int iu=0; iu<nu; ++iu) {
+      ps1w[iu] = _si.interpolate(n1,1.0,0.0,ps1,iu+u1[iu]);
+      ps2w[iu] = _si.interpolate(n1,1.0,0.0,ps2,iu+u1[iu]+uS[iu]);
+    }
+    for (int i1=nu; i1<n1; ++i1) {
+      ps1w[i1] = _si.interpolate(n1,1.0,0.0,ps1,i1+u1[num]);
+      ps2w[i1] = _si.interpolate(n1,1.0,0.0,ps2,i1+u1[num]+uS[num]);
+    }
+    return new float[][]{ps1w, ps2w};
+  }
+  
+  /**
+   * Computes an array of VpVs ratios an array of shifts u.
+   * The relationship is defined as vpvs(t) = 1+2*(du/dt)
+   * @param u
+   * @return computed vpvs values. 
+   */
+  public static float[] vpvs(float[] u) {
+    int n = u.length;
+    int nm1 = n-1;
+    float[] vpvs = new float[n];
+    vpvs[ 0 ] = 1.0f + 2*(u[ 1 ]-u[  0  ]); // at i1=0, forward difference
+    vpvs[nm1] = 1.0f + 2*(u[nm1]-u[nm1-1]); // at i1=nm1, backward difference
+    for (int i1=1; i1<nm1; ++i1) {
+      vpvs[i1] = 1.0f + 2*((u[i1+1]-u[i1-1])/2.0f);
+    }
+    return vpvs;
+  }
+  
+  /**
+   * Computes an array of VpVs ratios an array of shifts u.
+   * The relationship is defined as vpvs(t) = 1+2*(du/dt)
+   * @param u
+   * @return computed vpvs values. 
+   */
+  public static float[][] vpvs(float[][] u) {
+    int n1 = u[0].length;
+    int n2 = u.length;
+    int n1m1 = n1-1;
+    float[][] vpvs = new float[n2][n1];
+    for (int i2=0; i2<n2; ++i2) {
+      // At i1=0, forward difference. At i1=nm1, backward difference.
+      vpvs[i2][  0 ] = 1.0f + 2*(u[i2][  1 ]-u[i2][   0  ]); 
+      vpvs[i2][n1m1] = 1.0f + 2*(u[i2][n1m1]-u[i2][n1m1-1]);
+      for (int i1=1; i1<n1m1; ++i1) {
+        vpvs[i2][i1] = 1.0f+2*((u[i2][i1+1]-u[i2][i1-1])/2.0f);
+      }
+    }
+    return vpvs;
+  }
+  
+  /**
+   * Computes an array of VpVs ratios an array of shifts u.
+   * The relationship is defined as vpvs(t) = 1+2*(du/dt)
+   * @param u
+   * @return computed vpvs values. 
+   */
+  public static float[][][] vpvs(float[][][] u) {
+    int n1 = u[0][0].length;
+    int n2 = u[0].length;
+    int n3 = u.length;
+    int n1m1 = n1-1;
+    float[][][] vpvs = new float[n3][n2][n1];
+    for (int i3=0; i3<n3; ++i3) {
+      for (int i2=0; i2<n2; ++i2) {
+        // At i1=0, forward difference. At i1=nm1, backward difference.
+        vpvs[i3][i2][  0 ] = 1.0f + 2*(u[i3][i2][  1 ]-u[i3][i2][   0  ]); 
+        vpvs[i3][i2][n1m1] = 1.0f + 2*(u[i3][i2][n1m1]-u[i3][i2][n1m1-1]);
+        for (int i1=1; i1<n1m1; ++i1) {
+          vpvs[i3][i2][i1] = 1.0f+2*((u[i3][i2][i1+1]-u[i3][i2][i1-1])/2.0f);
+        }
+      }  
+    }
+    return vpvs;
+  }
+
+  /**
+   * Find shifts for 2D images from averaged alignment errors. These
+   * shifts are constant for all traces.
+   * @param r1min minimum slope in first dimension.
+   * @param r1max maximum slope in first dimension.
+   * @param dr1 sparse grid increment in first dimension. 
+   * @return shifts for 2D images from averaged alignment errors.
+   */
+  public float[][] findShifts2(float r1min, float r1max, float dr1) {
+    final float[][] e = computeErrorsSum2();
+    final int dg1 = (int)ceil(1.0f/dr1);
+    final int[] g1 = Subsample.subsample(_ne1,dg1);
+    dump(g1);
+    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
+    final float[] u1 = 
+        interpolateSparseShifts(_ne1,g1,backtrackReverse(dm[0],dm[1]));
+    final float[][] u = new float[_n2][];
+    for (int i2=0; i2<_n2; i2++) {
+      u[i2] = copy(u1);
+    }
+    return u;
+  }
+  
+  public float[][] findShifts2M(float r1min, float r1max, float dr1) {
+    final float[][] e = computeErrorsSum2();
+    final int dg1 = (int)ceil(1.0f/dr1);
+    float[] ea = new float[_ne1];
+    float[] et;
+    for (int i2=0; i2<_n2; i2++) {
+      et = getEnvelope(_pp2[i2]);
+      for (int i1=0; i1<_ne1; i1++) {
+        ea[i1] += et[i1];
+      }
+    }
+    final int[] g1 = Subsample.subsample(ea,dg1);
+    dump(g1);
+    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
+    final float[] u1 = 
+        interpolateSparseShifts(_ne1,g1,backtrackReverse(dm[0],dm[1]));
+    final float[][] u = new float[_n2][];
+    for (int i2=0; i2<_n2; i2++) {
+      u[i2] = copy(u1);
+    }
+    return u;
+  }
+  
+  public float[][] findShifts2MFlat(
+      float[][] ppf, float[][] x1, float r1min, float r1max, float dr1) 
+  {
+    final float[][] e = computeErrorsSum2(x1);
+    int nppf = ppf[0].length;
+    int dg1 = (int)ceil(1.0f/dr1);
+    float[] ea = new float[nppf];
+    float[] et;
+    for (int i2=0; i2<_n2; i2++) {
+      et = getEnvelope(ppf[i2]);
+      for (int i1=0; i1<nppf; i1++)
+        ea[i1] += et[i1];
+    }
+    int[] g1 = Subsample.subsample(ea,dg1);
+    dump(g1);
+    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
+    final float[] u1 =
+        interpolateSparseShifts(_ne1,g1,backtrackReverse(dm[0],dm[1]));
+    final float[][] u = new float[_n2][];
+    for (int i2=0; i2<_n2; i2++) {
+      u[i2] = copy(u1);
+    }
+    return u;
+  }
+  
+  /**
+   * Find shifts for 2D images from averaged alignment errors. These
+   * shifts are constant for all traces.
+   * @param r1min minimum slope in first dimension.
+   * @param r1max maximum slope in first dimension.
+   * @param dr1 sparse grid increment in first dimension. 
+   * @return shifts for 2D images from averaged alignment errors.
+   */
+  public float[][][] findShifts3(float r1min, float r1max, float dr1) {
+    float[][] e3Avg = computeErrors3Average();
+    return findShifts3(e3Avg,r1min,r1max,dr1);
+  }
+  
+  public float[][][] findShifts3(
+      float[][] e3Avg, float r1min, float r1max, float dr1) 
+  {
+    final int dg1 = (int)ceil(1.0f/dr1);
+    final int[] g1 = Subsample.subsample(_ne1,dg1);
+    dump(g1);
+    final float[][][] dm = accumulateForwardSparse(e3Avg,r1min,r1max,g1);
+    final float[] u1 = 
+        interpolateSparseShifts(_ne1,g1,backtrackReverse(dm[0],dm[1]));
+    final float[][][] u = new float[_n3][_n2][];
+    for (int i3=0; i3<_n3; i3++) {
+      for (int i2=0; i2<_n2; i2++) {
+        u[i3][i2] = copy(u1);
+      }
+    }
+    return u;
+  }
+  
+  public float[][][] findShifts3M(float r1min, float r1max, float dr1) {
+    final float[][] e3Avg = computeErrors3Average();
+    return findShifts3M(e3Avg,r1min,r1max,dr1); 
+  }
+  
+  public float[][][] findShifts3M(
+      float[][] e3Avg, float r1min, float r1max, float dr1) 
+  {
+    final float[][] e = computeErrors3Average();
+    final int dg1 = (int)ceil(1.0f/dr1);
+    float[] ea = new float[_ne1];
+    float[] et;
+    for (int i3=0; i3<_n3; i3++) {
+      for (int i2=0; i2<_n2; i2++) {
+        et = getEnvelope(_pp3[i3][i2]);
+        for (int i1=0; i1<_ne1; i1++) {
+          ea[i1] += et[i1];
+        }
+      }
+    }
+    final int[] g1 = Subsample.subsample(ea,dg1);
+    dump(g1);
+    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
+    final float[] u1 = 
+        interpolateSparseShifts(_ne1,g1,backtrackReverse(dm[0],dm[1]));
+    final float[][][] u = new float[_n3][_n2][];
+    for (int i3=0; i3<_n3; i3++) {
+      for (int i2=0; i2<_n2; i2++) {
+        u[i3][i2] = copy(u1);
+      }
+    }
+    return u;
+  }
+  
+  public float[][][] findShifts3MFlat(
+      float[][][] ppf, float[][][] x1, float r1min, float r1max, float dr1)
+  {
+    float[][] e3AvgF = computeErrors3Average(x1);
+    return findShifts3MFlat(e3AvgF,ppf,x1,r1min,r1max,dr1);
+  }
+  
+  public float[][][] findShifts3MFlat(
+      float[][] e3AvgF, float[][][] ppf, float[][][] x1,
+      float r1min, float r1max, float dr1) 
+  {
+    int nppf = ppf[0][0].length;
+    int dg1 = (int)ceil(1.0f/dr1);
+    float[] ea = new float[nppf];
+    float[] et;
+    for (int i3=0; i3<_n3; i3++) {
+      for (int i2=0; i2<_n2; i2++) {
+        et = getEnvelope(ppf[i3][i2]);
+        for (int i1=0; i1<nppf; i1++)
+          ea[i1] += et[i1];
+      }
+    }
+    int[] g1 = Subsample.subsample(ea,dg1);
+    dump(g1);
+    final float[][][] dm = accumulateForwardSparse(e3AvgF,r1min,r1max,g1);
+    final float[] u1 = 
+        interpolateSparseShifts(_ne1,g1,backtrackReverse(dm[0],dm[1]));
+    final float[][][] u = new float[_n3][_n2][];
+    for (int i3=0; i3<_n3; i3++) {
+      for (int i2=0; i2<_n2; i2++) {
+        u[i3][i2] = copy(u1);
+      }
+    }
+    return u;
+  }
+  
   public void plotSparseGrid(
       float[][] ppf, int[][] gf, int[][] gw, float dr2) 
   {
@@ -1032,9 +1226,6 @@ _si = new SincInterp();
       float[][] u, float[][] ppf, float[][] x1, float dr1, Sampling s1)
   {
     s1 = (s1==null)?new Sampling(u.length):s1;
-//    float[][] ppf = fm.flatten(_pp2);
-//    int ppfMax = (int)(fm.u1[0][_ne1]);
-//    int nppf = ppfMax+1;
     int nppf = ppf[0].length;
     int dg1 = (int)ceil(1.0f/dr1);
     float[] ea = new float[nppf];
@@ -1079,220 +1270,6 @@ _si = new SincInterp();
     return new float[][][]{x1c,x2c};
   }
   
-  public float[] findShiftSums(float[][] u) {
-    int nu = u.length;
-    float[] sums = new float[nu];
-    for (int iu=0; iu<nu; iu++) {
-      sums[iu] = sum(u[iu]);
-    }
-    normalize(sums);
-    return sums;
-  }
-  
-  public float[] applyShifts(float[] u) {
-    int nu = u.length;
-    int num = nu-1;
-    float[] h = new float[_n1pp];
-    for (int iu=0; iu<nu; ++iu) {
-      h[iu] = _si.interpolate(_n1ps,1.0,0.0,_ps1,iu+u[iu]);
-    }
-    for (int i1=nu; i1<_n1pp; ++i1) {
-      h[i1] = _si.interpolate(_n1ps,1.0,0.0,_ps1,i1+u[num]);
-    }
-    return h;
-  }
-  
-  public float[][] applyShifts(float[][] u) {
-    final int n1u = u[0].length;
-    final int n1um = n1u-1;
-    final float[][] uf = u;
-    final float[][] hf = new float[_n2][_n1pp];
-    Parallel.loop(_n2,new Parallel.LoopInt() {
-    public void compute(int i2) {
-      for (int i1=0; i1<n1u; ++i1) {
-        hf[i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps2[i2],i1+uf[i2][i1]);
-      }
-      for (int i1=n1u; i1<_n1pp; ++i1) {
-        hf[i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps2[i2],i1+uf[i2][n1um]);
-      }
-    }});
-    return hf;
-  }
-  
-  public float[][][] applyShifts(float[][][] u) {
-    final int n1u = u[0][0].length;
-    final int n1um = n1u-1;
-    final float[][][] uf = u;
-    final float[][][] hf = new float[_n3][_n2][_n1pp];
-    Parallel.loop(_n3,new Parallel.LoopInt() {
-    public void compute(int i3) {
-      for (int i2=0; i2<_n2; i2++) {
-        for (int i1=0; i1<n1u; i1++) {
-          hf[i3][i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps3[i3][i2],
-              i1+uf[i3][i2][i1]);
-        }
-        for (int i1=n1u; i1<_n1pp; i1++) {
-          hf[i3][i2][i1] = _si.interpolate(_n1ps,1.0,0.0,_ps3[i3][i2],
-              i1+uf[i3][i2][n1um]);
-        }  
-      }
-    }});
-    return hf;
-  }
-  
-  public float[][] applyShifts(
-      float[] u1, float[] uS, float[] ps1, float[] ps2)
-  {
-    int n1 = ps1.length;
-    float[] ps1w = new float[n1]; 
-    float[] ps2w = new float[n1];
-    int nu = u1.length;
-    int num = nu-1;
-    for (int iu=0; iu<nu; ++iu) {
-      ps1w[iu] = _si.interpolate(n1,1.0,0.0,ps1,iu+u1[iu]);
-      ps2w[iu] = _si.interpolate(n1,1.0,0.0,ps2,iu+u1[iu]+uS[iu]);
-    }
-    for (int i1=nu; i1<n1; ++i1) {
-      ps1w[i1] = _si.interpolate(n1,1.0,0.0,ps1,i1+u1[num]);
-      ps2w[i1] = _si.interpolate(n1,1.0,0.0,ps2,i1+u1[num]+uS[num]);
-    }
-    return new float[][]{ps1w, ps2w};
-  }
-  
-  /**
-   * Computes an array of VpVs ratios an array of shifts u.
-   * The relationship is defined as vpvs(t) = 1+2*(du/dt)
-   * @param u
-   * @return computed vpvs values. 
-   */
-  public static float[] vpvs(float[] u) {
-    int n = u.length;
-    int nm1 = n-1;
-    float[] vpvs = new float[n];
-    vpvs[ 0 ] = 1.0f + 2*(u[ 1 ]-u[  0  ]); // at i1=0, forward difference
-    vpvs[nm1] = 1.0f + 2*(u[nm1]-u[nm1-1]); // at i1=nm1, backward difference
-    for (int i1=1; i1<nm1; ++i1) {
-      vpvs[i1] = 1.0f + 2*((u[i1+1]-u[i1-1])/2.0f);
-    }
-    return vpvs;
-  }
-  
-  /**
-   * Computes an array of VpVs ratios an array of shifts u.
-   * The relationship is defined as vpvs(t) = 1+2*(du/dt)
-   * @param u
-   * @return computed vpvs values. 
-   */
-  public static float[][] vpvs(float[][] u) {
-    int n1 = u[0].length;
-    int n2 = u.length;
-    int n1m1 = n1-1;
-    float[][] vpvs = new float[n2][n1];
-    for (int i2=0; i2<n2; ++i2) {
-      // At i1=0, forward difference. At i1=nm1, backward difference.
-      vpvs[i2][  0 ] = 1.0f + 2*(u[i2][  1 ]-u[i2][   0  ]); 
-      vpvs[i2][n1m1] = 1.0f + 2*(u[i2][n1m1]-u[i2][n1m1-1]);
-      for (int i1=1; i1<n1m1; ++i1) {
-        vpvs[i2][i1] = 1.0f+2*((u[i2][i1+1]-u[i2][i1-1])/2.0f);
-      }
-    }
-    return vpvs;
-  }
-  
-  /**
-   * Computes an array of VpVs ratios an array of shifts u.
-   * The relationship is defined as vpvs(t) = 1+2*(du/dt)
-   * @param u
-   * @return computed vpvs values. 
-   */
-  public static float[][] vpvs(float[][] u, float[][] u1m) {
-    int n1 = u[0].length;
-    int n2 = u.length;
-    int n1m1 = n1-1;
-    float[][] vpvs = new float[n2][n1];
-    for (int i2=0; i2<n2; ++i2) {
-      // At i1=0, forward difference. At i1=nm1, backward difference.
-      vpvs[i2][  0 ] = 1.0f + 2*(u[i2][  1 ]-u[i2][   0  ]); 
-      vpvs[i2][n1m1] = 1.0f + 2*(u[i2][n1m1]-u[i2][n1m1-1]);
-      for (int i1=1; i1<n1m1; ++i1) {
-        vpvs[i2][i1] = 1.0f+2*((u[i2][i1+1]-u[i2][i1-1])/2.0f);
-      }
-    }
-    float[][] vpvsi = new float[n2][n1];
-    float[] r = new float[n1];
-    ramp(0.0f,1.0f,r);
-    for (int i2=0; i2<n2; i2++) {
-      float[] u1 = new float[n1];
-      for (int i1=0; i1<n1; i1++)
-        u1[i1] = u1m[i2][i1];
-      CubicInterpolator civ = new CubicInterpolator(Method.LINEAR,r,vpvs[i2]);
-      vpvsi[i2] = civ.interpolate(u1);
-    }
-    return vpvsi;
-  }
-  
-  /**
-   * Computes an array of VpVs ratios an array of shifts u.
-   * The relationship is defined as vpvs(t) = 1+2*(du/dt)
-   * @param u
-   * @return computed vpvs values. 
-   */
-  public static float[][][] vpvs(float[][][] u) {
-    int n1 = u[0][0].length;
-    int n2 = u[0].length;
-    int n3 = u.length;
-    int n1m1 = n1-1;
-    float[][][] vpvs = new float[n3][n2][n1];
-    for (int i3=0; i3<n3; ++i3) {
-      for (int i2=0; i2<n2; ++i2) {
-        // At i1=0, forward difference. At i1=nm1, backward difference.
-        vpvs[i3][i2][  0 ] = 1.0f + 2*(u[i3][i2][  1 ]-u[i3][i2][   0  ]); 
-        vpvs[i3][i2][n1m1] = 1.0f + 2*(u[i3][i2][n1m1]-u[i3][i2][n1m1-1]);
-        for (int i1=1; i1<n1m1; ++i1) {
-          vpvs[i3][i2][i1] = 1.0f+2*((u[i3][i2][i1+1]-u[i3][i2][i1-1])/2.0f);
-        }
-      }  
-    }
-    return vpvs;
-  }
-
-  /**
-   * Computes an array of VpVs ratios an array of shifts u.
-   * The relationship is defined as vpvs(t) = 1+2*(du/dt)
-   * @param u
-   * @return computed vpvs values. 
-   */
-  public static float[][][] vpvs(float[][][] u, float[][][] u1) {
-    int n1 = u[0][0].length;
-    int n2 = u[0].length;
-    int n3 = u.length;
-    int n1m1 = n1-1;
-    float[][][] vpvs = new float[n3][n2][n1];
-    for (int i3=0; i3<n3; ++i3) {
-      for (int i2=0; i2<n2; ++i2) {
-        // At i1=0, forward difference. At i1=nm1, backward difference.
-        vpvs[i3][i2][  0 ] = 1.0f + 2*(u[i3][i2][  1 ]-u[i3][i2][   0  ]); 
-        vpvs[i3][i2][n1m1] = 1.0f + 2*(u[i3][i2][n1m1]-u[i3][i2][n1m1-1]);
-        for (int i1=1; i1<n1m1; ++i1) {
-          vpvs[i3][i2][i1] = 1.0f+2*((u[i3][i2][i1+1]-u[i3][i2][i1-1])/2.0f);
-        }
-      }  
-    }
-    float[][][] vpvsi = new float[n3][n2][n1];
-    float[] r = new float[n1];
-    ramp(0.0f,1.0f,r);
-    for (int i3=0; i3<n3; i3++) {
-      for (int i2=0; i2<n2; i2++) {
-        float[] u1s = new float[n1];
-        for (int i1=0; i1<n1; i1++)
-          u1s[i1] = u1[i3][i2][i1];
-        CubicInterpolator civ = new CubicInterpolator(r,vpvs[i3][i2]);
-        vpvsi[i3][i2] = civ.interpolate(u1s);
-      }
-    }
-    return vpvsi;
-  }
-  
   public static float[][] unflattenShifts(float[][] uf, float[][] u1m) {
     int n1 = uf[0].length;
     int n2 = uf.length;
@@ -1331,6 +1308,10 @@ _si = new SincInterp();
   ///////////////////////////////////////////////////////////////////////////
   // for research and atypical applications
 
+  /**
+   * Compute alignment errors for 1D traces.
+   * @return alignment errors for 1D traces.
+   */
   public float[][] computeErrors() {
     float[][] e = new float[_ne1][_nel];
     computeErrors(_pp1,_ps1,e);
@@ -1338,26 +1319,9 @@ _si = new SincInterp();
     return e;
   }
   
-  public float[][] computeErrors(float[] pp, float[] ps) {
-    int npp = pp.length;
-    int nps = ps.length;
-    int[] el = computeErrorLengths(npp,nps,0);
-    float[][] e = new float[el[0]][el[1]];
-    if (_fr>1) {
-      int nx = (npp-1)*_fr+1;
-      float[] psi = new float[nx];
-      _si.interpolate(npp,1.0,0.0,ps,nx,_shifts1.getDelta(),0.0,psi);
-      computeErrors(pp,psi,e);
-    } else {
-      computeErrors(pp,ps,e);
-    }
-    normalizeErrors(e);
-    return e;
-  }
-  
   /**
-   * Compute alignment errors for 2D images.
-   * @return Normalized alignment errors.
+   * Compute alignment errors for 2D traces.
+   * @return alignment errors for 2D traces.
    */
   public float[][][] computeErrors2() {
     final float[][][] e = new float[_n2][_ne1][_nel];
@@ -1365,38 +1329,14 @@ _si = new SincInterp();
     public void compute(int i2) {
       computeErrors(_pp2[i2],_ps2[i2],e[i2]);  
     }});
-//    normalizeErrors(e);
-    return e;
-  }
-  
-  public float[][][][] computeErrors(float[][][] pp, float[][][] ps) {
-    final int npp1 = pp[0][0].length;
-    final int npp2 = pp[0].length;
-    final int npp3 = pp.length;
-    final int nps1 = ps[0][0].length;
-    final int nps2 = ps[0].length;
-    final int nps3 = ps.length;
-    Check.argument(npp2==nps2,"npp2==nps2");
-    Check.argument(npp3==nps3,"npp3==nps3");
-    final float[][][] fpp = pp;
-    final float[][][] fps = ps;
-    int[] el = computeErrorLengths(npp1,nps1,0);
-    final float[][][][] e = new float[npp3][npp2][el[0]][el[1]];
-    Parallel.loop(npp3,new Parallel.LoopInt() {
-    public void compute(int i3) {
-      for (int i2=0; i2<npp2; i2++) {
-        computeErrors(fpp[i3][i2],fps[i3][i2],e[i3][i2]);    
-      }
-    }});
-    normalizeErrors(e);
     return e;
   }
   
   /**
-   * Compute average alignment errors for 2D images.
-   * @return Normalized averaged alignment errors for 2D images. 
+   * Compute summed alignment errors for 2D images.
+   * @return summed alignment errors for 2D images. 
    */
-  public float[][] computeErrors2Average() {
+  public float[][] computeErrorsSum2() {
     float[][] e = Parallel.reduce(_n2,new Parallel.ReduceInt<float[][]>() {
     public float[][] compute(int i2) {
       float[][] e = new float[_ne1][_nel];
@@ -1406,11 +1346,10 @@ _si = new SincInterp();
     public float[][] combine(float[][] ea, float[][] eb) {
       return add(ea,eb);
     }});
-    normalizeErrors(e);
     return e;
   }
   
-  public float[][] computeErrors2Average(float[][] x1) {
+  public float[][] computeErrorsSum2(float[][] x1) {
     final float[][][] e2 = new float[_n2][_ne1][_nel];
     Parallel.loop(_n2,new Parallel.LoopInt() {
     public void compute(int i2) {
@@ -1423,13 +1362,12 @@ _si = new SincInterp();
         e[i1] = add(e[i1],e2[i2][x]);  
       }
     }
-    normalizeErrors(e);
     return e;
   }
   
   /**
-   * Compute average alignment errors for 3D images.
-   * @return Normalized averaged alignment errors for 3D images. 
+   * Compute summed alignment errors for 3D images.
+   * @return summed alignment errors for 3D images. 
    */
   public float[][] computeErrors3Average() {
     float[][] e = Parallel.reduce(_n2*_n3,new Parallel.ReduceInt<float[][]>() {
@@ -1443,10 +1381,15 @@ _si = new SincInterp();
     public float[][] combine(float[][] ea, float[][] eb) {
       return add(ea,eb);
     }});
-    normalizeErrors(e);
     return e;
   }
   
+  /**
+   * Compute summed alignment errors for 3D images. The summation
+   * is along structure
+   * @param x1
+   * @return summed alignment errors for 3D images. 
+   */
   public float[][] computeErrors3Average(float[][][] x1) {
     final float[][][][] e3 = new float[_n3][_n2][_ne1][_nel];
     Parallel.loop(_n3,new Parallel.LoopInt() {
@@ -1463,545 +1406,7 @@ _si = new SincInterp();
         }
       }
     }
-    normalizeErrors(e);
     return e;
-  }
-  
-  public float[][] computeErrors1(float[][] pp, float[][] ps1) {
-    final int n1 = pp[0].length;
-    int n1ps = ps1[0].length;
-    int[] el = computeErrorLengths(n1,n1ps,0);
-    final int n1M = el[0]; // maximum pp time index
-    final int nl1 = el[1]; // number of pp-ps1 lags
-    final int n2 = pp.length;
-    final float[][] fpp = pp;
-    final float[][] fps1 = ps1;
-    float[][] e = Parallel.reduce(n2, new Parallel.ReduceInt<float[][]>() {
-    public float[][] compute(int i2) {
-      float[][] e = new float[n1M][nl1];
-      if (_fr>1) {
-        int nx = (n1-1)*_fr+1;
-        float[] ps1i = new float[nx];
-        _si.interpolate(n1,1.0,0.0,fps1[i2],nx,_shifts1.getDelta(),0.0,ps1i);
-        computeErrors(fpp[i2],ps1i,e);
-      } else {
-        computeErrors(fpp[i2],fps1[i2],e);
-      }  
-      return e;
-    }
-    public float[][] combine(float[][] ea, float[][] eb) {
-      return add(ea,eb);
-    }});
-    normalizeErrors(e);
-    return e;
-  }
-  
-  public float[][] computeErrors1(float[][][] pp, float[][][] ps) {
-    final int n1pp = pp[0][0].length;
-    final int n1ps = ps[0][0].length;
-    final int n2 = pp[0].length;
-    final int n3 = pp.length;
-    int[] el = computeErrorLengths(n1pp,n1ps,0);
-    final int n1M = el[0]; // maximum pp time index
-    final int nl1 = el[1]; // number of pp-ps1 lags
-    final float[][][] fpp = pp;
-    final float[][][] fps1 = ps;
-    float[][] e = Parallel.reduce(n2*n3,new Parallel.ReduceInt<float[][]>() {
-      public float[][] compute(int i23) {
-        int i2 = i23%n2;
-        int i3 = i23/n2;
-        float[][] e = new float[n1M][nl1];
-        if (_fr>1) {
-          int nx = (n1pp-1)*_fr+1;
-          float[] ps1i = new float[nx];
-          _si.interpolate(n1pp,1.0,0.0,fps1[i3][i2],
-              nx,_shifts1.getDelta(),0.0,ps1i);
-          computeErrors(fpp[i3][i2],ps1i,e);
-        } else {
-          computeErrors(fpp[i3][i2],fps1[i3][i2],e);
-        }  
-        return e;
-      }
-      public float[][] combine(float[][] ea, float[][] eb) {
-        return add(ea,eb);
-      }});
-    normalizeErrors(e);
-    return e;
-  }
-  
-  public float[][] computeErrors(float[] ps1, float[] ps2, int maxShift) {
-    int n1 = ps1.length;
-    int[] el = computeErrorLengths(n1,maxShift);
-    float[][] e = new float[el[0]][el[1]];
-    if (_fr>1) {
-      int nx = (n1-1)*_fr+1;
-      float[] ps2i = new float[nx];
-      _si.interpolate(n1,1.0,0.0,ps2,nx,_shifts1.getDelta(),0.0,ps2i);
-      computeErrors(ps1,ps2i,e);
-    } else {
-      computeErrors(ps1,ps2,e);
-    }  
-    normalizeErrors(e);
-    return e;
-  }
-  
-  public float[][][] computeErrors(
-      float[] pp, float[] ps1, float[] ps2, float fsp)
-  {
-    int n1 = pp.length;
-    int[] el = computeErrorLengths(n1,fsp);
-    float[][][] e = new float[el[0]][el[1]][el[2]];
-    if (_fr>1) {
-      int nx = (n1-1)*_fr+1;
-      float[] ps2i = new float[nx];
-      _si.interpolate(n1,1.0,0.0,ps2,nx,_shiftsS.getDelta(),0.0,ps2i);
-      computeErrors(pp,ps1,ps2i,e);
-    } else {
-      computeErrors(pp,ps1,ps2,e);
-    }
-    normalizeErrors(e);
-    return e;
-  }
-
-  public float[][] computeErrors1(float[][] ps1, float[][] ps2, int maxShift) {
-    final int n1 = ps1[0].length;
-    int[] el = computeErrorLengths(n1,maxShift);
-    final int n1M = el[0]; // maximum pp time index
-    final int nl1 = el[1]; // number of pp-ps1 lags
-    final int n2 = ps1.length;
-    final float[][] fpp = ps1;
-    final float[][] fps2 = ps2;
-    float[][] e = Parallel.reduce(n2, new Parallel.ReduceInt<float[][]>() {
-      public float[][] compute(int i2) {
-        float[][] e = new float[n1M][nl1];
-        if (_fr>1) {
-          int nx = (n1-1)*_fr+1;
-          float[] ps2i = new float[nx];
-          _si.interpolate(n1,1.0,0.0,fps2[i2],nx,_shifts1.getDelta(),0.0,ps2i);
-          computeErrors(fpp[i2],ps2i,e);
-        } else {
-          computeErrors(fpp[i2],fps2[i2],e);
-        }
-        return e;
-      }
-      public float[][] combine(float[][] ea, float[][] eb) {
-        return add(ea,eb);
-      }});
-      normalizeErrors(e);
-    return e;
-  }
-  
-  public float[][][] computeErrors1(
-      float[][] pp, float[][] ps1, float[][] ps2, float fsp)
-  {
-    final int n1 = pp[0].length;
-    int[] el = computeErrorLengths(n1,fsp);
-    final int n1M = el[0]; // maximum pp time index
-    final int nl1 = el[1]; // number of pp-ps1 lags
-    final int nlS = el[2]; // number of ps1-ps2 lags
-    final int n2 = pp.length;
-    final float[][] fpp = pp;
-    final float[][] fps1 = ps1;
-    final float[][] fps2 = ps2;
-    float[][][] e = Parallel.reduce(n2, new Parallel.ReduceInt<float[][][]>() {
-    public float[][][] compute(int i2) {
-      float[][][] e = new float[n1M][nl1][nlS];
-      if (_fr>1) {
-        int nx = (n1-1)*_fr+1;
-        float[] ps2i = new float[nx];
-        _si.interpolate(n1,1.0,0.0,fps2[i2],nx,_shifts1.getDelta(),0.0,ps2i);
-        computeErrors(fpp[i2],fps1[i2],ps2i,e);
-      } else {
-        computeErrors(fpp[i2],fps1[i2],fps2[i2],e);  
-      }
-      return e;
-    }
-    public float[][][] combine(float[][][] ea, float[][][] eb) {
-      return add(ea,eb);
-    }});
-    normalizeErrors(e);
-    return e;
-  }
-
-  public static float[][] smoothErrors(float[][] e) {
-    int n1 = e.length;
-    int nl = e[0].length;
-    float[][] ef = like(e);
-    float[][] er = like(e);
-    float[][] es = like(e);
-    accumulate( 1,e,ef);
-    accumulate(-1,e,er);
-    for (int i1=0; i1<n1; i1++) {
-      for (int il=0; il<nl; il++) {
-        es[i1][il] = ef[i1][il]+er[i1][il]-e[i1][il];
-      }
-    }
-    normalizeErrors(es);
-    return es;
-  }
-  
-  /**
-   * Returns smooth alignment errors on a sparse grid. 
-   * @param e 2D array of alignment errors.
-   * @param rmin minimum slope in first dimension.
-   * @param rmax maximum slope in first dimension.
-   * @param g sparse grid points in first dimension.
-   * @return smoothed alignment errors.
-   */
-  public static float[][] smoothErrorsSparse(
-      float[][] e, float rmin, float rmax, int[] g)      
-  {
-    int ng = g.length;
-    int nel = e[0].length;
-    float[][] ef = new float[ng][nel];
-    float[][] er = new float[ng][nel];
-    float[][] es = new float[ng][nel];
-    accumulateSparseNew( 1,rmin,rmax,g,e,ef,null);
-    accumulateSparseNew(-1,rmin,rmax,g,e,er,null);
-    float scale = 1.0f/e.length;
-    for (int i1=0; i1<ng; i1++) {
-      for (int il=0; il<nel; il++) {
-        es[i1][il] = scale*(ef[i1][il]+er[i1][il]-e[g[i1]][il]);
-      }
-    }
-    return es;
-  }
-  
-  public float[][][] smoothErrors1(final float[][] pp, final float[][] ps,
-      final float r1min, final float r1max, final int[] g1)
-  {
-    final int ng1 = g1.length;
-    final float[][][] es1 = new float[_n2][ng1][_nel];
-    Parallel.loop(_n2,new Parallel.LoopInt() {
-    public void compute(int i2) {
-      float[][] e = new float[_ne1][_nel];
-      computeErrors(pp[i2],ps[i2],e);
-      es1[i2] = smoothErrorsSparse(e,r1min,r1max,g1);
-    }});
-    return es1;
-  }
-  
-  public float[][][] smoothErrors1(final float[][] pp, final float[][] ps,
-      final float r1min, final float r1max, final int[][] g1)
-  {
-    final int ng1 = g1.length;
-    final float[][][] es1 = new float[_n2][ng1][_nel];
-    Parallel.loop(_n2,new Parallel.LoopInt() {
-    public void compute(int i2) {
-      float[][] e = new float[_ne1][_nel];
-      computeErrors(pp[i2],ps[i2],e);
-      es1[i2] = smoothErrorsSparse(e,r1min,r1max,g1[i2]);
-    }});
-    return es1;
-  }
-  
-  public float[][][][] smoothErrors1(final float[][][] pp, final float[][][] ps,
-      final float r1min, final float r1max, final int[] g1)
-  {
-    final int ng1 = g1.length;
-    final float[][][][] es1 = new float[_n3][_n2][ng1][_nel];
-    Parallel.loop(_n3,new Parallel.LoopInt() {
-    public void compute(int i3) {
-      for (int i2=0; i2<_n2; i2++) {
-        float[][] e = new float[_ne1][_nel];
-        computeErrors(pp[i3][i2],ps[i3][i2],e);
-        es1[i3][i2] = smoothErrorsSparse(e,r1min,r1max,g1);  
-      }
-    }});
-    return es1;
-  }
-  
-  public float[][][] smoothErrors2(
-      final float[][][] es1, 
-      final float r2min, final float r2max, final int[] g2)
-  {
-    final int ng1 = es1[0].length;
-    final int ng2 = g2.length;
-    final float[][][] es = new float[ng2][ng1][_nel]; // smoothed errors
-    Parallel.loop(ng1,new Parallel.LoopInt() {
-    public void compute(int i1) {
-      float[][]  e2 = new float[_n2][_nel]; // errors at index i1
-      for (int i2=0; i2<_n2; ++i2)
-        e2[i2] = es1[i2][i1];
-      float[][] es2 = smoothErrorsSparse(e2,r2min,r2max,g2);
-      for (int i2=0; i2<ng2; i2++)
-        es[i2][i1] = es2[i2];
-    }});
-    return es;
-  }
-
-  /**
-   * Returns smooth alignment errors for 2D images on a sparse grid in
-   * each dimension.
-   * @param r1min minimum slope in first dimension.
-   * @param r1max maximum slope in first dimension.
-   * @param g1 sparse grid points in first dimension.
-   * @param r2max maximum slope in second dimension.
-   * @param g2 sparse grid points in second dimension.
-   * @return smoothed alignment errors.
-   */
-  public float[][][] smoothErrorsSparse(
-      final float[][] pp, final float[][] ps,
-      final float r1min, final float r1max, final int[] g1,
-      final float r2min, final float r2max, final int[] g2)
-  {
-    // Smooth alignment errors in first dimension for each trace.
-    final int ng1 = g1.length;
-    Stopwatch s = new Stopwatch();
-    s.start();
-    final float[][][] es1 = new float[_n2][ng1][_nel];
-    Parallel.loop(_n2,new Parallel.LoopInt() {
-    public void compute(int i2) {
-      float[][] e = new float[_ne1][_nel];
-      computeErrors(pp[i2],ps[i2],e);
-      es1[i2] = smoothErrorsSparse(e,r1min,r1max,g1);
-    }});
-    System.out.println("Finished 1st Dimension Smoothing in "+s.time()+
-        " seconds");
-    normalizeErrors(es1);
-    s.restart();
-    
-    // Smooth in the second dimension
-    final int ng2 = g2.length;
-    final float[][][] es = new float[ng2][ng1][_nel]; // smoothed errors
-    final Parallel.Unsafe<float[][][]> e2u = 
-        new Parallel.Unsafe<float[][][]>();
-    Parallel.loop(ng1,new Parallel.LoopInt() {
-    public void compute(int i1) {
-      float[][][] ee = e2u.get();
-      if (ee==null) e2u.set(ee=new float[3][ng2][_nel]);
-      float[][] es2 = ee[0]; // smooth sparse errors at index i1 
-      float[][] ef2 = ee[1]; // forward errors
-      float[][] er2 = ee[2]; // reverse errors
-      float[][]  e2 = new float[_n2][_nel]; // smooth errors at index i1
-      for (int i2=0; i2<ng2; ++i2) {
-        es2[i2] = es[i2][i1];
-        for (int il=0; il<_nel; ++il) {
-          ef2[i2][il] = 0.0f;
-          er2[i2][il] = 0.0f;
-        }
-      }
-      for (int i2=0; i2<_n2; ++i2) {
-        e2[i2] = es1[i2][i1];
-      }
-      accumulateSparseNew( 1,r2min,r2max,g2,e2,ef2,null);
-      accumulateSparseNew(-1,r2min,r2max,g2,e2,er2,null);
-      float scale = 1.0f/ng2;
-      for (int i2=0; i2<ng2; ++i2) {
-        for (int il=0; il<_nel; ++il) {
-          es2[i2][il] = scale*(ef2[i2][il]+er2[i2][il]-e2[g2[i2]][il]);
-        }
-      }
-    }});
-    normalizeErrors(es);
-    System.out.println("Finished 2nd Dimension Smoothing in "+s.time()+
-        " seconds");
-    return es;
-  }
-  
-  /**
-   * Returns smooth alignment errors for 3D images on a sparse grid in
-   * each dimension.
-   * @param r1min minimum slope in first dimension.
-   * @param r1max maximum slope in first dimension.
-   * @param g1 sparse grid points in first dimension.
-   * @param r2max maximum slope in second dimension.
-   * @param g2 sparse grid points in second dimension.
-   * @param r3min minimum slope in third dimension.
-   * @param r3max maximum slope in third dimension.
-   * @param g3 sparse grid points in third dimension.
-   * @return smoothed alignment errors.
-   */
-  public float[][][][] smoothErrorsSparse(
-      final float r1min, final float r1max, final int[] g1,
-      final float r2min, final float r2max, final int[] g2,
-      final float r3min, final float r3max, final int[] g3)
-  {
-    final int ng1 = g1.length;
-    final int ng2 = g2.length;
-    final int ng3 = g3.length;
-    final float[][][][] es12 = new float[_n3][ng2][ng1][_nel]; // smoothed errors
-    for (int i3=0; i3<_n3; i3++) {
-      System.out.println("Starting i3 "+i3);
-      es12[i3] = 
-          smoothErrorsSparse(_pp3[i3],_ps3[i3],r1min,r1max,g1,r2min,r2max,g2);
-    }
-    normalizeErrors(es12);
-
-    final float[][][][] es = new float[ng3][ng2][ng1][_nel]; // smoothed errors
-    final Parallel.Unsafe<float[][][]> e3u = 
-        new Parallel.Unsafe<float[][][]>();
-    Parallel.loop(ng1,new Parallel.LoopInt() {
-    public void compute(int i1) {
-      for (int i2=0; i2<ng2; i2++) {
-        float[][][] ee = e3u.get();
-        if (ee==null) e3u.set(ee=new float[3][ng3][_nel]);
-        float[][] es3 = ee[0]; // smooth sparse errors at index i1 
-        float[][] ef3 = ee[1]; // forward errors
-        float[][] er3 = ee[2]; // reverse errors
-        float[][]  e3 = new float[_n3][_nel]; // smooth errors at index i1
-        for (int i3=0; i3<ng3; i3++) {
-          es3[i3] = es[i3][i2][i1];
-          for (int il=0; il<_nel; ++il) {
-            ef3[i3][il] = 0.0f;
-            er3[i3][il] = 0.0f;
-          }
-        }
-        for (int i3=0; i3<_n3; i3++) {
-          e3[i3] = es12[i3][i2][i1];
-        }
-        accumulateSparseNew( 1,r3min,r3max,g3,e3,ef3,null);
-        accumulateSparseNew(-1,r3min,r3max,g3,e3,er3,null);
-        for (int i3=0; i3<ng3; i3++) {
-          for (int il=0; il<_nel; il++) {
-            es3[i3][il] = ef3[i3][il]+er3[i3][il]-e3[g3[i3]][il];
-          }
-        }  
-      }
-    }});
-    normalizeErrors(es);
-    return es;
-  }
-  
-  /**
-   * Returns smooth alignment errors for 2D images on a sparse grid in
-   * each dimension.
-   * @param r1min minimum slope in first dimension.
-   * @param r1max maximum slope in first dimension.
-   * @param g1 sparse grid points in first dimension.
-   * @param r2max maximum slope in second dimension.
-   * @param g2 sparse grid points in second dimension.
-   * @return smoothed alignment errors.
-   */
-  public float[][][] smoothErrorsSparseM(
-      final float[][] pp, final float[][] ps,
-      final float r1min, final float r1max, final int[][] g1,
-      final float r2min, final float r2max, final int[] g2)
-  {
-    // Smooth alignment errors in first dimension for each trace.
-    Stopwatch s = new Stopwatch();
-    s.start();
-    int ng1 = g1[0].length;
-    final float[][][] es1 = new float[_n2][ng1][_nel];
-    Parallel.loop(_n2,new Parallel.LoopInt() {
-    public void compute(int i2) {
-      float[][] e = new float[_ne1][_nel];
-      computeErrors(pp[i2],ps[i2],e);
-      es1[i2] = smoothErrorsSparse(e,r1min,r1max,g1[i2]);
-    }});
-    System.out.println("Finished 1st Dimension Smoothing in "+s.time()+
-        " seconds");
-    normalizeErrors(es1);
-    
-    s.restart();
-    final int ng2 = g2.length;
-    final float[][][] es = new float[ng2][ng1][_nel]; // smoothed errors
-    final Parallel.Unsafe<float[][][]> e1u = 
-        new Parallel.Unsafe<float[][][]>();
-    Parallel.loop(ng1,new Parallel.LoopInt() {
-    public void compute(int i1) {
-      float[][][] ee = e1u.get();
-      if (ee==null) e1u.set(ee=new float[3][ng2][_nel]);
-      float[][]   m = ee[0]; // moves
-      float[][] es2 = ee[1]; // smooth sparse errors at index i1 
-      float[][] ef2 = ee[2]; // forward errors
-      float[][] er2 = ee[3]; // reverse errors
-      float[][]  e2 = new float[_n2][_nel]; // smooth errors at index i1
-      for (int i2=0; i2<ng2; ++i2) {
-        es2[i2] = es[i2][i1];
-        for (int il=0; il<_nel; ++il) {
-          ef2[i2][il] = 0.0f;
-          er2[i2][il] = 0.0f;
-        }
-      }
-      for (int i2=0; i2<_n2; ++i2) {
-        e2[i2] = es1[i2][i1];
-      }
-      //TODO remove
-//      accumulateSparse2( 1,r2max,g2,e2,ef2,m);
-//      accumulateSparse2(-1,r2max,g2,e2,er2,m);
-      accumulateSparseNew( 1,r2min,r2max,g2,e2,ef2,null);
-      accumulateSparseNew(-1,r2min,r2max,g2,e2,er2,null);
-      float scale = 1.0f/ng2;
-      for (int i2=0; i2<ng2; ++i2) {
-        for (int il=0; il<_nel; ++il) {
-          es2[i2][il] = scale*(ef2[i2][il]+er2[i2][il]-e2[g2[i2]][il]);
-        }
-      }
-    }});
-    normalizeErrors(es);
-    System.out.println("Finished 2nd Dimension Smoothing in "+s.time()+
-        " seconds");
-    return es;
-  }
-  
-  public float[][][][] smoothErrorsSparseM(
-      final float r1min, final float r1max, final int[][][] g1,
-      final float r2min, final float r2max, final int[] g2,
-      final float r3min, final float r3max, final int[] g3)
-  {
-    final int ng1 = g1[0][0].length;
-    final int ng2 = g2.length;
-    final int ng3 = g3.length;
-    final float[][][][] es12 = new float[_n3][ng2][ng1][_nel]; // smoothed errors
-    for (int i3=0; i3<_n3; i3++) {
-      System.out.println("Starting i3 "+i3);
-      es12[i3] = 
-          smoothErrorsSparseM(_pp3[i3],_ps3[i3],r1min,r1max,g1[i3],r2min,r2max,g2);
-    }
-    normalizeErrors(es12);
-
-    final float[][][][] es = new float[ng3][ng2][ng1][_nel]; // smoothed errors
-    final Parallel.Unsafe<float[][][]> e3u = 
-        new Parallel.Unsafe<float[][][]>();
-    Parallel.loop(ng1,new Parallel.LoopInt() {
-    public void compute(int i1) {
-      for (int i2=0; i2<ng2; i2++) {
-        float[][][] ee = e3u.get();
-        if (ee==null) e3u.set(ee=new float[4][ng3][_nel]);
-        float[][]   m = ee[0]; // moves
-        float[][] es3 = ee[1]; // smooth sparse errors at index i1 
-        float[][] ef3 = ee[2]; // forward errors
-        float[][] er3 = ee[3]; // reverse errors
-        float[][]  e3 = new float[_n3][_nel]; // smooth errors at index i1
-        for (int i3=0; i3<ng3; i3++) {
-          es3[i3] = es[i3][i2][i1];
-          for (int il=0; il<_nel; ++il) {
-            ef3[i3][il] = 0.0f;
-            er3[i3][il] = 0.0f;
-          }
-        }
-        for (int i3=0; i3<_n3; i3++) {
-          e3[i3] = es12[i3][i2][i1];
-        }
-//        accumulateSparse2( 1,r3max,g3,e3,ef3,m);
-//        accumulateSparse2(-1,r3max,g3,e3,er3,m);
-        accumulateSparseNew( 1,r3min,r3max,g3,e3,ef3,null);
-        accumulateSparseNew(-1,r3min,r3max,g3,e3,er3,null);
-        for (int i3=0; i3<ng3; i3++) {
-          for (int il=0; il<_nel; il++) {
-            es3[i3][il] = ef3[i3][il]+er3[i3][il]-e3[g3[i3]][il];
-          }
-        }  
-      }
-    }});
-    normalizeErrors(es);
-    return es;
-  }
-  
-  public float[][][] accumulateForward(float[][] e) {
-    float[][] d = like(e);
-    float[][] m = like(e);
-    accumulate(1,e,d,m);
-    normalizeErrors(d);
-    return new float[][][]{d,m};
-  }
-  
-  public float[][][] accumulateReverse(float[][] e) {
-    float[][] d = like(e);
-    float[][] m = like(e);
-    accumulate(-1,e,d,m);
-    return new float[][][]{d,m};
   }
   
   public float[][][] accumulateForward(
@@ -2009,8 +1414,7 @@ _si = new SincInterp();
   {
     float[][] d = like(e);
     float[][] m = like(e);
-    accumulate(1,e,d,m,g,rmin,rmax);
-//    normalizeErrors(d);
+    accumulateFromSparse(1,e,d,m,g,rmin,rmax);
     return new float[][][]{d,m};
   }
   
@@ -2021,14 +1425,7 @@ _si = new SincInterp();
     int ng = g.length;
     float[][] d = new float[ng][nl];
     float[][] m = new float[ng][nl];
-//    Map<Integer,float[][]> mxbMap = Subsample.getMXB(g,rmin,rmax,false);
-//    System.out.println("slope map size="+mxbMap.size());
-    Stopwatch s = new Stopwatch();
-    s.start();
-//    accumulateSparse(1,rmin,rmax,g,mxbMap,e,d,m);
-    accumulateSparseNew(1,rmin,rmax,g,e,d,m);
-    System.out.println("accumulateSparse time: "+s.time()+" seconds");
-    normalizeErrors(d);
+    accumulateSparse(1,rmin,rmax,g,e,d,m);
     return new float[][][]{d,m};
   }
   
@@ -2039,21 +1436,8 @@ _si = new SincInterp();
     int ng = g.length;
     float[][] d = new float[ng][nl];
     float[][] m = new float[ng][nl];
-//    Map<Integer,float[][]> mxbMap = Subsample.getMXB(g,rmin,rmax,true);
-//    System.out.println("slope map size="+mxbMap.size());
-    Stopwatch s = new Stopwatch();
-    s.start();
-//    accumulateSparse(-1,rmin,rmax,g,mxbMap,e,d,m);
-    accumulateSparseNew(-1,rmin,rmax,g,e,d,m);
-    System.out.println("accumulateSparse time: "+s.time()+" seconds");
-    normalizeErrors(d);
+    accumulateSparse(-1,rmin,rmax,g,e,d,m);
     return new float[][][]{d,m};
-  }
-  
-  public float[] backtrackReverse(float[][] m) {
-    float[] u = new float[m.length];
-    backtrack(-1,_shifts1,m,u);
-    return u;
   }
   
   public float[] backtrackReverse(float[][] d, float[][] m) {
@@ -2068,41 +1452,6 @@ _si = new SincInterp();
     return u;
   }
 
-//  public float[] backtrackForward(float[][] d, float[][] e) {
-//    float[] u = new float[d.length];
-//    backtrack(1,1,_shifts1,d,e,u);
-//    return u;
-//  }
-
-  public float[] backtrackReverse2(float[][] s, float[][] m) {
-    int n1 = s.length;
-    int n1m = n1-1;
-    float[] u = new float[n1];
-    int nl = s[0].length;
-    int ml = 0;
-    float min = m[n1m][ml];
-    for (int il=1; il<nl; il++) {
-      if (m[n1m][il]<min) {
-        min = m[n1m][il];
-        ml = il;
-      }
-    }
-    u[n1m] = s[n1m][ml];
-    for (int i1=n1m-1; i1>=0; i1--) {
-      int il = ml+(int)m[i1][ml];
-      u[i1] = s[i1][il];
-      ml = il;
-    }
-    return u;
-  }
-  
-//  public float[][] backtrackReverse(float[][][] d, float[][][] e) {
-//    float[] u1 = new float[d.length];
-//    float[] uS = new float[d.length];
-//    backtrackReverse(d,e,u1,uS);
-//    return new float[][]{u1,uS};
-//  }
-
   /**
    * Uses cubic interpolation to interpolate u, sampled on grid g,
    * to a uniformly sampled array of length n.
@@ -2111,15 +1460,13 @@ _si = new SincInterp();
    * @param u
    * @return the interpolated shifts.
    */
-  public static float[] interpolateSparseShifts(
-      int n, int[] g, float[] u, Method m) 
-  {
+  public static float[] interpolateSparseShifts(int n, int[] g, float[] u) {
     int ng = g.length;
     float[] gf = new float[ng];
     float[] ui = new float[n ];
     for (int ig=0; ig<ng; ig++)
       gf[ig] = (float)g[ig];
-    CubicInterpolator ci = new CubicInterpolator(m,ng,gf,u);
+    CubicInterpolator ci = new CubicInterpolator(Method.LINEAR,ng,gf,u);
     for (int i=0; i<n; i++)
       ui[i] = ci.interpolate(i);
     return ui;
@@ -2623,20 +1970,9 @@ _si = new SincInterp();
     return eu;
   }
   
-  public static void normalize(float[] f) {
-    float min = min(f);
-    float max = max(f);
-    int n1 = f.length;
-    float shift = min;
-    float scale = (max>min)?1.0f/(max-min):1.0f;
-    for (int i1=0; i1<n1; ++i1) {
-      f[i1] = (f[i1]-shift)*scale;
-    }
-  }
-  
   /**
-   * Normalizes alignment errors to be in range [0,1].
-   * @param e input/output array of alignment errors.
+   * Normalizes values to be in range [0,1].
+   * @param e input/output array.
    */
   public static void normalizeErrors(float[][] e) {
     int nl = e[0].length;
@@ -2818,16 +2154,7 @@ _si = new SincInterp();
   private float[][] _ps2; // ps traces
   private float[][][] _pp3; // pp traces
   private float[][][] _ps3; // ps traces
-  private CubicInterpolator.Method _m1 =  
-      CubicInterpolator.Method.MONOTONIC; // 1D shift interpolation method
-  private BicubicInterpolator2.Method _m2 = 
-      BicubicInterpolator2.Method.MONOTONIC; // 2D shift interpolation method
-  private TricubicInterpolator3.Method _m3 =
-      TricubicInterpolator3.Method.MONOTONIC; // 3D shift interpolation method
   private int _fr; // fractional shift factor (1.0/_fr is the shift interval)
-  private int _frMax; // fractional shift max. Controls maximum strain.
-  private int _k2Min; // minimum constraint on second derivative of u
-  private int _k2Max; // maximum constraint on second derivative of u
   private Sampling _shifts1; // sampling of pp to ps1 shift values
   private Sampling _shiftsS; // sampling of ps1 to ps2 shift values
   private float _scale; // computed scaling for pp traces
@@ -2900,9 +2227,7 @@ _si = new SincInterp();
       nppMax = nps-nl;
     }
     nppMax = (nppMax>npp)?npp:nppMax;
-//    int ppN1Max = npp-nl+1;
     nl = (nl-1)*_fr+1;
-    System.out.println("nppMax="+nppMax+", nl1="+nl);
     _shifts1 = new Sampling(nl,1.0/_fr,0.0);
     return new int[]{nppMax,nl};
   }
@@ -2962,244 +2287,242 @@ _si = new SincInterp();
     }
   }
   
-  private void computeErrorsFrac(
-      float[] pp, float[] ps1, float[] ps2, float[][][] e)
+  /**
+   * Returns smooth alignment errors on the sparse grid defined
+   * by the indices of g. 
+   * @param e 2D array of alignment errors.
+   * @param rmin minimum slope.
+   * @param rmax maximum slope.
+   * @param g sparse grid indices.
+   * @return smoothed alignment errors with size 
+   *  [g.length][e[0].length].
+   */
+  private static float[][] smoothErrors(
+      float[][] e, float rmin, float rmax, int[] g)      
   {
-    int n1 = pp.length;
-    int n1max = e.length;
-    int nl1 = e[0].length;
-    int nlS = e[0][0].length;
-    int nx = (n1-1)*_fr+1;
-    float[] ps2i = new float[nx];
-    _si.interpolate(n1,1.0,0.0,ps2,nx,_shiftsS.getDelta(),0.0,ps2i);
-
-    for (int i1=0; i1<n1max; ++i1) {
-      for (int il1=0,j1=i1; il1<nl1; ++il1,++j1) {
-        float e1 = error(pp[i1],ps1[j1]);
-        for (int ilS=0,jS=j1*_fr; ilS<nlS; ++ilS,++jS) {
-          float e2 = error(pp [i1],ps2[jS]);
-          float e3 = error(ps1[j1],ps2[jS]);
-          e[i1][il1][ilS] = e1+e2+e3;
-        }
+    int ng = g.length;
+    int nel = e[0].length;
+    float[][] ef = new float[ng][nel];
+    float[][] er = new float[ng][nel];
+    float[][] es = new float[ng][nel];
+    accumulateSparse( 1,rmin,rmax,g,e,ef,null);
+    accumulateSparse(-1,rmin,rmax,g,e,er,null);
+    float scale = 1.0f/e.length;
+    for (int i1=0; i1<ng; i1++) {
+      for (int il=0; il<nel; il++) {
+        es[i1][il] = scale*(ef[i1][il]+er[i1][il]-e[g[i1]][il]);
       }
     }
-  }
-
-  private static void smoothSparseErrors(
-      float[][][] es, float r1min, float r1max, 
-      int[][] g1, int[] g2, float r2max) 
-  {
-    int ng1 = g1[0].length;
-    int ng2 = g2.length;
-    int nl = es[0][0].length;
-    float[][] e2 = new float[ng2][];
-    for (int i1=0; i1<ng1; i1++) {
-      for (int i2=0; i2<ng2; i2++)
-        e2[i2] = es[i2][i1];
-      float[][] ef = like(e2);
-      float[][] er = like(e2);
-      float[][] m = like(e2);
-      accumulate2( 1,e2,ef,m,g2,r2max);
-      accumulate2(-1,e2,er,m,g2,r2max);
-      float scale = 1.0f/ng2;
-      for (int i2=0; i2<ng2; i2++) {
-        for (int il=0; il<nl; il++) {
-          e2[i2][il] = scale*(ef[i2][il]+er[i2][il]-e2[i2][il]);   
-        }
-      }
-      for (int i2=0; i2<ng2; i2++)
-        es[i2][i1] = e2[i2];
-    }
-    for (int i2=0; i2<ng2; i2++) {
-      float[][] ef = like(es[i2]);
-      float[][] er = like(es[i2]);
-      float[][] m = like(es[i2]);
-      accumulate( 1,es[i2],ef,m,g1[i2],r1min,r1max);
-      accumulate(-1,es[i2],er,m,g1[i2],r1min,r1max);
-      float scale = 1.0f/ng1;
-      for (int i1=0; i1<ng1; i1++) {
-        for (int il=0; il<nl; il++) {
-          es[i2][i1][il] = scale*(ef[i1][il]+er[i1][il]-es[i2][i1][il]);   
-        }
-      }
-    }
+    return es;
   }
   
-  private static void smoothSparseErrors(
-      float[][][][] es, float r1min, float r1max, 
-      int[][][] g1, int[] g2, int[] g3, float r2max,float r3max) 
+  /**
+   * Returns alignment errors smoothed in the first dimension.
+   * Returned errors are sparse in the first dimension, and
+   * unchanged in the second dimension. Alignment errors are
+   * computed on the fly.
+   * @param pp the PP image.
+   * @param ps the PS image.
+   * @param r1min minimum slope in the first dimension.
+   * @param r1max maximum slope in the first dimension.
+   * @param g1 first dimension sparse grid indices.
+   * @return smoothed alignment errors with size 
+   *  [_n2][g1.length][_nel].
+   */
+  private float[][][] smoothErrors1(final float[][] pp, final float[][] ps,
+      final float r1min, final float r1max, final int[] g1)
   {
-    int ng1 = g1[0][0].length;
-    int ng2 = g2.length;
-    int ng3 = g3.length;
-    int nl = es[0][0][0].length;
-    float[][] e3 = new float[ng3][];
-    for (int i1=0; i1<ng1; i1++) {
-      for (int i2=0; i2<ng2; i2++) {
-        for (int i3=0; i3<ng3; i3++) {
-          e3[i3] = es[i3][i2][i1];
-        }
-        float[][] ef = like(e3);
-        float[][] er = like(e3);
-        float[][] m = like(e3);
-        accumulate2( 1,e3,ef,m,g3,r3max);
-        accumulate2(-1,e3,er,m,g3,r3max);
-        float scale = 1.0f/ng3;
-        for (int i3=0; i3<ng3; i3++) {
-          for (int il=0; il<nl; il++) {
-            e3[i3][il] = scale*(ef[i3][il]+er[i3][il]-e3[i3][il]);
-          }
-        }
+    final int ng1 = g1.length;
+    final float[][][] es1 = new float[_n2][ng1][_nel];
+    Parallel.loop(_n2,new Parallel.LoopInt() {
+    public void compute(int i2) {
+      float[][] e = new float[_ne1][_nel];
+      computeErrors(pp[i2],ps[i2],e);
+      es1[i2] = smoothErrors(e,r1min,r1max,g1);
+    }});
+    return es1;
+  }
+  
+  /**
+   * Returns alignment errors smoothed in the first dimension.
+   * Returned errors are sparse in the first dimension, and
+   * unchanged in the second dimension. Alignment errors are
+   * computed on the fly.
+   * @param pp the PP image.
+   * @param ps the PS image.
+   * @param r1min minimum slope in the first dimension.
+   * @param r1max maximum slope in the first dimension.
+   * @param g1 first dimension sparse grid indices specified
+   *  for all _n2 (size[_n2][])
+   * @return smoothed alignment errors with size 
+   *  [_n2][g1.length][_nel].
+   */
+  private float[][][] smoothErrors1(
+      final float[][] pp, final float[][] ps,
+      final float r1min, final float r1max, final int[][] g1)
+  {
+    final int ng1 = g1.length;
+    final float[][][] es1 = new float[_n2][ng1][_nel];
+    Parallel.loop(_n2,new Parallel.LoopInt() {
+    public void compute(int i2) {
+      float[][] e = new float[_ne1][_nel];
+      computeErrors(pp[i2],ps[i2],e);
+      es1[i2] = smoothErrors(e,r1min,r1max,g1[i2]);
+    }});
+    return es1;
+  }
+  
+  /**
+   * Returns alignment errors smoothed in the first dimension.
+   * Returned errors are sparse in the first dimension, and
+   * unchanged in the second and third dimension. Alignment 
+   * errors are computed on the fly.
+   * @param pp the PP image.
+   * @param ps the PS image.
+   * @param r1min minimum slope in the first dimension.
+   * @param r1max maximum slope in the first dimension.
+   * @param g1 first dimension sparse grid indices.
+   * @return smoothed alignment errors with size 
+   *  [_n3][_n2][g1.length][_nel].
+   */
+  private float[][][][] smoothErrors1(
+      final float[][][] pp, final float[][][] ps,
+      final float r1min, final float r1max, final int[] g1)
+  {
+    final int ng1 = g1.length;
+    final float[][][][] es1 = new float[_n3][_n2][ng1][_nel];
+    Parallel.loop(_n3,new Parallel.LoopInt() {
+    public void compute(int i3) {
+      for (int i2=0; i2<_n2; i2++) {
+        float[][] e = new float[_ne1][_nel];
+        computeErrors(pp[i3][i2],ps[i3][i2],e);
+        es1[i3][i2] = smoothErrors(e,r1min,r1max,g1);  
+      }
+    }});
+    return es1;
+  }
+  
+  /**
+   * Returns alignment errors smoothed in the first dimension.
+   * Returned errors are sparse in the first dimension, and
+   * unchanged in the second and third dimension. Alignment
+   * errors are computed on the fly.
+   * @param pp the PP image.
+   * @param ps the PS image.
+   * @param r1min minimum slope in the first dimension.
+   * @param r1max maximum slope in the first dimension.
+   * @param g1 first dimension sparse grid indices specified
+   *  for all _n3 and _n2 (size[_n3][_n2][]).
+   * @return smoothed alignment errors with size 
+   *  [_n3][_n2][g1.length][_nel].
+   */
+  private float[][][][] smoothErrors1(
+      final float[][][] pp, final float[][][] ps,
+      final float r1min, final float r1max, final int[][][] g1)
+  {
+    final int ng1 = g1.length;
+    final float[][][][] es1 = new float[_n3][_n2][ng1][_nel];
+    Parallel.loop(_n3,new Parallel.LoopInt() {
+    public void compute(int i3) {
+      for (int i2=0; i2<_n2; i2++) {
+        float[][] e = new float[_ne1][_nel];
+        computeErrors(pp[i3][i2],ps[i3][i2],e);
+        es1[i3][i2] = smoothErrors(e,r1min,r1max,g1[i3][i2]);  
+      }
+    }});
+    return es1;
+  }
+  
+  /**
+   * Returns alignment errors smoothed in the second dimension.
+   * Returned errors are sparse in the second dimension, and
+   * unchanged in the first dimension.
+   * @param e alignment errors.
+   * @param r2min minimum slope in the second dimension.
+   * @param r2max maximum slope in the second dimension.
+   * @param g2 second dimension sparse grid indices.
+   * @return smoothed alignment errors with size 
+   *  [g2.length][e[0].length][e[0][0].length].
+   */
+  private static float[][][] smoothErrors2(
+      final float[][][] e, 
+      final float r2min, final float r2max, final int[] g2)
+  {
+    final int nl = e[0][0].length;
+    final int n1 = e[0].length;
+    final int n2 = e.length;
+    final int ng2 = g2.length;
+    final float[][][] es = new float[ng2][n1][nl]; // smoothed errors
+    Parallel.loop(n1,new Parallel.LoopInt() {
+    public void compute(int i1) {
+      float[][]  e2 = new float[n2][nl]; // errors at index i1
+      for (int i2=0; i2<n2; ++i2)
+        e2[i2] = e[i2][i1];
+      float[][] es2 = smoothErrors(e2,r2min,r2max,g2);
+      for (int i2=0; i2<ng2; i2++)
+        es[i2][i1] = es2[i2];
+    }});
+    return es;
+  }
+
+  /**
+   * Returns alignment errors smoothed in the second dimension.
+   * Returned errors are sparse in the second dimension, and
+   * unchanged in the first dimension and third dimension.
+   * @param e alignment errors.
+   * @param r2min minimum slope in the second dimension.
+   * @param r2max maximum slope in the second dimension.
+   * @param g2 second dimension sparse grid indices.
+   * @return smoothed alignment errors with size 
+   *  [e.length][g2.length][e[0][0].length][e[0][0][0].length].
+   */
+  private static float[][][][] smoothErrors2(
+      final float[][][][] e, 
+      final float r2min, final float r2max, final int[] g2)
+  {
+    final int n3 = e.length;
+    final float[][][][] es = new float[n3][][][]; // smoothed errors
+    for (int i3=0; i3<n3; i3++)
+      es[i3] = smoothErrors2(e[i3],r2min,r2max,g2);
+    return es;
+  }
+
+  /**
+   * Returns alignment errors smoothed in the third dimension.
+   * Returned errors are sparse in the third dimension, and
+   * unchanged in the first and second dimension.
+   * @param e alignment errors.
+   * @param r3min minimum slope in the third dimension.
+   * @param r3max maximum slope in the third dimension.
+   * @param g3 third dimension sparse grid indices.
+   * @return smoothed alignment errors with size 
+   *  [g3.length][e[0].length][e[0][0].length][e[0][0][0].length].
+   */
+  private static float[][][][] smoothErrors3(
+      final float[][][][] e, 
+      final float r3min, final float r3max, final int[] g3)
+  {
+    final int nl = e[0][0][0].length;
+    final int n1 = e[0][0].length;
+    final int n2 = e[0].length;
+    final int n3 = e.length;
+    final int ng3 = g3.length;
+    final float[][][][] es = new float[ng3][n2][n1][nl]; // smoothed errors
+    Parallel.loop(n1,new Parallel.LoopInt() {
+    public void compute(int i1) {
+      for (int i2=0; i2<n2; i2++) {
+        float[][]  e3 = new float[n3][nl]; // smooth errors at index i1,i2
+        for (int i3=0; i3<n3; i3++)
+          e3[i3] = e[i3][i2][i1];
+        float[][] es3 = smoothErrors(e3,r3min,r3max,g3);
         for (int i3=0; i3<ng3; i3++)
-          es[i3][i2][i1] = e3[i3];
+          es[i3][i2][i1] = es3[i3];
       }
-    }
-    for (int i3=0; i3<ng3; i3++) {
-      smoothSparseErrors(es[i3],r1min,r1max,g1[i3],g2,r2max);  
-    }
+    }});
+    return es;
   }
   
-  /**
-   * Non-linear accumulation of alignment errors constraining the path
-   * to increase monotonically with increasing time, or decrease 
-   * monotonically with decreasing time depending on the accumulation 
-   * direction. 
-   * <p>
-   * This method uses a simple stencil that only checks
-   * the previous sample at the current lag index and one lag index
-   * down or up (depeding on dir).
-   * @param dir accumulation direction, positive or negative.
-   * @param e input array[ni][nl] of alignment errors.
-   * @param d output array[ni][nl] of accumulated errors.
-   */
-  private static void accumulate(int dir, float[][] e, float[][] d) {
-    int nl = e[0].length;
-    int nlm1 = nl-1;
-    int ni = e.length;
-    int nim1 = ni-1;
-    int ib = (dir>0)?0:nim1; // beginning index
-    int ie = (dir>0)?ni:-1;  // end index
-    int is = (dir>0)?1:-1;   // stride
-    int ic = (dir>0)?-1:1;   // contraint dir, forward=-lag, reverse=+lag
-    int ii = ib;
-    for (int il=0; il<nl; ++il)
-      d[ii][il] = e[ii][il];
-    ii += is;
-    for (; ii!=ie; ii+=is) {
-      int ji = max(0,min(nim1,ii-is)); // next trace index from ii 
-      for (int il=0; il<nl; ++il) {
-        int ilc = il+ic;
-        ilc = (ilc==-1)?0:(ilc==nl)?nlm1:ilc; // index of lag constraint
-        float dc = d[ji][ilc];
-        float di = d[ji][il ];
-        d[ii][il] = min(dc,di)+e[ii][il];
-      }
-    }
-  }
-  
-  /**
-   * Non-linear accumulation of alignment errors constraining the path
-   * to increase monotonically with increasing time, or decrease 
-   * monotonically with decreasing time depending on the accumulation 
-   * direction. 
-   * <p>
-   * This method uses a stencil that checks the previous sample at 
-   * a range of lag indices. This range is from 0, the current lag index,
-   * to ic*_frMax where ic is -1 if accumulating forward or +1 if
-   * accumulating reverse.
-   * @param dir accumulation direction, positive or negative.
-   * @param e input array[ni][nl] of alignment errors.
-   * @param d output array[ni][nl] of accumulated errors.
-   * @param m moves array[ni][nl] of recorded moves used for backtracking.
-   */
-  private void accumulate(int dir, float[][] e, float[][] d, float[][] m) {
-    int nl = e[0].length;
-    int nlm1 = nl-1;
-    int ni = e.length;
-    int nim1 = ni-1;
-    int ib = (dir>0)?0:nim1; // beginning index
-    int ie = (dir>0)?ni:-1;  // end index
-    int is = (dir>0)?1:-1;   // stride
-    int ic = (dir>0)?-1:1;   // contraint dir, forward=-lag, reverse=+lag
-    int ii=ib;
-    for (int il=0; il<nl; ++il)
-      d[ii][il] = e[ii][il];
-    ii+=is;
-    int kmin = ic*_frMax;
-    for (; ii!=ie; ii+=is) {
-      int ji = ii-is;
-      for (int il=0; il<nl; ++il) {
-        int k = kmin;
-        while ((il+k)<0) k++;
-        while ((il+k)>nlm1) k--;
-        float dm = d[ji][il];
-        int mi = 0;
-        for (; k!=0; k+=-ic) {
-          float dc = d[ji][il+k];
-          if (dc<dm) {
-            dm = dc;
-            mi = k;
-          }
-        }
-        m[ji][il] = mi;
-        d[ii][il] = dm+e[ii][il];
-      }
-    }
-  }
-  
-  /**
-   * Non-linear accumulation of alignment errors constraining the path
-   * to increase monotonically with increasing time, or decrease 
-   * monotonically with decreasing time depending on the accumulation 
-   * direction. 
-   * <p>
-   * This method uses a stencil that checks the previous sample at 
-   * a range of lag indices. This range is from 0, the current lag index,
-   * to ic*_frMax where ic is -1 if accumulating forward or +1 if
-   * accumulating reverse.
-   * @param dir accumulation direction, positive or negative.
-   * @param e input array[ni][nl] of alignment errors.
-   * @param d output array[ni][nl] of accumulated errors.
-   * @param m moves array[ni][nl] of recorded moves used for backtracking.
-   */
-  private static void accumulate(
-      int dir, float[][] e, float[][] d, float[][] m, int kmax) {
-    int nl = e[0].length;
-    int nlm1 = nl-1;
-    int ni = e.length;
-    int nim1 = ni-1;
-    int ib = (dir>0)?0:nim1; // beginning index
-    int ie = (dir>0)?ni:-1;  // end index
-    int is = (dir>0)?1:-1;   // stride
-    int ic = (dir>0)?-1:1;   // contraint dir, forward=-lag, reverse=+lag
-    float dmax = ni;
-    int ii=ib;
-    for (int il=0; il<nl; ++il) {
-      d[ii][il] = e[ii][il];
-    }
-    ii+=is;
-    for (; ii!=ie; ii+=is) {
-      int ji = ii-is;
-      for (int il=0; il<nl; ++il) {
-        int ke = kmax;
-        while ((il+ke*ic)<0) ke+=ic;
-        while ((il+ke*ic)>nlm1) ke-=ic;
-        float dm = dmax;
-        int mi = 0;
-        for (int k=0; k<=ke; k++) {
-          float dc = d[ji][il+k*ic];
-          if (dc<dm) {
-            dm = dc;
-            mi = k*ic;
-          }
-        }
-        m[ji][il] = mi;
-        d[ii][il] = dm+e[ii][il];
-      }
-    }
-  }
-  
-  private static void accumulate(
+  private static void accumulateFromSparse(
       int dir, float[][] e, float[][] d, float[][] m, int[] g,
       float rmin, float rmax)
   {
@@ -3235,48 +2558,6 @@ _si = new SincInterp();
           if (dc<dm) {
             dm = dc;
             mi = rk;
-          }
-        }
-        m[ji][il] = mi;
-        d[ii][il] = dm+e[ii][il];
-      }
-    }
-  }
-  
-  private static void accumulate2(
-      int dir, float[][] e, float[][] d, float[][] m, int[] g, float rmax) 
-  {
-    int nl = e[0].length;
-    int nlm1 = nl-1;
-    int ni = e.length;
-    int nim1 = ni-1;
-    int ib = (dir>0)?0:nim1; // beginning index
-    int ie = (dir>0)?ni:-1;  // end index
-    int is = (dir>0)?1:-1;   // stride
-    float dmax = ni;
-    int ii=ib;
-    for (int il=0; il<nl; ++il) {
-      d[ii][il] = e[ii][il];
-    }
-    ii+=is;
-    for (; ii!=ie; ii+=is) {
-      int ji = ii-is;
-      int iemax = g[ii];
-      int iemin = g[ji];
-      int dg = abs(iemax-iemin); // sparse grid delta
-      // Loop over all lags.
-      for (int il=0; il<nl; ++il) {
-        int kmax = (int)floor(rmax*dg);
-        int kmin = -kmax;
-        while ((il+kmin)<0) kmin++;
-        while ((il+kmax)>nlm1) kmax--;
-        float dm = dmax; // Initialize minimum accumulation error.
-        int mi = 0; // Initalize move index
-        for (int k=kmin; k<=kmax; k++) {
-          float dc = d[ji][il+k];
-          if (dc<dm) {
-            dm = dc;
-            mi = k;
           }
         }
         m[ji][il] = mi;
@@ -3336,66 +2617,7 @@ _si = new SincInterp();
     }
   }
   
-  //TODO remove
   private static void accumulateSparse(
-      int dir, float rmin, float rmax, int[] g, Map<Integer,float[][]> mxbMap,
-      float[][] e, float[][] d, float[][] m)
-  {
-    int nl   = e[0].length;
-    int nlm1 = nl-1;
-    int ng   = g.length;
-    int ngm1 = ng-1;
-    int ib = (dir>0)?0:ngm1; // beginning index
-    int ie = (dir>0)?ng:-1;  // end index
-    int is = (dir>0)?1:-1;   // stride
-    int ic = (dir>0)?-1:1;   // contraint dir, forward=-lag, reverse=+lag
-    int isp = ib; // sparse grid index
-    int ier = g[isp]; // error index
-    float dmax = Float.MAX_VALUE; // default accumulation max value
-    
-    // Initialize accumulation values
-    for (int il=0; il<nl; ++il)
-      d[isp][il] = e[ier][il];
-    isp += is;
-
-    // Loop over all sparse grid points.
-    for (; isp!=ie; isp+=is) {
-      int ispm = isp-is; // previous sparse grid index
-      ier = g[isp]; // new error index
-      int iermin = g[ispm]; // min error index for interpolation.
-      int dg = abs(ier-iermin); // sparse grid delta
-      float[][] dgmxb = mxbMap.get(dg);
-      int kmin = (int)ceil( rmin*dg);
-      int kmax = (int)floor(rmax*dg);
-//      System.out.println("ei="+ier+", dg="+dg+", kmin="+kmin+", kmax="+kmax);
-      
-      // Loop over all lags.
-      for (int il=0; il<nl; ++il) {
-        float dm = dmax; // Initialize minimum accumulation error.
-        int   mi = 0;    // Initalize move index
-        
-        // Loop over all possible slopes, interpolating the alignment
-        // errors between the sparse grid points.
-        for (int k=kmin; k<=kmax; k++) {
-          int rk = k*ic;
-          int ik = il+rk;
-          if (ik<0 || ik>nlm1)
-            continue;
-//          float dc = interpSlope(rk,is,dg,il,iermin,ier,d[ispm][ik],e);
-          float dc = interpSlope(rk,is,il,iermin,ier,dgmxb[k],d[ispm][ik],e);
-//          float dc = interpSlopeNN(rk,is,il,iermin,ier,dgmxb[k],d[ispm][ik],e);
-          if (dc<dm) {
-            dm = dc;
-            mi = rk;
-          }
-        }
-        m[ispm][il] = mi;
-        d[isp ][il] = dm+e[ier][il];
-      }
-    }
-  }
-  
-  private static void accumulateSparseNew(
       int dir, float rmin, float rmax, int[] g,
       float[][] e, float[][] d, float[][] m)
   {
@@ -3464,266 +2686,7 @@ _si = new SincInterp();
     }
   }
   
-  private static float interpSlope(
-      int k, int is, int dg, int il, int iemin, int iemax, 
-      float dp, float[][] e) 
-  {
-    float dc = dp;
-    if (k==0) {
-      for (int x=iemin+is; x!=iemax; x+=is) {
-        dc += e[x][il]; 
-      }
-    } else {
-      double slope = (double)-k*is/dg;
-      for (int x=iemin+is; x!=iemax; x+=is) {
-        double y = il+(slope*(x-iemin)+k);
-        int y1 = (int)y;
-        int y2 = y1+1;
-//        dc += (y2-y)*e[x][y1]+(y-y1)*e[x][y2];
-        dc += e[x][y1]+(y-y1)*(e[x][y2]-e[x][y1]);
-      }
-    }
-    return dc;
-  }
-  
-  private static float interpSlope(
-      int k, int is, int il, int iemin, int iemax, 
-      float[] mxb, float dp, float[][] e) 
-  {
-    float dc = dp;
-    if (k==0) {
-      for (int x=iemin+is; x!=iemax; x+=is) {
-        dc += e[x][il]; 
-      }
-    } else {
-      int n = mxb.length;
-      int nm = n-1;
-      for (int x=1; x<nm; x++) {
-        int ex = iemin+is*x;
-        double y = il+mxb[x];
-        int y1 = (int)y;
-        int y2 = y1+1;
-//        dc += (y2-y)*e[ex][y1]+(y-y1)*e[ex][y2];
-        dc += e[ex][y1]+(y-y1)*(e[ex][y2]-e[ex][y1]);
-      }
-    }
-    return dc;
-  }
-  
-  private static float interpSlopeNN(
-      int k, int is, int dg, int il, int iemin, int iemax, 
-      float dp, float[][] e) 
-  {
-    float dc = dp;
-    if (k==0) {
-      for (int x=iemin+is; x!=iemax; x+=is) {
-        dc += e[x][il]; 
-      }
-    } else {
-      double slope = (double)-k*is/dg;
-      for (int x=iemin+is; x!=iemax; x+=is) {
-        int y = (int)(il+(slope*(x-iemin)+k)+0.5);
-        dc += e[x][y];
-      }
-    }
-    return dc;
-  }
-  
-  private static float interpSlopeNN(
-      int k, int is, int il, int iemin, int iemax, 
-      float[] mxb, float dp, float[][] e)
-  {
-    float dc = dp;
-    if (k==0) {
-      for (int x=iemin+is; x!=iemax; x+=is) {
-        dc += e[x][il]; 
-      }
-    } else {
-      int n = mxb.length;
-      int nm = n-1;
-      for (int x=1; x<nm; x++) {
-        int ex = iemin+is*x;
-        int y = (int)(il+mxb[x]+0.5);
-        dc += e[ex][y];
-      }
-    }
-    return dc;
-  }
-  
-  //TODO remove
-  private static void accumulateSparse2(
-      int dir, float rmax, int[] g, float[][] e, float[][] d, float[][] m)
-  {
-    int n1   = e.length;
-    int nl   = e[0].length;
-    int nlm1 = nl-1;
-    int ng   = g.length;
-    int ngm1 = ng-1;
-    int ib = (dir>0)?0:ngm1; // beginning index
-    int ie = (dir>0)?ng:-1;  // end index
-    int is = (dir>0)?1:-1;   // stride
-    int isp = ib; // sparse grid index
-    int ier = g[isp]; // error index
-    float dmax = n1; // default accumulation max value
-    
-    // Initialize accumulation values
-    for (int il=0; il<nl; ++il) {
-      d[isp][il] = e[ier][il];
-    }
-    isp += is;      
-
-    // Loop over all sparse grid points.
-    for (; isp!=ie; isp+=is) {
-      int ispm = isp-is; // previous sparse grid index
-      ier = g[isp]; // new error index
-      int iermin = g[ispm]; // min error index for interpolation.
-      int dg = abs(ier-g[ispm]); // sparse grid delta
-      
-      // Loop over all lags.
-      for (int il=0; il<nl; ++il) {
-        int kmax = (int)floor(rmax*dg);
-        int kmin = -kmax;
-        while ((il+kmin)<0) kmin++;
-        while ((il+kmax)>nlm1) kmax--;
-        float dm = dmax; // Initialize minimum accumulation error.
-        int mi = 0; // Initalize move index
-        
-        // Loop over all possible slopes, interpolating the alignment
-        // errors between the sparse grid points.
-        for (int k=kmin; k<=kmax; k++) {
-          float dc = interpSlope(k,is,dg,il,iermin,ier,d[ispm][il+k],e);
-//          float dc = interpSlopeNN(k,is,dg,il,iermin,ier,d[ispm][il+k],e);
-          if (dc<dm) {
-            dm = dc;
-            mi = k;
-          }
-        }
-        m[ispm][il] = mi;
-        d[isp ][il] = dm+e[ier][il];
-      }
-    }
-  }
-  
-  /**
-   * Finds shifts by backtracking in accumulated alignment errors.
-   * Backtracking must be performed in the direction opposite to
-   * that for which accumulation was performed.
-   * @param dir backtrack direction, positive or negative.
-   * @param b sample offset used to constrain changes in lag.
-   * @param shifts a Sampling of the shift values that starts at
-   *  shiftMin, has length nl and has an interval of 1.0/fr
-   * @param d input array[ni][nl] of accumulated errors.
-   * @param e input array[ni][nl] of alignment errors.
-   * @param u output array[ni] of computed shifts.
-   */
   private static void backtrack(
-      int dir, int b, Sampling shifts, float[][] d, float[][] e, float[] u) 
-    {
-      float ob = 1.0f/b;
-      int nl = d[0].length;
-      int ni = d.length;
-      int nlm1 = nl-1;
-      int nim1 = ni-1;
-      int ib = (dir>0)?0:nim1; // begining index
-      int ie = (dir>0)?nim1:0; // end index
-      int is = (dir>0)?1:-1;   // stride
-      int ic = (dir>0)?1:-1;   // constraint dir, forward=+lag, reverse=-lag
-      int ii = ib;
-      // Set initial lag for the case that all errors at ii are equal.
-      int il = (dir>0)?0:nlm1;
-//      int il = 0;
-      float dl = d[ii][il]; // Current accumulated error value.
-          
-//    Find minimum lag value(dl) and index(il) at trace index ii.
-      for (int jl=0; jl<nl; ++jl) {
-        if (d[ii][jl]<dl) {
-          dl = d[ii][jl];
-          il = jl;
-        }
-      }
-      u[ii] = (float)shifts.getValue(il);
-        
-      // Iterate through traces, finding the minimum path that satisfies
-      // the constraints.
-      while (ii!=ie) {
-        int ji = max(0,min(nim1,ii+is));   // next trace index from ii
-        int jb = max(0,min(nim1,ii+is*b)); // ji scaled by b, for strain limits 
-        int ilc = il+ic;
-        ilc = (ilc==-1)?0:(ilc==nl)?nlm1:ilc; // index of lag constraint
-        float dc = d[jb][ilc];
-        float di = d[ji][il ];
-        for (int kb=ji; kb!=jb; kb+=is) {
-          dc += e[kb][ilc];
-        }
-        dl = min(dc,di);
-        if (dl!=di)
-          il = ilc;
-        ii += is;
-        u[ii] = (float)shifts.getValue(il);
-          
-        // If the minimum path is changing lags, set the shift value.
-        // This value can be non-integer if ob<1 and jb!=ji 
-        if (il==ilc) {
-          float du = (u[ii]-u[ii-is])*ob;
-          u[ii] = u[ii-is]+du;
-          for (int kb=ji; kb!=jb; kb+=is) {
-            ii += is;
-            u[ii] = u[ii-is]+du;
-          }
-        }
-      }
-    }
-  
-//  private void backtrack(
-//      int dir, Sampling shifts, float[][] d, float[] u) 
-//    {
-//      int nl = d[0].length;
-//      int ni = d.length;
-//      int nlm1 = nl-1;
-//      int nim1 = ni-1;
-//      int ib = (dir>0)?0:nim1; // begining index
-//      int ie = (dir>0)?nim1:0; // end index
-//      int is = (dir>0)?1:-1;   // stride
-//      int ic = (dir>0)?1:-1;   // constraint dir, forward=+lag, reverse=-lag
-//      int ii = ib;
-//      // Set initial lag for the case that all errors at ii are equal.
-//      int il = (dir>0)?0:nlm1; 
-//      float dl = d[ii][il]; // Current accumulated error value.
-//          
-//      // Find minimum lag value(dl) and index(il) at trace index ii.
-//      for (int jl=0; jl<nl; ++jl) {
-//        if (d[ii][jl]<dl) {
-//          dl = d[ii][jl];
-//          il = jl;
-//        }
-//      }
-//      u[ii] = (float)shifts.getValue(il);
-//        
-//      // Iterate through traces, finding the minimum path that satisfies
-//      // the constraints.
-//      while (ii!=ie) {
-//        int ji = max(0,min(nim1,ii+is));   // next trace index from ii
-//        float dm = d[ji][il];
-//        int ilc = il+ic*_frMax;
-//        ilc = (ilc<0)?0:(ilc>nlm1)?nlm1:ilc; // index of lag constraint
-//        int ilf = 0;
-//        while (ilf<_frMax) {
-//          float dc = d[ji][ilc];
-//          if (dc<dm) {
-//            dm = dc;
-//            il = ilc;
-//          }
-//          ilc+=-ic;
-//          if (ilc<0 || ilc>nlm1)
-//            break;
-//          ilf++;
-//        }
-//        ii += is;
-//        u[ii] = (float)shifts.getValue(il);
-//      }
-//    }
-  
-  private void backtrack(
       int dir, Sampling shifts, float[][] d, float[][] m, float[] u) 
     {
       int nl = d[0].length;
@@ -3742,36 +2705,6 @@ _si = new SincInterp();
       for (int jl=0; jl<nl; ++jl) {
         if (d[ii][jl]<dl) {
           dl = d[ii][jl];
-          il = jl;
-        }
-      }
-      u[ii] = (float)shifts.getValue(il);
-      while (ii!=ie) {
-        ii += is;
-        il += (int)m[ii][il];
-        u[ii] = (float)shifts.getValue(il);
-      }
-    }
-  
-  private void backtrack(
-      int dir, Sampling shifts, float[][] m, float[] u) 
-    {
-      int nl = m[0].length;
-      int ni = m.length;
-      int nlm1 = nl-1;
-      int nim1 = ni-1;
-      int ib = (dir>0)?0:nim1; // begining index
-      int ie = (dir>0)?nim1:0; // end index
-      int is = (dir>0)?1:-1;   // stride
-      int ii = ib;
-      // Set initial lag for the case that all errors at ii are equal.
-      int il = (dir>0)?0:nlm1; 
-      float dl = m[ii][il]; // Current accumulated error value.
-          
-      // Find minimum lag value(dl) and index(il) at trace index ii.
-      for (int jl=0; jl<nl; ++jl) {
-        if (m[ii][jl]<dl) {
-          dl = m[ii][jl];
           il = jl;
         }
       }
@@ -3901,7 +2834,7 @@ _si = new SincInterp();
    * @param e input/output array of alignment errors.
    */
   private static void shiftAndScale(float emin, float emax, float[][] e) {
-    System.out.println("shiftAndScale: emin="+emin+" emax="+emax);
+//    System.out.println("shiftAndScale: emin="+emin+" emax="+emax);
     int nl = e[0].length;
     int n1 = e.length;
     float eshift = emin;
@@ -3920,7 +2853,7 @@ _si = new SincInterp();
    * @param e input/output array of alignment errors.
    */
   private static void shiftAndScale(float emin, float emax, float[][][] e) {
-    System.out.println("shiftAndScale: emin="+emin+" emax="+emax);
+//    System.out.println("shiftAndScale: emin="+emin+" emax="+emax);
     final int nl = e[0][0].length;
     final int n1 = e[0].length;
     final int n2 = e.length;
@@ -3944,7 +2877,7 @@ _si = new SincInterp();
    * @param e input/output array of alignment errors.
    */
   private static void shiftAndScale(float emin, float emax, float[][][][] e) {
-    System.out.println("shiftAndScale: emin="+emin+" emax="+emax);
+//    System.out.println("shiftAndScale: emin="+emin+" emax="+emax);
     final int nl = e[0][0][0].length;
     final int n1 = e[0][0].length;
     final int n2 = e[0].length;
@@ -4007,5 +2940,8 @@ _si = new SincInterp();
       this.emax = emax;
     }
   }
-  
+
+  private static void print(String s) {
+    System.out.println(s);
+  }
 }
