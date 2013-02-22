@@ -4,6 +4,8 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.awt.image.IndexColorModel;
 import java.io.IOException;
 
@@ -94,6 +96,22 @@ public class Viewer {
     _pf = new PlotFrame(_pp);
     _pf.setJMenuBar(menuBar);
     _pf.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+  }
+  
+  public Viewer(double[][] f) {
+    this(f,null);
+  }
+  
+  public Viewer(double[][] f, Orientation o) {
+    this(null,null,f,o);
+  }
+  
+  public Viewer(Sampling s1, Sampling s2, double[][] f) {
+    this(s1,s2,f,null);
+  }
+  
+  public Viewer(Sampling s1, Sampling s2, double[][] f, Orientation o) {
+    this(s1,s2,convertToFloat(f),o);
   }
   
   public Viewer(float[][][] f) {
@@ -271,6 +289,10 @@ public class Viewer {
     _pf.setSize(width,height);
   }
   
+  public void paintToPng(double dpi, int win, String fileName) {
+    _pf.paintToPng(dpi,win,fileName);
+  }
+  
   public void show() {
     _pf.setVisible(true);
   }
@@ -314,6 +336,19 @@ public class Viewer {
   private float[][][] _x23;
   private int _i3 = Integer.MIN_VALUE;
 
+  private static float[][] convertToFloat(double[][] a) {
+    int n2 = a.length;
+    float[][] b = new float[n2][];
+    for (int i2=0; i2<n2; ++i2) {
+      int n1 = a[i2].length;
+      b[i2] = new float[n1];
+      for (int i1=0; i1<n1; ++i1) {
+        b[i2][i1] = (float)a[i2][i1];
+      }
+    }
+    return b;
+  }
+  
   private void updateOptions(PixelsView pv, String label) {
     addClipOptions(_options,pv,label);
     addColorOptions(_options,pv,label);
@@ -388,6 +423,51 @@ public class Viewer {
     changeCmap.add(hue);
     changeCmap.add(prism);
     options.add(changeCmap);
+  }
+
+  private static void addColorKeyListener(PointsView ptv, PlotPanel pp) {
+    pp.addKeyListener(new ColorKeyListener(ptv));
+  }
+  private static class ColorKeyListener implements KeyListener {
+    ColorKeyListener(PointsView ptv) {
+      _ptv = ptv;
+    }
+
+    static enum PtColor {
+      R("r",Color.RED),
+      B("b",Color.BLUE),
+      G("g",Color.GREEN);
+      
+      PtColor(String k, Color c) {
+        _k = k;
+        _c = c;
+      }
+      
+      public static PtColor fromString(String k) {
+        for (PtColor pc : values()) {
+          if (k.equals(pc._k))
+            return pc;
+        }
+        return null;
+      }
+      
+      String _k;
+      Color _c;
+    }
+    @Override
+    public void keyPressed(KeyEvent e) {
+      String k = KeyEvent.getKeyText(e.getKeyCode());
+      PtColor pc = PtColor.fromString(k); 
+      _ptv.setLineColor(pc._c);
+      _ptv.setMarkColor(pc._c);
+      System.out.println("Changing colo to "+pc._k);
+    }
+    @Override
+    public void keyReleased(KeyEvent e) {}
+    @Override
+    public void keyTyped(KeyEvent e) {}
+    
+    private PointsView _ptv;
   }
   
   private void addRemoveOptions(

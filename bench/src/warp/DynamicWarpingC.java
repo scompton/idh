@@ -190,7 +190,7 @@ public class DynamicWarpingC {
     final int dg2 = (int)ceil(1.0f/dr2);
     final int[] g1 = Subsample.subsample(_ne1,dg1);
     final int[] g2 = Subsample.subsample( _n2,dg2);
-    print("g1:"); dump(g1); print("g2"); dump(g2);
+    print("g1:"); dump(g1); print("g2:"); dump(g2);
     
     Stopwatch s = new Stopwatch();
     s.start();
@@ -212,7 +212,8 @@ public class DynamicWarpingC {
       float[][][] dm = accumulateForward(es[i2],g1,r1min,r1max);
       u[i2] = backtrackReverse(dm[0],dm[1]);
     }});
-    return interpolateSparseShifts(_ne1,_n2,g1,g2,u);
+//    return interpolateSparseShifts(_ne1,_n2,g1,g2,u);
+    return interpolateBilinear(_ne1,_n2,g1,g2,u);
   }
   
   /**
@@ -256,7 +257,7 @@ public class DynamicWarpingC {
     final int[] g1 = Subsample.subsample(_ne1,dg1);
     final int[] g2 = Subsample.subsample( _n2,dg2);
     final int[] g3 = Subsample.subsample( _n3,dg3);
-    print("g1:"); dump(g1); print("g2"); dump(g2); print("g3"); dump(g3);
+    print("g1:"); dump(g1); print("g2:"); dump(g2); print("g3:"); dump(g3);
     
     Stopwatch s = new Stopwatch();
     s.start();
@@ -364,8 +365,9 @@ public class DynamicWarpingC {
    *  smoother shifts. 
    * @return shifts for 2D images.
    */
+  //TODO update doc for y1
   public float[][] findShiftsM(
-      float[][] ppf, float[][] x1, 
+      float[][] ppf, float[][] x1, float[][] y1, 
       final float r1min, final float r1max, final float dr1,
       final float r2min, final float r2max, final float dr2)
   {
@@ -395,7 +397,8 @@ public class DynamicWarpingC {
       float[][][] dm = accumulateForward(es[i2],g1[i2],r1min,r1max);
       u[i2] = backtrackReverse(dm[0],dm[1]);
     }});
-    return interpolateSparseShifts(_ne1,_n2,grids[1][0],g2,u,x1);
+    return interpolateBilinear(_ne1,_n2,grids[1][0],g2,u,y1);
+//    return interpolateSparseShiftsSimple(_ne1,_n2,grids[1][0],g2,u,x1);
   }
   
   /**
@@ -510,44 +513,84 @@ public class DynamicWarpingC {
    *  This grid is sparse in the first dimension, but fine in 
    *  the second dimension. 
    */
-  public int[][][] getSparseGrid(float[][] ppf, float[][] x1, float dr1) {
-    int nppf = ppf[0].length;
+  public static int[][][] getSparseGrid(
+      float[][] ppf, float[][] x1, float dr1) 
+  {
+    int n2 = ppf.length;
+    int n1 = ppf[0].length;
     int dg1 = (int)ceil(1.0f/dr1);
-    float[] ea = new float[nppf];
+    float[] ea = new float[n1];
     float[] et;
-    for (int i2=0; i2<_n2; i2++) {
+    for (int i2=0; i2<n2; i2++) {
       et = getEnvelope(ppf[i2]);
-      for (int i1=0; i1<nppf; i1++)
+      for (int i1=0; i1<n1; i1++)
         ea[i1] += et[i1];
     }
     int[] g1 = Subsample.subsample(ea,dg1);
     int ng1 = g1.length;
     int ng1m1 = ng1-1; 
-    int[][] g = new int[_n2][];
-    for (int i2=0; i2<_n2; i2++)
+    int[][] g = new int[n2][];
+    for (int i2=0; i2<n2; i2++)
       g[i2] = copy(g1);
-    int[][] gw = new int[_n2][ng1];
-    for (int i2=0; i2<_n2; i2++) {
+    int[][] gw = new int[n2][ng1];
+    for (int i2=0; i2<n2; i2++) {
       gw[i2][0] = 0;
-      gw[i2][ng1m1] = _ne1-1;
+      gw[i2][ng1m1] = n1-1;
       for (int i1=1; i1<ng1m1; i1++) {
         int u1 = g[i2][i1];
         gw[i2][i1] = (int)(x1[i2][u1]);
-        // Make sure we don't pass the last grid point _ne1-1
-        if (gw[i2][i1]>=(_ne1-1)) {
-          int d = ng1m1-i1; // This many left will be out-of-bounds
-          for (int id=d; id>0; id--)
-            gw[i2][ng1m1-id] = gw[i2][ng1m1]-id;
-          for (int i1p=1; i1p<=i1; i1p++) { // Adjust previous grid points
-            while (gw[i2][i1-i1p]>=gw[i2][i1-i1p+1])
-              gw[i2][i1-i1p] = gw[i2][i1-i1p]-1;
-            assert(gw[i2][i1-i1p]<gw[i2][i1-i1p+1]):"i2="+i2+", i1="+i1;
-          }
-          break; // The rest of i1 indices are squeezed in, next trace.
-        }
       }
     }
     return new int[][][]{gw,g};
+  }
+  
+  public static float[][][] getSparseCoords(
+      int n1, float dr1, int n2, float dr2) 
+  {
+    int dg1 = (int)ceil(1.0f/dr1);
+    int dg2 = (int)ceil(1.0f/dr2);
+    int[] g1 = Subsample.subsample(n1,dg1);
+    int[] g2 = Subsample.subsample(n2,dg2);
+    int ng1 = g1.length;
+    int ng2 = g2.length;
+    float[][] x1 = new float[ng2][ng1];
+    float[][] x2 = new float[ng2][ng1];
+    for (int i2=0; i2<ng2; i2++) {
+      for (int i1=0; i1<ng1; i1++) {
+        x1[i2][i1] = (float)g1[i1];
+        x2[i2][i1] = (float)g2[i2];
+      }
+    }
+    return new float[][][]{x1,x2};
+  }
+  
+  public static float[][][] getSparseCoords(
+      float[][] ppf, float[][] x1, float dr1, float dr2) 
+  {
+    int n2 = ppf.length;
+    int[][][] grids = getSparseGrid(ppf,x1,dr1);
+    int[][] gw = grids[0];
+    int[][] gf = grids[1];
+    int[] g2 = Subsample.subsample(n2,(int)ceil(1.0f/dr2));
+    int ng1 = gf[0].length;
+    int ng2 = g2.length;
+    float[][] x1f = new float[ng2][ng1];
+    float[][] x2f = new float[ng2][ng1];
+    for (int i2=0; i2<ng2; i2++) {
+      for (int i1=0; i1<ng1; i1++) {
+        x1f[i2][i1] = (float)gf[g2[i2]][i1];
+        x2f[i2][i1] = (float)g2[i2];
+      }  
+    }
+    float[][] x1w = new float[ng2][ng1];
+    float[][] x2w = new float[ng2][ng1];
+    for (int i2=0; i2<ng2; i2++) {
+      for (int i1=0; i1<ng1; i1++) {
+        x1w[i2][i1] = (float)gw[g2[i2]][i1];
+        x2w[i2][i1] = (float)g2[i2];
+      }
+    }
+    return new float[][][]{x1w,x2w};
   }
 
   //TODO update doc
@@ -929,53 +972,6 @@ public class DynamicWarpingC {
   }
   
   public void plotSparseGrid(
-      float[][] ppf, int[][] gf, int[][] gw, float dr2) 
-  {
-    int[] g2 = Subsample.subsample(_n2,(int)ceil(1.0f/dr2));
-    int ng1 = gf[0].length;
-    int ng2 = g2.length;
-    float[][] x1f = new float[ng2][ng1];
-    float[][] x2f = new float[ng2][ng1];
-    for (int i2=0; i2<ng2; i2++) {
-      for (int i1=0; i1<ng1; i1++) {
-        x1f[i2][i1] = (float)gf[g2[i2]][i1];
-        x2f[i2][i1] = (float)g2[i2];
-      }  
-    }
-    float[][] x1w = new float[ng2][ng1];
-    float[][] x2w = new float[ng2][ng1];
-    for (int i2=0; i2<ng2; i2++) {
-      for (int i1=0; i1<ng1; i1++) {
-        x1w[i2][i1] = (float)gw[g2[i2]][i1];
-        x2w[i2][i1] = (float)g2[i2];
-      }
-    }
-    Viewer vf = new Viewer(ppf);
-    vf.setTitle("Flattened Image - Coarse Grid (dr2="+dr2+")");
-    vf.setHLabel("crossline");
-    vf.setVLabel("Tau (samples)");
-    vf.addColorBar("Amplitude");
-    vf.setClips1(-3.0f,3.0f);
-    vf.addPoints2(x1f,x2f);
-    vf.setHLimits(0,_n2-1);
-    vf.setVLimits(0,ppf[0].length-1);
-    vf.setSize(600,900);
-    vf.show();
-    
-    Viewer vw = new Viewer(_pp2);
-    vw.setTitle("Original Image - Coarse Grid (dr2="+dr2+")");
-    vw.setHLabel("crossline");
-    vw.setVLabel("time (samples)");
-    vw.addColorBar("Amplitude");
-    vw.setClips1(-3.0f,3.0f);
-    vw.addPoints2(x1w,x2w);
-    vw.setHLimits(0,_n2-1);
-    vw.setVLimits(0,_ne1-1);
-    vw.setSize(600,900);
-    vw.show();
-  }
-  
-  public void plotSparseGrid(
       float[][][] ppf, int[][][] gf, int[][][] gw, float dr2) 
   {
     int[] g2 = Subsample.subsample(_n2,(int)ceil(1.0f/dr2));
@@ -1026,10 +1022,11 @@ public class DynamicWarpingC {
     vw.show();
   }
   
-  public float[][] getX1X2(float[] u, float dr1, Sampling s1) {
-    s1 = (s1==null)?new Sampling(u.length):s1;
+  public static float[][] getX1X2(float[] u, float dr1, Sampling s1) {
+    int ne1 = u.length;
+    s1 = (s1==null)?new Sampling(ne1):s1;
     int dg1 = (int)ceil(1.0f/dr1);
-    int[] g1 = Subsample.subsample(_ne1,dg1);
+    int[] g1 = Subsample.subsample(ne1,dg1);
     int ng = g1.length;
     float[] x1 = new float[ng];
     float[] x2 = new float[ng];
@@ -1038,6 +1035,27 @@ public class DynamicWarpingC {
       x2[ig] = (float)u[g1[ig]];
     }
     return new float[][]{x1,x2};
+  }
+  
+  public static float[][][] getX1X2(float[][] u, float dr1, Sampling s1) {
+    int ne1 = u[0].length;
+    int n2 = u.length; 
+    s1 = (s1==null)?new Sampling(ne1):s1;
+    int dg1 = (int)ceil(1.0f/dr1);
+    int[][] g = new int[n2][];
+    int[] g1 = Subsample.subsample(ne1,dg1);
+    for (int i2=0; i2<n2; i2++)
+      g[i2] = copy(g1);
+    int ng = g[0].length;
+    float[][] x1 = new float[n2][ng];
+    float[][] x2 = new float[n2][ng];
+    for (int i2=0; i2<n2; i2++) {
+      for (int ig=0; ig<ng; ig++) {
+        x1[i2][ig] = (float)s1.getValue(g[i2][ig]);
+        x2[i2][ig] = (float)u[i2][g[i2][ig]];
+      }  
+    }
+    return new float[][][]{x1,x2};
   }
   
   public float[][] getX1X2M(float[] u, float dr1, Sampling s1, boolean useNG) {
@@ -1060,6 +1078,57 @@ public class DynamicWarpingC {
       x2[ig] = (float)u[g1[ig]];
     }
     return new float[][]{x1,x2};
+  }
+  
+  public static float[][][] getX1X2M(
+      float[][] u, float[][] ppf, float[][] x1m, float dr1, Sampling s1)
+  {
+    Check.argument(u[0].length==ppf[0].length,"u[0].length==ppf[0].length");
+    Check.argument(u[0].length==x1m[0].length,"u[0].length==x1m[0].length");
+    int ne1 = u[0].length;
+    int n2 = u.length;
+    s1 = (s1==null)?new Sampling(ne1):s1;
+    int dg1 = (int)ceil(1.0f/dr1);
+    float[] ea = new float[ne1];
+    float[] et;
+    for (int i2=0; i2<n2; i2++) {
+      et = getEnvelope(ppf[i2]);
+      for (int i1=0; i1<ne1; i1++)
+        ea[i1] += et[i1];
+    }
+    int[] g1 = Subsample.subsample(ea,dg1);
+    int ng1 = g1.length;
+    int ng1m1 = ng1-1; 
+    int[][] gw = new int[n2][ng1];
+    for (int i2=0; i2<n2; i2++) {
+      gw[i2][0] = 0;
+      gw[i2][ng1m1] = ne1-1;
+      for (int i1=1; i1<ng1m1; i1++) {
+        int u1 = g1[i1];
+        gw[i2][i1] = (int)(x1m[i2][u1]);
+        // Make sure we don't pass the last grid point _ne1-1
+//        if (gw[i2][i1]>=(_ne1-1)) {
+//          int d = ng1m1-i1; // This many left will be out-of-bounds
+//          for (int id=d; id>0; id--)
+//            gw[i2][ng1m1-id] = gw[i2][ng1m1]-id;
+//          for (int i1p=1; i1p<=i1; i1p++) { // Adjust previous grid points
+//            while (gw[i2][i1-i1p]>=gw[i2][i1-i1p+1])
+//              gw[i2][i1-i1p] = gw[i2][i1-i1p]-1;
+//            assert(gw[i2][i1-i1p]<gw[i2][i1-i1p+1]):"i2="+i2+", i1="+i1;
+//          }
+//          break; // The rest of i1 indices are squeezed in, next trace.
+//        }
+      }
+    }
+    float[][] x1 = new float[n2][ng1];
+    float[][] x2 = new float[n2][ng1];
+    for (int i2=0; i2<n2; i2++) {
+      for (int i1=0; i1<ng1; i1++) {
+        x1[i2][i1] = (float)s1.getValue(gw[i2][i1]);
+        x2[i2][i1] = (float)u[i2][gw[i2][i1]];
+      }
+    }
+    return new float[][][]{x1,x2};
   }
   
   public float[][] getX1X2AvgM2(
@@ -1184,25 +1253,6 @@ public class DynamicWarpingC {
     return new float[][]{x1,x2};
   }
   
-  public float[][][] getX1X2(float[][] u, float dr1, Sampling s1) {
-    s1 = (s1==null)?new Sampling(u.length):s1;
-    int dg1 = (int)ceil(1.0f/dr1);
-    int[][] g = new int[_n2][];
-    int[] g1 = Subsample.subsample(_ne1,dg1);
-    for (int i2=0; i2<_n2; i2++)
-      g[i2] = copy(g1);
-    int ng = g[0].length;
-    float[][] x1 = new float[_n2][ng];
-    float[][] x2 = new float[_n2][ng];
-    for (int i2=0; i2<_n2; i2++) {
-      for (int ig=0; ig<ng; ig++) {
-        x1[i2][ig] = (float)s1.getValue(g[i2][ig]);
-        x2[i2][ig] = (float)u[i2][g[i2][ig]];
-      }  
-    }
-    return new float[][][]{x1,x2};
-  }
-  
   public float[][][] getX1X2T(float[][] u, float dr2, Sampling s2) {
     s2 = (s2==null)?new Sampling(u[0].length):s2;
     int dg2 = (int)ceil(1.0f/dr2);
@@ -1220,54 +1270,6 @@ public class DynamicWarpingC {
       }  
     }
     return new float[][][]{x1,x2};
-  }
-  
-  public float[][][] getX1X2M(
-      float[][] u, float[][] ppf, float[][] x1, float dr1, Sampling s1)
-  {
-    s1 = (s1==null)?new Sampling(u.length):s1;
-    int nppf = ppf[0].length;
-    int dg1 = (int)ceil(1.0f/dr1);
-    float[] ea = new float[nppf];
-    float[] et;
-    for (int i2=0; i2<_n2; i2++) {
-      et = getEnvelope(ppf[i2]);
-      for (int i1=0; i1<nppf; i1++)
-        ea[i1] += et[i1];
-    }
-    int[] g1 = Subsample.subsample(ea,dg1);
-    int ng1 = g1.length;
-    int ng1m1 = ng1-1; 
-    int[][] gw = new int[_n2][ng1];
-    for (int i2=0; i2<_n2; i2++) {
-      gw[i2][0] = 0;
-      gw[i2][ng1m1] = _ne1-1;
-      for (int i1=1; i1<ng1m1; i1++) {
-        int u1 = g1[i1];
-        gw[i2][i1] = (int)(x1[i2][u1]);
-        // Make sure we don't pass the last grid point _ne1-1
-        if (gw[i2][i1]>=(_ne1-1)) {
-          int d = ng1m1-i1; // This many left will be out-of-bounds
-          for (int id=d; id>0; id--)
-            gw[i2][ng1m1-id] = gw[i2][ng1m1]-id;
-          for (int i1p=1; i1p<=i1; i1p++) { // Adjust previous grid points
-            while (gw[i2][i1-i1p]>=gw[i2][i1-i1p+1])
-              gw[i2][i1-i1p] = gw[i2][i1-i1p]-1;
-            assert(gw[i2][i1-i1p]<gw[i2][i1-i1p+1]):"i2="+i2+", i1="+i1;
-          }
-          break; // The rest of i1 indices are squeezed in, next trace.
-        }
-      }
-    }
-    float[][] x1c = new float[_n2][ng1];
-    float[][] x2c = new float[_n2][ng1];
-    for (int i2=0; i2<_n2; i2++) {
-      for (int i1=0; i1<ng1; i1++) {
-        x1c[i2][i1] = (float)s1.getValue(gw[i2][i1]);
-        x2c[i2][i1] = (float)u[i2][gw[i2][i1]];
-      }
-    }
-    return new float[][][]{x1c,x2c};
   }
   
   public static float[][] unflattenShifts(float[][] uf, float[][] u1m) {
@@ -1669,34 +1671,20 @@ public class DynamicWarpingC {
     // interpolate shifts and derivatives in the second dimension
     float[] u2 = new float[ng2];
     float[] d2 = new float[ng2];
-//    float[] g12 = new float[ng2];
     float[][] ui2 = new float[n2][ng1];
     float[][] di2 = new float[n2][ng1];
     for (int i1=0; i1<ng1; i1++) {
       for (int i2=0; i2<ng2; i2++) {
         u2[i2] = u[i2][i1];
         d2[i2] = d[i2][i1];
-//        g12[i2] = g1f[g2[i2]][i1];
       }
-//      if (i1==11 || i1==12) {
-//        dump(u2);
-//        dump(d2);
-//        dump(g12);
-//      }
-      CubicInterpolator ciu = new CubicInterpolator(Method.LINEAR,g2f,u2);
-      CubicInterpolator cid = new CubicInterpolator(Method.LINEAR,g2f,d2);
+      CubicInterpolator ciu = new CubicInterpolator(Method.SPLINE,g2f,u2);
+      CubicInterpolator cid = new CubicInterpolator(Method.SPLINE,g2f,d2);
       for (int i2=0; i2<n2; i2++) {
         ui2[i2][i1] = ciu.interpolate(i2);
         di2[i2][i1] = cid.interpolate(i2);
       }
     }
-    
-//    for (int i2=0; i2<ng2; i2++) {
-//      for (int i1=0; i1<ng1; i1++) {
-//        assert u[i2][i1]==ui2[g2[i2]][i1];
-//        assert d[i2][i1]==di2[g2[i2]][i1];
-//      }
-//    }
     
     // interpolate in the first dimension, using derivatives
     float[][] ui = new float[n2][n1];
@@ -1705,6 +1693,44 @@ public class DynamicWarpingC {
       for (int i1=0; i1<n1; i1++) {
         ui[i2][i1] = ci.interpolate(i1);
       }
+    }
+    return ui;
+  }
+  
+  public static float[][] interpolateSparseShiftsSimple(
+      int n1, int n2, int[] g1Flat, int[] g2, float[][] u, float[][] x1)
+  {
+    int ng1 = g1Flat.length;
+    int ng2 = g2.length;
+    Check.argument(ng1==u[0].length,"ng1==u[0].length: "+ng1+"=="+u[0].length);
+    Check.argument(ng2==u.length,"ng2==u.length: "+ng2+"=="+u.length);
+    float[][] g1f = new float[n2][ng1];
+    for (int i2=0; i2<n2; i2++) {
+      for (int ig=0; ig<ng1; ig++)
+        g1f[i2][ig] = x1[i2][g1Flat[ig]];
+    }
+    float[] g2f = new float[ng2];
+    for (int ig=0; ig<ng2; ig++)
+      g2f[ig] = (float)g2[ig];
+    
+    // interpolate shifts and derivatives in the second dimension
+    float[] u2 = new float[ng2];
+    float[][] ui2 = new float[n2][ng1];
+    for (int i1=0; i1<ng1; i1++) {
+      for (int i2=0; i2<ng2; i2++)
+        u2[i2] = u[i2][i1];
+      CubicInterpolator ciu = new CubicInterpolator(Method.SPLINE,g2f,u2);
+      for (int i2=0; i2<n2; i2++)
+        ui2[i2][i1] = ciu.interpolate(i2);
+    }
+    
+    // interpolate in the first dimension, using derivatives
+    float[][] ui = new float[n2][n1];
+    for (int i2=0; i2<n2; i2++) {
+      CubicInterpolator ci = 
+          new CubicInterpolator(Method.LINEAR,g1f[i2],ui2[i2]);
+      for (int i1=0; i1<n1; i1++)
+        ui[i2][i1] = ci.interpolate(i1);
     }
     return ui;
   }
@@ -1786,9 +1812,17 @@ public class DynamicWarpingC {
     return ui;
   }
   
-  public static float[][] interpolateSparseShifts(
-      int n1, int n2, int[] g1, int[] g2, float[][] u, 
-      BicubicInterpolator2.Method m)
+  /**
+   * Bilinear interpolation of sparse shifts.
+   * @param n1
+   * @param n2
+   * @param g1
+   * @param g2
+   * @param u
+   * @return
+   */
+  public static float[][] interpolateBilinear(
+      int n1, int n2, int[] g1, int[] g2, float[][] u)
   {
     int ng1 = g1.length;
     int ng2 = g2.length;
@@ -1796,19 +1830,38 @@ public class DynamicWarpingC {
     Check.argument(ng2==u.length,"ng2==u.length: "+ng2+"=="+u.length);
     float[] g1f = new float[ng1];
     float[] g2f = new float[ng2];
-    for (int ig=0; ig<ng1; ig++) {
-      g1f[ig] = (float)g1[ig];
-    }
-    for (int ig=0; ig<ng2; ig++) {
-      g2f[ig] = (float)g2[ig];
-    }
-    
+    for (int ig1=0; ig1<ng1; ig1++)
+      g1f[ig1] = (float)g1[ig1];
+    for (int ig2=0; ig2<ng2; ig2++)
+      g2f[ig2] = (float)g2[ig2];
     Sampling s1 = new Sampling(n1,1.0,0.0);
     Sampling s2 = new Sampling(n2,1.0,0.0);
     BilinearInterpolator2 bli = new BilinearInterpolator2(g1f,g2f,u);
     return bli.interpolate(s1,s2);
-//    BicubicInterpolator2 bci = new BicubicInterpolator2(m,m,g1f,g2f,u);
-//    return bci.interpolate(s1,s2);
+  }
+  
+  public static float[][] interpolateBilinear(
+      int n1, int n2, int[] g1Flat, int[] g2, float[][] u, float[][] y1) 
+  {
+    int ng1 = g1Flat.length;
+    int ng2 = g2.length;
+    Check.argument(ng1==u[0].length,"ng1==u[0].length: "+ng1+"=="+u[0].length);
+    Check.argument(ng2==u.length,"ng2==u.length: "+ng2+"=="+u.length);
+    float[] g1f = new float[ng1];
+    for (int ig1=0; ig1<ng1; ig1++)
+      g1f[ig1] = g1Flat[ig1];
+    float[] g2f = new float[ng2];
+    for (int ig2=0; ig2<ng2; ig2++)
+      g2f[ig2] = (float)g2[ig2];
+    float[][] ui = new float[n2][n1];
+    BilinearInterpolator2 bli = new BilinearInterpolator2(g1f,g2f,u);
+    for (int i2=0; i2<n2; i2++) {
+      for (int i1=0; i1<n1; i1++) {
+        float y = y1[i2][i1];
+        ui[i2][i1] = bli.interpolate(y,i2);
+      }
+    }
+    return ui;
   }
   
   public float[][] interpolateSparseShiftsFlat(
