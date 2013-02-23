@@ -564,6 +564,31 @@ public class DynamicWarpingC {
     return new float[][][]{x1,x2};
   }
   
+  public static float[][][][] getSparseCoords(
+      int n1, float dr1, int n2, float dr2, int n3, float dr3) 
+  {
+    int dg1 = (int)ceil(1.0f/dr1);
+    int dg2 = (int)ceil(1.0f/dr2);
+    int dg3 = (int)ceil(1.0f/dr3);
+    int[] g1 = Subsample.subsample(n1,dg1);
+    int[] g2 = Subsample.subsample(n2,dg2);
+    int[] g3 = Subsample.subsample(n3,dg3);
+    int ng1 = g1.length;
+    int ng2 = g2.length;
+    int ng3 = g3.length;
+    float[][][] x1 = new float[n3][ng2][ng1];
+    float[][][] x2 = new float[n3][ng2][ng1];
+    for (int i3=0; i3<ng3; i3++) {
+      for (int i2=0; i2<ng2; i2++) {
+        for (int i1=0; i1<ng1; i1++) {
+          x1[g3[i3]][i2][i1] = (float)g1[i1];
+          x2[g3[i3]][i2][i1] = (float)g2[i2];
+        }
+      }
+    }
+    return new float[][][][]{x1,x2};
+  }
+  
   public static float[][][] getSparseCoords(
       float[][] ppf, float[][] x1, float dr1, float dr2) 
   {

@@ -154,6 +154,8 @@ public class Viewer {
     menuBar.add(_options);
     
     SliderListener sl = new SliderListener();
+    //TODO Fix sampling usage here. The slider need an int so it 
+    // doesn't make sense to use sampling values.
     DefaultBoundedRangeModel brm = new DefaultBoundedRangeModel(
         r3,0,(int)_s3.getFirst(),(int)_s3.getLast());
     JSlider slider = new JSlider(brm);
