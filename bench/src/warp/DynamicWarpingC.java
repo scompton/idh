@@ -288,7 +288,8 @@ public class DynamicWarpingC {
         u[i3][i2] = backtrackReverse(dm[0],dm[1]);
       }
     }});
-    return interpolateSparseShifts(_ne1,_n2,_n3,g1,g2,g3,u);
+//    return interpolateSparseShifts(_ne1,_n2,_n3,g1,g2,g3,u);
+    return interpolateTrilinear(_ne1,_n2,_n3,g1,g2,g3,u);
   }
   
   /**
@@ -486,7 +487,8 @@ public class DynamicWarpingC {
         u[i3][i2] = backtrackReverse(dm[0],dm[1]);  
       }
     }});
-    return interpolateSparseShifts(_ne1,_n2,_n3,grids[1][0][0],g2,g3,u,x1);
+//    return interpolateSparseShifts(_ne1,_n2,_n3,grids[1][0][0],g2,g3,u,x1);
+    return interpolateTrilinear(_ne1,_n2,_n3,grids[1][0][0],g2,g3,u,x1);
   }
   
   //TODO update doc
@@ -624,7 +626,7 @@ public class DynamicWarpingC {
     int[][][] gf = grids[1];
     int[] g2 = Subsample.subsample(n2,(int)ceil(1.0f/dr2));
     int[] g3 = Subsample.subsample(n3,(int)ceil(1.0f/dr3));
-    int ng1 = gf[0].length;
+    int ng1 = gf[0][0].length;
     int ng2 = g2.length;
     int ng3 = g3.length;
     float[][][] x1f = new float[n3][ng2][ng1];
@@ -1899,6 +1901,66 @@ public class DynamicWarpingC {
       for (int i1=0; i1<n1; i1++) {
         float y = y1[i2][i1];
         ui[i2][i1] = bli.interpolate(y,i2);
+      }
+    }
+    return ui;
+  }
+  
+  public static float[][][] interpolateTrilinear(
+      int n1, int n2, int n3, int[] g1, int[] g2, int[] g3, float[][][] u)
+  {
+    int ng1 = g1.length;
+    int ng2 = g2.length;
+    int ng3 = g3.length;
+    Check.argument(
+        ng1==u[0][0].length,"ng1==u[0][0].length: "+ng1+"=="+u[0][0].length);
+    Check.argument(ng2==u[0].length,"ng2==u[0].length: "+ng2+"=="+u[0].length);
+    Check.argument(ng3==u.length,"ng3==u.length: "+ng3+"=="+u.length);
+    float[] g1f = new float[ng1];
+    float[] g2f = new float[ng2];
+    float[] g3f = new float[ng3];
+    for (int ig1=0; ig1<ng1; ig1++)
+      g1f[ig1] = (float)g1[ig1];
+    for (int ig2=0; ig2<ng2; ig2++)
+      g2f[ig2] = (float)g2[ig2];
+    for (int ig3=0; ig3<ng3; ig3++)
+      g3f[ig3] = (float)g3[ig3];
+    Sampling s1 = new Sampling(n1,1.0,0.0);
+    Sampling s2 = new Sampling(n2,1.0,0.0);
+    Sampling s3 = new Sampling(n3,1.0,0.0);
+    TrilinearInterpolator3 tli = new TrilinearInterpolator3(g1f,g2f,g3f,u);
+    return tli.interpolate(s1,s2,s3);
+  }
+  
+  
+  public static float[][][] interpolateTrilinear(
+      int n1, int n2, int n3, int[] g1Flat, int[] g2, int[] g3,
+      float[][][] u, float[][][] y1) 
+  {
+    int ng1 = g1Flat.length;
+    int ng2 = g2.length;
+    int ng3 = g3.length;
+    Check.argument(
+        ng1==u[0][0].length,"ng1==u[0][0].length: "+ng1+"=="+u[0][0].length);
+    Check.argument(ng2==u[0].length,"ng2==u[0].length: "+ng2+"=="+u[0].length);
+    Check.argument(ng3==u.length,"ng3==u.length: "+ng3+"=="+u.length);
+    float[] g1f = new float[ng1];
+    float[] g2f = new float[ng2];
+    float[] g3f = new float[ng3];
+    for (int ig1=0; ig1<ng1; ig1++)
+      g1f[ig1] = g1Flat[ig1];
+    for (int ig2=0; ig2<ng2; ig2++)
+      g2f[ig2] = (float)g2[ig2];
+    for (int ig3=0; ig3<ng3; ig3++)
+      g3f[ig3] = (float)g3[ig3];
+    float[][][] ui = new float[n3][n2][n1];
+    TrilinearInterpolator3 tli = new TrilinearInterpolator3(g1f,g2f,g3f,u);
+    for (int i3=0; i3<n3; i3++) {
+      for (int i2=0; i2<n2; i2++) {
+        for (int i1=0; i1<n1; i1++) {
+          float y = y1[i3][i2][i1];
+          ui[i3][i2][i1] = tli.interpolate(y,i2,i3);
+        }
       }
     }
     return ui;
