@@ -601,21 +601,47 @@ public class DynamicWarpingC {
     int ng2 = g2.length;
     float[][] x1f = new float[ng2][ng1];
     float[][] x2f = new float[ng2][ng1];
-    for (int i2=0; i2<ng2; i2++) {
-      for (int i1=0; i1<ng1; i1++) {
-        x1f[i2][i1] = (float)gf[g2[i2]][i1];
-        x2f[i2][i1] = (float)g2[i2];
-      }  
-    }
     float[][] x1w = new float[ng2][ng1];
     float[][] x2w = new float[ng2][ng1];
     for (int i2=0; i2<ng2; i2++) {
       for (int i1=0; i1<ng1; i1++) {
+        x1f[i2][i1] = (float)gf[g2[i2]][i1];
+        x2f[i2][i1] = (float)g2[i2];
         x1w[i2][i1] = (float)gw[g2[i2]][i1];
         x2w[i2][i1] = (float)g2[i2];
-      }
+      }  
     }
     return new float[][][]{x1w,x2w};
+  }
+
+  public static float[][][][] getSparseCoords(
+    float[][][] ppf, float[][][] x1, float dr1, float dr2, float dr3)
+  {
+    int n3 = ppf.length;
+    int n2 = ppf[0].length;
+    int[][][][] grids = getSparseGrid(ppf,x1,dr1);
+    int[][][] gw = grids[0];
+    int[][][] gf = grids[1];
+    int[] g2 = Subsample.subsample(n2,(int)ceil(1.0f/dr2));
+    int[] g3 = Subsample.subsample(n3,(int)ceil(1.0f/dr3));
+    int ng1 = gf[0].length;
+    int ng2 = g2.length;
+    int ng3 = g3.length;
+    float[][][] x1f = new float[n3][ng2][ng1];
+    float[][][] x2f = new float[n3][ng2][ng1];
+    float[][][] x1w = new float[n3][ng2][ng1];
+    float[][][] x2w = new float[n3][ng2][ng1];
+    for (int i3=0; i3<ng3; i3++) {
+      for (int i2=0; i2<ng2; i2++) {
+        for (int i1=0; i1<ng1; i1++) {
+          x1f[g3[i3]][i2][i1] = (float)gf[g3[i3]][g2[i2]][i1];
+          x2f[g3[i3]][i2][i1] = (float)g2[i2];
+          x1w[g3[i3]][i2][i1] = (float)gw[g3[i3]][g2[i2]][i1];
+          x2w[g3[i3]][i2][i1] = (float)g2[i2];
+        }  
+      }
+    }
+    return new float[][][][]{x1w,x2w};
   }
 
   //TODO update doc
@@ -641,48 +667,37 @@ public class DynamicWarpingC {
    *  This grid is sparse in the first dimension, but fine in 
    *  the second and third dimensions. 
    */
-  public int[][][][] getSparseGrid(
+  public static int[][][][] getSparseGrid(
       float[][][] ppf, float[][][] x1, float dr1) 
   {
-    int nppf = ppf[0][0].length;
+    int n3 = ppf.length;
+    int n2 = ppf[0].length;
+    int n1 = ppf[0][0].length;
     int dg1 = (int)ceil(1.0f/dr1);
-    float[] ea = new float[nppf];
+    float[] ea = new float[n1];
     float[] et;
-    for (int i3=0; i3<_n3; i3++) {
-      for (int i2=0; i2<_n2; i2++) {
+    for (int i3=0; i3<n3; i3++) {
+      for (int i2=0; i2<n2; i2++) {
         et = getEnvelope(ppf[i3][i2]);
-        for (int i1=0; i1<nppf; i1++)
+        for (int i1=0; i1<n1; i1++)
           ea[i1] += et[i1];
       }
     }
     int[] g1 = Subsample.subsample(ea,dg1);
     int ng1 = g1.length;
     int ng1m1 = ng1-1; 
-    int[][][] g = new int[_n3][_n2][];
-    for (int i3=0; i3<_n3; i3++)
-      for (int i2=0; i2<_n2; i2++)
+    int[][][] g = new int[n3][n2][];
+    for (int i3=0; i3<n3; i3++)
+      for (int i2=0; i2<n2; i2++)
         g[i3][i2] = copy(g1);
-    int[][][] gw = new int[_n3][_n2][ng1];
-    for (int i3=0; i3<_n3; i3++) {
-      for (int i2=0; i2<_n2; i2++) {
+    int[][][] gw = new int[n3][n2][ng1];
+    for (int i3=0; i3<n3; i3++) {
+      for (int i2=0; i2<n2; i2++) {
         gw[i3][i2][0] = 0;
-        gw[i3][i2][ng1m1] = _ne1-1;
+        gw[i3][i2][ng1m1] = n1-1;
         for (int i1=1; i1<ng1m1; i1++) {
           int u = g[i3][i2][i1];
           gw[i3][i2][i1] = (int)(x1[i3][i2][u]);
-          // Make sure we don't pass the last grid point _ne1-1
-          if (gw[i3][i2][i1]>=(_ne1-1)) {
-            int d = ng1m1-i1; // This many left will be out-of-bounds
-            for (int id=d; id>0; id--)
-              gw[i3][i2][ng1m1-id] = gw[i3][i2][ng1m1]-id;
-            for (int i1p=1; i1p<=i1; i1p++) { // Adjust previous grid points
-              while (gw[i3][i2][i1-i1p]>=gw[i3][i2][i1-i1p+1])
-                gw[i3][i2][i1-i1p] = gw[i3][i2][i1-i1p]-1;
-              assert(gw[i3][i2][i1-i1p]<gw[i3][i2][i1-i1p+1]):
-                "i3="+i3+", i2="+i2+", i1="+i1;
-            }
-            break; // The rest of i1 indices are squeezed in, next trace.
-          }
         }
       }
     }
