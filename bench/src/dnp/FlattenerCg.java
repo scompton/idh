@@ -8,9 +8,6 @@ package dnp;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import util.Viewer;
-
-import edu.mines.jtk.awt.ColorMap;
 import edu.mines.jtk.dsp.*;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;

@@ -3,7 +3,6 @@ package warp;
 import static edu.mines.jtk.util.ArrayMath.*;
 import edu.mines.jtk.awt.ColorMap;
 import edu.mines.jtk.mosaic.PlotPanel.Orientation;
-import util.Viewer;
 
 import junit.framework.TestCase;
 import junit.framework.TestSuite;

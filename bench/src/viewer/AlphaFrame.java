@@ -1,4 +1,4 @@
-package util;
+package viewer;
 
 import java.awt.image.IndexColorModel;
 

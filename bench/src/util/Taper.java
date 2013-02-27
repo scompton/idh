@@ -4,6 +4,8 @@ import static edu.mines.jtk.util.ArrayMath.*;
 
 import javax.swing.SwingUtilities;
 
+import viewer.Viewer;
+
 import edu.mines.jtk.awt.ColorMap;
 
 public class Taper {
