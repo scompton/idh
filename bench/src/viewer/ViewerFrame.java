@@ -3,6 +3,9 @@ package viewer;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.awt.image.IndexColorModel;
 import java.io.File;
 
@@ -16,44 +19,89 @@ import javax.swing.JMenuItem;
 import javax.swing.KeyStroke;
 
 import edu.mines.jtk.awt.ColorMap;
+import edu.mines.jtk.mosaic.ColorBar;
 import edu.mines.jtk.mosaic.PixelsView;
 import edu.mines.jtk.mosaic.PixelsView.Interpolation;
 import edu.mines.jtk.mosaic.PlotFrame;
 import edu.mines.jtk.mosaic.PlotPanel;
+import edu.mines.jtk.mosaic.PlotPanelPixels3;
 import edu.mines.jtk.mosaic.PointsView;
 import edu.mines.jtk.mosaic.TiledView;
 
+/**
+ * A PlotFrame that includes interactive features such
+ * as options to change the color model, pixel interpolation,
+ * and clips. These options can also be changed for a pixel 
+ * overlay.
+ */
 public class ViewerFrame extends PlotFrame {
 
-  public ViewerFrame(PlotPanel panel, PixelsView[] pv1) {
+  /**
+   * Constructs a ViewerFrame for the {@code panel} with options
+   * to modify settings for the {@link PixelsView} array. Changing
+   * settings will effect all PixelsViews in this array. For
+   * instance, if constructing a ViewerFrame for a 
+   * {@link PlotPanelPixels3}, all three PixelsViews can be passed
+   * into the {@code pv} array.
+   * </p>
+   * Other pixels can be added with the 
+   * {@link #addOptions(PixelsView[], String)} method.
+   * @param panel
+   * @param pv
+   */
+  public ViewerFrame(PlotPanel panel, PixelsView[] pv) {
     super(panel);
     _panel = panel;
     JMenuBar menuBar = new JMenuBar();
     _options = new JMenu("Options");
-    addInterpolationOption(pv1);
-    addClipOptions(pv1,null);
-    addColorOptions(pv1,null);
+    addInterpolationOption(pv);
+    addClipOptions(pv,null);
+    addColorOptions(pv,null);
     addSaveOption(this);
     menuBar.add(_options);
     
     setJMenuBar(menuBar);
+    addMouseListener(_ml);
     setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
   }
   
+  /**
+   * Adds a Component {@code c} to the options menu
+   * of this frame.
+   * @param c the component to add.
+   */
   public void addToMenu(Component c) {
     _options.add(c);
   }
   
-  public void addPixelOverlay(PixelsView[] pv, String label) {
+  /**
+   * Adds setting for the {@link PixelsView} array to the
+   * options menu with the {@code label}.
+   * @param pv 
+   * @param label the label for the added settings in
+   *  the options menu or {@code null} for no label.
+   */
+  public void addOptions(PixelsView[] pv, String label) {
     addClipOptions(pv,label);
     addColorOptions(pv,label);
     addAlphaOptions(pv,label);
     addRemoveOptions(pv[0],label,"3"); //TODO what about mulitple PixelsViews?
   }
   
-  public void addPointsOverlay(PointsView ptv, String label, String key) {
+  /**
+   * Adds settings for the {@link PointsView} to the 
+   * options menu with the {@code label}.
+   * @param ptv
+   * @param label label the label for the added settings in
+   *  the options menu or {@code null} for no label.
+   */
+  public void addOptions(PointsView ptv, String label, String key) {
+//    addRemoveOptions(ptv,label,"2");
     addRemoveOptions(ptv,label,key);
   }
+  
+  ////////////////////////////////////////////////////////////////////////
+  // Private
   
   private JMenu _options;
   private PlotPanel _panel;
@@ -207,4 +255,20 @@ public class ViewerFrame extends PlotFrame {
     private PixelsView[] _pv;
   }
 
+  private MouseListener _ml = new MouseAdapter() {
+    public void mousePressed(MouseEvent e) {
+      if (e.isControlDown() && e.isAltDown()) {
+        ColorBar cbar = null;
+        for (Component c : _panel.getComponents()) {
+          if (c instanceof ColorBar)
+            cbar = (ColorBar)c;
+        }
+        if (cbar!=null) {
+          int cbw = cbar.getWidth();
+          System.out.println("ColorBar width = "+cbw);
+        }
+      }
+    }
+    public void mouseReleased(MouseEvent e) {} // Do nothing.
+  };
 }
