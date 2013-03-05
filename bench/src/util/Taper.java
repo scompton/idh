@@ -4,7 +4,7 @@ import static edu.mines.jtk.util.ArrayMath.*;
 
 import javax.swing.SwingUtilities;
 
-import viewer.Viewer;
+import viewer.Viewer2D;
 
 import edu.mines.jtk.awt.ColorMap;
 
@@ -62,12 +62,12 @@ public class Taper {
     SwingUtilities.invokeLater(new Runnable() {
       @Override
       public void run() {
-        Viewer v = new Viewer(f);
+        Viewer2D v = new Viewer2D(f);
         v.setTitle("Input");
         v.setColorModel1(ColorMap.JET);
         v.addColorBar(null);
         v.show();
-        Viewer vt = new Viewer(ft);
+        Viewer2D vt = new Viewer2D(ft);
         vt.setTitle("Tapered");
         vt.setColorModel1(ColorMap.JET);
         vt.addColorBar(null);
