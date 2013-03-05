@@ -113,12 +113,54 @@ public class Viewer3P {
     _k3 = k3;
   }
   
+  /**
+   * Sets the height elastic for the specified row. If extra 
+   * height is available in this mosaic, it is allocated to 
+   * the specified row of tiles in proportion to the specified 
+   * height elastic. For fixed-height rows, the height elastic 
+   * should be zero. The default height elastic is 100.
+   * @param irow the row index.
+   * @param heightElastic the height elastic.
+   */
   public void setHeightElastic(int irow, int heightElastic) {
     _pp.getMosaic().setHeightElastic(irow, heightElastic);
   }
   
+  /**
+   * Sets the height minimum for the specified row. All tiles in the 
+   * specified row will have height not less than the specified minimum. 
+   * Height minimums are used to compute the preferred height of this mosaic.
+   * The default height minimum is 100.
+   * @param irow the row index.
+   * @param heightMinimum the height minimum.
+   */
+  public void setHeightMinimum(int irow, int heightMinimum) {
+    _pp.getMosaic().setHeightMinimum(irow, heightMinimum);
+  }
+  
+  /**
+   * Sets the width elastic for the specified column. If extra width is 
+   * available in this mosaic, it is allocated to the specified column 
+   * of tiles in proportion to the specified width elastic. 
+   * For fixed-width columns, the width elastic should be zero.
+   * The default width elastic is 100.
+   * @param icol the column index.
+   * @param widthElastic the width elastic.
+   */
   public void setWidthElastic(int icol, int widthElastic) {
     _pp.getMosaic().setWidthElastic(icol, widthElastic);
+  }
+  
+  /**
+   * Sets the width minimum for the specified column. All tiles in the 
+   * specified column will have width not less than the specified minimum. 
+   * Width minimums are used to compute the preferred width of this mosaic.
+   * The default width minimum is 100.
+   * @param icol the column index.
+   * @param widthMinimum the width minimum.
+   */
+  public void setWidthMinimum(int icol, int widthMinimum) {
+    _pp.getMosaic().setWidthMinimum(icol, widthMinimum);
   }
   
   public void addPixels(float[][][] f) {
