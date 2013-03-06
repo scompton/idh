@@ -129,6 +129,24 @@ public class Subsample {
     return g;
   }
 
+  public static int[] subsampleNgMax(float[] f, int ng) {
+    int n = f.length;
+    int nm = n-1;
+    int[] i = rampint(0,1,n);
+    float[] fa = abs(f);
+    quickIndexSort(fa,i);
+//    StringBuffer sb = new StringBuffer();
+//    for (int ii=0; ii<10; ii++) {
+//      sb.append(i[nm-ii]+",");
+//    }
+//    System.out.println("Top 10: "+sb.toString());
+    int[] g = new int[ng];
+    for (int ig=0; ig<ng; ig++) {
+      g[ig] = i[nm-ig]; 
+    }
+    return g;
+  }
+
   public static Map<Integer,float[][]> getMXB(
       int[] g, float rmin, float rmax, boolean up) 
   {

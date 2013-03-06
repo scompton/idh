@@ -1,7 +1,12 @@
 package warp;
 
-import viewer.Viewer;
-import edu.mines.jtk.awt.ColorMap;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import viewer.Viewer2D;
 import edu.mines.jtk.dsp.HilbertTransformFilter;
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.dsp.SincInterp;
@@ -133,6 +138,33 @@ public class DynamicWarpingC {
   
   public void setInterpolation(boolean doLinear) {
     _doLinear = doLinear;
+  }
+  
+  public float[][] findSparseShifts(
+      final float r1min, final float r1max, final int[][] g1,
+      final float r2min, final float r2max, final int[]   g2)
+  {
+    Stopwatch s = new Stopwatch();
+    s.start();
+    print("Smoothing 1st dimension...");
+    final float[][][] es1 = smoothErrors1(_pp2,_ps2,r1min,r1max,g1);
+    print("Finished 1st dimension smoothing in "+s.time()+" seconds");
+    normalizeErrors(es1);
+    
+    s.restart();
+    print("Smoothing 2nd dimension...");
+    final float[][][] es = smoothErrors2(es1,r2min,r2max,g2);
+    print("Finished 2nd dimension smoothing in "+s.time()+" seconds");
+    normalizeErrors(es);
+    
+    final int ng2 = es.length;
+    final float[][] u = new float[ng2][];
+    Parallel.loop(ng2,new Parallel.LoopInt() {
+    public void compute(int i2) {
+      float[][][] dm = accumulateForward(es[i2],g1[i2],r1min,r1max);
+      u[i2] = backtrackReverse(dm[0],dm[1]);
+    }});
+    return u;
   }
   
   /**
@@ -378,7 +410,7 @@ public class DynamicWarpingC {
       float[][][] dm = accumulateForward(es[i2],g1[i2],r1min,r1max);
       u[i2] = backtrackReverse(dm[0],dm[1]);
     }});
-    return interpolate(_ne1,_n2,grids[1][0],g2,u,y1,_doLinear);
+    return interpolate(_ne1,_n2,grids[1][0],g2,u,x1,_doLinear);
   }
   
   /**
@@ -461,7 +493,8 @@ public class DynamicWarpingC {
         u[i3][i2] = backtrackReverse(dm[0],dm[1]);  
       }
     }});
-    return interpolate(_ne1,_n2,_n3,grids[1][0][0],g2,g3,u,y1,_doLinear);
+//    return interpolate(_ne1,_n2,_n3,grids[1][0][0],g2,g3,u,y1,_doLinear);
+    return interpolate(_ne1,_n2,_n3,grids[1][0][0],g2,g3,u,x1,_doLinear);
   }
   
   //TODO update doc
@@ -561,6 +594,65 @@ public class DynamicWarpingC {
     return new float[][][][]{x1,x2};
   }
   
+  public static Map<Integer,float[][][]>[] getSparseCoordsMap(
+      int n1, int dg1, int n2, int dg2, int n3, int dg3,
+      float d1, float d2, float d3) 
+  {
+    int[] g1 = Subsample.subsample(n1,dg1);
+    int[] g2 = Subsample.subsample(n2,dg2);
+    int[] g3 = Subsample.subsample(n3,dg3);
+    return getSparseCoordsMap(g1,g2,g3,d1,d2,d3);
+  }
+  
+  public static Map<Integer,float[][][]>[] getSparseCoordsMap(
+      int[] g1, int[] g2, int[] g3, float d1, float d2, float d3) 
+  {
+    Map<Integer,float[][][]>[] maps = new HashMap[3];
+    Map<Integer,float[][][]> i3Map = new HashMap<Integer, float[][][]>();
+    Map<Integer,float[][][]> i2Map = new HashMap<Integer, float[][][]>();
+    Map<Integer,float[][][]> i1Map = new HashMap<Integer, float[][][]>();
+    int ng1 = g1.length;
+    int ng2 = g2.length;
+    int ng3 = g3.length;
+    float[][] x211 = new float[ng2][ng1];
+    float[][] x212 = new float[ng2][ng1];
+    for (int i2=0; i2<ng2; i2++) {
+      for (int i1=0; i1<ng1; i1++) {
+        x211[i2][i1] = (float)g1[i1]*d1;
+        x212[i2][i1] = (float)g2[i2]*d2;
+      }
+    }
+    for (int i3=0; i3<ng3; i3++) {
+      i3Map.put(g3[i3],new float[][][]{copy(x211),copy(x212)});
+    }
+    float[][] x131 = new float[ng3][ng1];
+    float[][] x132 = new float[ng3][ng1];
+    for (int i3=0; i3<ng3; i3++) {
+      for (int i1=0; i1<ng1; i1++) {
+        x131[i3][i1] = (float)g1[i1]*d1;
+        x132[i3][i1] = (float)g3[i3]*d3;
+      }
+    }
+    for (int i2=0; i2<ng2; i2++) {
+      i2Map.put(g2[i2],new float[][][]{copy(x131),copy(x132)});
+    }
+    float[][] x232 = new float[ng3][ng2];
+    float[][] x233 = new float[ng3][ng2];
+    for (int i3=0; i3<ng3; i3++) {
+      for (int i2=0; i2<ng2; i2++) {
+        x232[i3][i2] = (float)g2[i2]*d2;
+        x233[i3][i2] = (float)g3[i3]*d3;
+      }
+    }
+    for (int i1=0; i1<ng1; i1++) {
+      i1Map.put(g1[i1],new float[][][]{copy(x232),copy(x233)});
+    }
+    maps[0] = i1Map;
+    maps[1] = i2Map;
+    maps[2] = i3Map;
+    return maps;
+  }
+  
   public static float[][][] getSparseCoords(
       float[][] ppf, float[][] x1, int dg1, int dg2) 
   {
@@ -587,7 +679,7 @@ public class DynamicWarpingC {
   }
 
   public static float[][][][] getSparseCoords(
-    float[][][] ppf, float[][][] x1, int dg1, int dg2, int dg3)
+      float[][][] ppf, float[][][] x1, int dg1, int dg2, int dg3)
   {
     int n3 = ppf.length;
     int n2 = ppf[0].length;
@@ -616,6 +708,168 @@ public class DynamicWarpingC {
     return new float[][][][]{x1w,x2w};
   }
 
+  public static Map<Integer,float[][][]>[] getSparseCoordsMap(
+      float[][][] ppf, float[][][] x1, int dg1, int dg2, int dg3,
+      float d1, float d2, float d3)
+  {
+    int n3 = ppf.length;
+    int n2 = ppf[0].length;
+    int n1 = ppf[0][0].length;
+    int[][][][] grids = getSparseGrid(ppf,x1,dg1);
+    int[][][] gw = grids[0];
+    int[][][] gf = grids[1];
+    int[] g2 = Subsample.subsample(n2,dg2);
+    int[] g3 = Subsample.subsample(n3,dg3);
+    int ng1 = gf[0][0].length;
+    int ng2 = g2.length;
+    int ng3 = g3.length;
+    Map<Integer,float[][][]>[] maps = new HashMap[3];
+    Map<Integer,float[][][]> i3Map = new HashMap<Integer, float[][][]>();
+    Map<Integer,float[][][]> i2Map = new HashMap<Integer, float[][][]>();
+    Map<Integer,float[][][]> i1Map = new HashMap<Integer, float[][][]>();
+
+    Map<Integer,List<Float>> i12Map = new HashMap<Integer,List<Float>>();
+    Map<Integer,List<Float>> i13Map = new HashMap<Integer,List<Float>>();
+    for (int i3=0; i3<ng3; i3++) {
+      float[][] x211 = new float[ng2][ng1];
+      float[][] x212 = new float[ng2][ng1];
+      for (int i2=0; i2<ng2; i2++) {
+        for (int i1=0; i1<ng1; i1++) {
+          int i1g = gw[g3[i3]][g2[i2]][i1];
+          if (i12Map.containsKey(i1g)) {
+            i12Map.get(i1g).add(g2[i2]*d2);
+            i13Map.get(i1g).add(g3[i3]*d3);
+          } else {
+            List<Float> l12 = new ArrayList<Float>();
+            l12.add(g2[i2]*d2);
+            i12Map.put(i1g,l12);
+            List<Float> l13 = new ArrayList<Float>();
+            l13.add(g3[i3]*d3);
+            i13Map.put(i1g,l13);
+          }
+          x211[i2][i1] = (float)gw[g3[i3]][g2[i2]][i1]*d1;
+          x212[i2][i1] = (float)g2[i2]*d2;
+        }
+      }
+      i3Map.put(g3[i3],new float[][][]{x211,x212});
+    }
+    
+    for (int i2=0; i2<ng2; i2++) {
+      float[][] x131 = new float[ng3][ng1];
+      float[][] x132 = new float[ng3][ng1];
+      for (int i3=0; i3<ng3; i3++) {
+        for (int i1=0; i1<ng1; i1++) {
+          x131[i3][i1] = (float)gw[g3[i3]][g2[i2]][i1]*d1;
+          x132[i3][i1] = (float)g3[i3]*d3;
+        }
+      }
+      i2Map.put(g2[i2],new float[][][]{x131,x132});
+    }
+    
+    Iterator<Integer> it = i12Map.keySet().iterator();
+    while (it.hasNext()) {
+      int i1 = it.next();
+      List<Float> l12 = i12Map.get(i1);
+      List<Float> l13 = i13Map.get(i1);
+      int nl2 = l12.size();
+      int nl3 = l13.size();
+      float[][] x232 = new float[nl3][nl2];
+      float[][] x233 = new float[nl3][nl2];
+      for (int i3=0; i3<nl3; i3++) {
+        for (int i2=0; i2<nl2; i2++) {
+          x232[i3][i2] = l12.get(i2);
+          x233[i3][i2] = l13.get(i3);
+        }
+      }
+      i1Map.put(i1,new float[][][]{x232,x233});
+    }
+    maps[0] = i1Map;
+    maps[1] = i2Map;
+    maps[2] = i3Map;
+    return maps;
+  }
+  
+  public static Map<Integer,float[][][]>[] getSparseCoordsMapFlat(
+      float[][][] ppf, float[][][] x1, int dg1, int dg2, int dg3,
+      float d1, float d2, float d3)
+  {
+    int n3 = ppf.length;
+    int n2 = ppf[0].length;
+    int n1 = ppf[0][0].length;
+    int[][][][] grids = getSparseGrid(ppf,x1,dg1);
+    int[][][] gw = grids[0];
+    int[][][] gf = grids[1];
+    int[] g2 = Subsample.subsample(n2,dg2);
+    int[] g3 = Subsample.subsample(n3,dg3);
+    int ng1 = gf[0][0].length;
+    int ng2 = g2.length;
+    int ng3 = g3.length;
+    Map<Integer,float[][][]>[] maps = new HashMap[3];
+    Map<Integer,float[][][]> i3Map = new HashMap<Integer, float[][][]>();
+    Map<Integer,float[][][]> i2Map = new HashMap<Integer, float[][][]>();
+    Map<Integer,float[][][]> i1Map = new HashMap<Integer, float[][][]>();
+
+    Map<Integer,List<Float>> i12Map = new HashMap<Integer,List<Float>>();
+    Map<Integer,List<Float>> i13Map = new HashMap<Integer,List<Float>>();
+    for (int i3=0; i3<ng3; i3++) {
+      float[][] x211 = new float[ng2][ng1];
+      float[][] x212 = new float[ng2][ng1];
+      for (int i2=0; i2<ng2; i2++) {
+        for (int i1=0; i1<ng1; i1++) {
+          int i1g = gw[g3[i3]][g2[i2]][i1];
+          if (i12Map.containsKey(i1g)) {
+            i12Map.get(i1g).add(g2[i2]*d2);
+            i13Map.get(i1g).add(g3[i3]*d3);
+          } else {
+            List<Float> l12 = new ArrayList<Float>();
+            l12.add(g2[i2]*d2);
+            i12Map.put(i1g,l12);
+            List<Float> l13 = new ArrayList<Float>();
+            l13.add(g3[i3]*d3);
+            i13Map.put(i1g,l13);
+          }
+          x211[i2][i1] = (float)gw[g3[i3]][g2[i2]][i1]*d1;
+          x212[i2][i1] = (float)g2[i2]*d2;
+        }
+      }
+      i3Map.put(g3[i3],new float[][][]{x211,x212});
+    }
+    
+    for (int i2=0; i2<ng2; i2++) {
+      float[][] x131 = new float[ng3][ng1];
+      float[][] x132 = new float[ng3][ng1];
+      for (int i3=0; i3<ng3; i3++) {
+        for (int i1=0; i1<ng1; i1++) {
+          x131[i3][i1] = (float)gw[g3[i3]][g2[i2]][i1]*d1;
+          x132[i3][i1] = (float)g3[i3]*d3;
+        }
+      }
+      i2Map.put(g2[i2],new float[][][]{x131,x132});
+    }
+    
+    Iterator<Integer> it = i12Map.keySet().iterator();
+    while (it.hasNext()) {
+      int i1 = it.next();
+      List<Float> l12 = i12Map.get(i1);
+      List<Float> l13 = i13Map.get(i1);
+      int nl2 = l12.size();
+      int nl3 = l13.size();
+      float[][] x232 = new float[nl3][nl2];
+      float[][] x233 = new float[nl3][nl2];
+      for (int i3=0; i3<nl3; i3++) {
+        for (int i2=0; i2<nl2; i2++) {
+          x232[i3][i2] = l12.get(i2);
+          x233[i3][i2] = l13.get(i3);
+        }
+      }
+      i1Map.put(i1,new float[][][]{x232,x233});
+    }
+    maps[0] = i1Map;
+    maps[1] = i2Map;
+    maps[2] = i3Map;
+    return maps;
+  }
+  
   //TODO update doc
   /**
    * Gets a sparse grid for warping in the first dimension
@@ -746,6 +1000,60 @@ public class DynamicWarpingC {
     return new float[][]{ps1w, ps2w};
   }
   
+  public float computeNrms(float[] u) {
+    float[] g = applyShifts(u);
+    float[] fs = new float[_ne1];
+    float[] gs = new float[_ne1];
+    for (int i1=0; i1<_ne1; i1++) {
+      fs[i1] = _pp1[i1];
+      gs[i1] = g[i1];
+    }
+    float[] d = sub(gs,fs);
+    float frms = sqrt(sum(mul(fs,fs))/(_ne1));  
+    float grms = sqrt(sum(mul(gs,gs))/(_ne1));
+    float drms = sqrt(sum(mul( d, d))/(_ne1));
+    float nrms = (2.0f*drms)/(frms+grms);
+    return nrms;
+  }
+  
+  public float computeNrms(float[][] u) {
+    float[][] g = applyShifts(u);
+    float[][] fs = new float[_n2][_ne1];
+    float[][] gs = new float[_n2][_ne1];
+    for (int i2=0; i2<_n2; i2++) {
+      for (int i1=0; i1<_ne1; i1++) {
+        fs[i2][i1] = _pp2[i2][i1];
+        gs[i2][i1] = g[i2][i1];
+      }
+    }
+    float[][] d = sub(gs,fs);
+    float frms = sqrt(sum(mul(fs,fs))/(_ne1*_n2));  
+    float grms = sqrt(sum(mul(gs,gs))/(_ne1*_n2));
+    float drms = sqrt(sum(mul( d, d))/(_ne1*_n2));
+    float nrms = (2.0f*drms)/(frms+grms);
+    return nrms;
+  }
+  
+  public float computeNrms(float[][][] u) {
+    float[][][] g = applyShifts(u);
+    float[][][] fs = new float[_n3][_n2][_ne1];
+    float[][][] gs = new float[_n3][_n2][_ne1];
+    for (int i3=0; i3<_n3; i3++) {
+      for (int i2=0; i2<_n2; i2++) {
+        for (int i1=0; i1<_ne1; i1++) {
+          fs[i3][i2][i1] = _pp3[i3][i2][i1];
+          gs[i3][i2][i1] = g[i3][i2][i1];
+        }
+      }
+    }
+    float[][][] d = sub(gs,fs);
+    float frms = sqrt(sum(mul(fs,fs))/(_ne1*_n2*_n3));  
+    float grms = sqrt(sum(mul(gs,gs))/(_ne1*_n2*_n3));
+    float drms = sqrt(sum(mul( d, d))/(_ne1*_n2*_n3));
+    float nrms = (2.0f*drms)/(frms+grms);
+    return nrms;
+  }
+  
   /**
    * Computes an array of VpVs ratios an array of shifts u.
    * The relationship is defined as vpvs(t) = 1+2*(du/dt)
@@ -777,8 +1085,8 @@ public class DynamicWarpingC {
     float[][] vpvs = new float[n2][n1];
     for (int i2=0; i2<n2; ++i2) {
       // At i1=0, forward difference. At i1=nm1, backward difference.
-      vpvs[i2][  0 ] = 1.0f + 2*(u[i2][  1 ]-u[i2][   0  ]); 
-      vpvs[i2][n1m1] = 1.0f + 2*(u[i2][n1m1]-u[i2][n1m1-1]);
+      vpvs[i2][  0 ] = 1.0f + 2.0f*(u[i2][  1 ]-u[i2][   0  ]); 
+      vpvs[i2][n1m1] = 1.0f + 2.0f*(u[i2][n1m1]-u[i2][n1m1-1]);
       for (int i1=1; i1<n1m1; ++i1) {
         vpvs[i2][i1] = 1.0f+2*((u[i2][i1+1]-u[i2][i1-1])/2.0f);
       }
@@ -1036,7 +1344,7 @@ public class DynamicWarpingC {
         }
       }
     }
-    Viewer vf = new Viewer(ppf);
+    Viewer2D vf = new Viewer2D(ppf);
     vf.setTitle("Flattened Image - Coarse Grid (dr2="+dr2+")");
     vf.setHLabel("crossline");
     vf.setVLabel("Tau (samples)");
@@ -1048,7 +1356,7 @@ public class DynamicWarpingC {
     vf.setSize(600,900);
     vf.show();
     
-    Viewer vw = new Viewer(_pp3);
+    Viewer2D vw = new Viewer2D(_pp3);
     vw.setTitle("Original Image - Coarse Grid (dr2="+dr2+")");
     vw.setHLabel("crossline");
     vw.setVLabel("time (samples)");
@@ -1131,7 +1439,8 @@ public class DynamicWarpingC {
       for (int i1=0; i1<ne1; i1++)
         ea[i1] += et[i1];
     }
-    int[] g1 = Subsample.subsample(ea,dg1);
+    int ng = Subsample.subsample(ne1,dg1).length;
+    int[] g1 = Subsample.subsample(ea,dg1,ng);
     int ng1 = g1.length;
     int ng1m1 = ng1-1; 
     int[][] gw = new int[n2][ng1];
@@ -1606,58 +1915,72 @@ public class DynamicWarpingC {
   
   /**
    * Interpolates u, sampled on a structurally aligned sparse 
-   * grid g, to a uniformly sampled array of size [n2][n1].
+   * grid g, to a uniformly sampled array of size [n2][n1]. The
+   * interpolation is done in two passes. First interpolation
+   * is done in the second dimension where sampling is regular. 
+   * The second pass does interpolation in the first dimension 
+   * where flattened coordinates from {@code g1Flat} are mapped 
+   * to unflattened space before interpolation.
    * @param n1 length of first dimension of output array.
    * @param n2 length of second dimension of output array.
    * @param g1Flat first dimension sparse grid indices in 
    *  flattened coordinates.
    * @param g2 second dimension sparse grid indices.
    * @param u sparse shifts.
-   * @param y1 array of sampled y1(x1,x2). That is, flattened
-   *  coordinates for unflattened samples x1 and x2.
-   * @param doLinear {@code true} for bilinear interpolation,
-   *  {@code false} for bicubic.
+   * @param x1 array of sampled x1(y1,y2). That is, the 
+   *  unflattened coordinates for flattened samples y1,y2.
+   * @param doLinear {@code true} for linear interpolation,
+   *  {@code false} for cubic monotonic.
    * @return the interpolated shifts.
    */
   public static float[][] interpolate(
-      int n1, int n2, int[] g1Flat, int[] g2, float[][] u, float[][] y1,
+      int n1, int n2, int[] g1Flat, int[] g2, float[][] u, float[][] x1,
       boolean doLinear) 
   {
     int ng1 = g1Flat.length;
     int ng2 = g2.length;
     Check.argument(ng1==u[0].length,"ng1==u[0].length: "+ng1+"=="+u[0].length);
     Check.argument(ng2==u.length,"ng2==u.length: "+ng2+"=="+u.length);
-    float[] g1f = new float[ng1];
-    for (int ig1=0; ig1<ng1; ig1++)
-      g1f[ig1] = g1Flat[ig1];
     float[] g2f = new float[ng2];
     for (int ig2=0; ig2<ng2; ig2++)
-      g2f[ig2] = (float)g2[ig2];
+      g2f[ig2] = g2[ig2];
+
     float[][] ui = new float[n2][n1];
-    if (doLinear) {
-      BilinearInterpolator2 bli = new BilinearInterpolator2(g1f,g2f,u);
-      for (int i2=0; i2<n2; i2++) {
-        for (int i1=0; i1<n1; i1++) {
-          float y = y1[i2][i1];
-          ui[i2][i1] = bli.interpolate(y,i2);
-        }
-      }
-    } else {
-      BicubicInterpolator2 bci = 
-          new BicubicInterpolator2(BCIM1,BCIM2,g1f,g2f,u);
-      for (int i2=0; i2<n2; i2++) {
-        for (int i1=0; i1<n1; i1++) {
-          float y = y1[i2][i1];
-          ui[i2][i1] = bci.interpolate(y,i2);
-        }
-      }
+    Method m = Method.MONOTONIC;
+    if (doLinear)
+      m = Method.LINEAR;
+    
+    // interpolate in the second dimension.
+    float[] u2 = new float[ng2];
+    float[][] ui2 = new float[n2][ng1];
+    for (int i1=0; i1<ng1; i1++) {
+      for (int i2=0; i2<ng2; i2++)
+        u2[i2] = u[i2][i1];
+      CubicInterpolator ciu = new CubicInterpolator(m,g2f,u2);
+      for (int i2=0; i2<n2; i2++)
+        ui2[i2][i1] = ciu.interpolate(i2);
+    }
+
+    // interpolate in the first dimension.
+    for (int i2=0; i2<n2; i2++) {
+      float[] x = new float[ng1];
+      for (int i1=0; i1<ng1; i1++)
+        x[i1] = x1[i2][g1Flat[i1]];
+      CubicInterpolator ci = new CubicInterpolator(m,x,ui2[i2]);
+      for (int i1=0; i1<n1; i1++)
+        ui[i2][i1] = ci.interpolate(i1);
     }
     return ui;
   }
   
   /**
    * Interpolates u, sampled on a structurally aligned sparse 
-   * grid g, to a uniformly sampled array of size [n2][n1].
+   * grid g, to a uniformly sampled array of size [n2][n1]. The
+   * interpolation is done in two passes. First interpolation
+   * is done in the second and third dimension where sampling
+   * is regular. The second pass does interpolation in the first
+   * dimension where flattened coordinates from {@code g1Flat}
+   * are mapped to unflattened space before interpolation.
    * @param n1 length of first dimension of output array.
    * @param n2 length of second dimension of output array.
    * @param n3 length of third dimension of output array.
@@ -1666,15 +1989,15 @@ public class DynamicWarpingC {
    * @param g2 second dimension sparse grid indices.
    * @param g3 third dimension sparse grid indices.
    * @param u sparse shifts.
-   * @param y1 array of sampled y1(x1,x2,x3). That is, flattened
-   *  coordinates for unflattened samples x1, x2, and x3.
-   * @param doLinear {@code true} for trilinear interpolation,
-   *  {@code false} for tricubic.
+   * @param x1 array of sampled x1(y1,y2,y3). That is, unflattened
+   *  coordinates for flattened samples y1,y2,y3.
+   * @param doLinear {@code true} for linear interpolation,
+   *  {@code false} for cubic monotic.
    * @return the interpolated shifts.
    */
   public static float[][][] interpolate(
       int n1, int n2, int n3, int[] g1Flat, int[] g2, int[] g3,
-      float[][][] u, float[][][] y1, boolean doLinear) 
+      float[][][] u, float[][][] x1, boolean doLinear) 
   {
     int ng1 = g1Flat.length;
     int ng2 = g2.length;
@@ -1683,373 +2006,49 @@ public class DynamicWarpingC {
         ng1==u[0][0].length,"ng1==u[0][0].length: "+ng1+"=="+u[0][0].length);
     Check.argument(ng2==u[0].length,"ng2==u[0].length: "+ng2+"=="+u[0].length);
     Check.argument(ng3==u.length,"ng3==u.length: "+ng3+"=="+u.length);
-    float[] g1f = new float[ng1];
     float[] g2f = new float[ng2];
     float[] g3f = new float[ng3];
-    for (int ig1=0; ig1<ng1; ig1++)
-      g1f[ig1] = g1Flat[ig1];
     for (int ig2=0; ig2<ng2; ig2++)
-      g2f[ig2] = (float)g2[ig2];
+      g2f[ig2] = g2[ig2];
     for (int ig3=0; ig3<ng3; ig3++)
-      g3f[ig3] = (float)g3[ig3];
+      g3f[ig3] = g3[ig3];
+    
+    Method m = doLinear?Method.LINEAR:Method.MONOTONIC;// 1st dim interp method
     float[][][] ui = new float[n3][n2][n1];
-    if (doLinear) {
-      TrilinearInterpolator3 tli = new TrilinearInterpolator3(g1f,g2f,g3f,u);
-      for (int i3=0; i3<n3; i3++) {
-        for (int i2=0; i2<n2; i2++) {
-          for (int i1=0; i1<n1; i1++) {
-            float y = y1[i3][i2][i1];
-            ui[i3][i2][i1] = tli.interpolate(y,i2,i3);
-          }
-        }
+    
+    // interpolate the second and third dimension.
+    float[][] u23 = new float[ng3][ng2];
+    float[][][] ui23 = new float[n3][n2][ng1];
+    for (int i1=0; i1<ng1; i1++) {
+      for (int i3=0; i3<ng3; i3++)
+        for (int i2=0; i2<ng2; i2++)
+          u23[i3][i2] = u[i3][i2][i1];
+      if (doLinear) {
+        BilinearInterpolator2 bli = new BilinearInterpolator2(g2f,g3f,u23);
+        for (int i3=0; i3<n3; i3++)
+          for (int i2=0; i2<n2; i2++)
+            ui23[i3][i2][i1] = bli.interpolate(i2,i3);
+      } else {
+        BicubicInterpolator2 bci = 
+            new BicubicInterpolator2(
+                BicubicInterpolator2.Method.MONOTONIC,
+                BicubicInterpolator2.Method.MONOTONIC,
+                g2f,g3f,u23);
+        for (int i3=0; i3<n3; i3++)
+          for (int i2=0; i2<n2; i2++)
+            ui23[i3][i2][i1] = bci.interpolate(i2,i3);
       }
-    }
-    else {
-      TricubicInterpolator3 tci = 
-          new TricubicInterpolator3(TCIM1,TCIM2,TCIM3,g1f,g2f,g3f,u);
-      for (int i3=0; i3<n3; i3++) {
-        for (int i2=0; i2<n2; i2++) {
-          for (int i1=0; i1<n1; i1++) {
-            float y = y1[i3][i2][i1];
-            ui[i3][i2][i1] = tci.interpolate(y,i2,i3);
-          }
-        }
-      }
-    }
-    return ui;
-  }
-  
-  /**
-   * Interpolates sparse shifts on a uniform grid (g1 indices are
-   * constant for all g2). Computes the derivatives of the shifts
-   * in the first dimension, interpolates the shifts and derivatives
-   * in the n2 dimension with spline interpolation, and finally, 
-   * constructs a cubic interpolator from those values to interpolate
-   * the n1 values.
-   * @param n1
-   * @param n2
-   * @param g1
-   * @param g2
-   * @param u
-   * @return
-   */
-  public static float[][] interpolateSparseShifts(
-      int n1, int n2, int[] g1, int[] g2, float[][] u)
-  {
-    int ng1 = g1.length;
-    int ng2 = g2.length;
-    Check.argument(ng1==u[0].length,"ng1==u[0].length: "+ng1+"=="+u[0].length);
-    Check.argument(ng2==u.length,"ng2==u.length: "+ng2+"=="+u.length);
-    float[] g1f = new float[ng1];
-    float[] g2f = new float[ng2];
-    for (int ig=0; ig<ng1; ig++)
-      g1f[ig] = (float)g1[ig];
-    for (int ig=0; ig<ng2; ig++)
-      g2f[ig] = (float)g2[ig];
-
-    // compute derivative in first dimension
-    float[][] d = new float[ng2][ng1];
-    for (int i2=0; i2<ng2; i2++) {
-      CubicInterpolator ci = new CubicInterpolator(Method.LINEAR,g1f,u[i2]);
-      ci.interpolate1(g1f,d[i2]);
     }
 
-    // interpolate shifts and derivatives in the second dimension
-    float[] u2 = new float[ng2];
-    float[] d2 = new float[ng2];
-    float[][] ui2 = new float[n2][ng1];
-    float[][] di2 = new float[n2][ng1];
-    for (int i1=0; i1<ng1; i1++) {
-      for (int i2=0; i2<ng2; i2++) {
-        u2[i2] = u[i2][i1];
-        d2[i2] = d[i2][i1];
-      }
-      CubicInterpolator ciu = new CubicInterpolator(Method.SPLINE,g2f,u2);
-      CubicInterpolator cid = new CubicInterpolator(Method.SPLINE,g2f,d2);
-      for (int i2=0; i2<n2; i2++) {
-        ui2[i2][i1] = ciu.interpolate(i2);
-        di2[i2][i1] = cid.interpolate(i2);
-      }
-    }
-    
-    // interpolate in the first dimension, using derivatives
-    float[][] ui = new float[n2][n1];
-    for (int i2=0; i2<n2; i2++) {
-      CubicInterpolator ci = new CubicInterpolator(g1f,ui2[i2],di2[i2]);
-      for (int i1=0; i1<n1; i1++) {
-        ui[i2][i1] = ci.interpolate(i1);
-      }
-    }
-    return ui;
-  }
-  
-  /**
-   * Interpolates sparse shifts on a uniform grid (g1 indices are
-   * constant for all g2). Computes the derivatives of the shifts
-   * in the first dimension, interpolates the shifts and derivatives
-   * in the n2 dimension with spline interpolation, and finally, 
-   * constructs a cubic interpolator from those values to interpolate
-   * the n1 values.
-   * @param n1
-   * @param n2
-   * @param g1
-   * @param g2
-   * @param u
-   * @return
-   */
-  public static float[][][] interpolateSparseShifts(
-      int n1, int n2, int n3, int[] g1, int[] g2, int[] g3, float[][][] u)
-  {
-    int ng1 = g1.length;
-    int ng2 = g2.length;
-    int ng3 = g3.length;
-    Check.argument(
-        ng1==u[0][0].length,"ng1==u[0][0].length: "+ng1+"=="+u[0][0].length);
-    Check.argument(ng2==u[0].length,"ng2==u[0].length: "+ng2+"=="+u[0].length);
-    Check.argument(ng3==u.length,"ng3==u.length: "+ng3+"=="+u.length);
-    float[] g1f = new float[ng1];
-    for (int ig1=0; ig1<ng1; ig1++)
-      g1f[ig1] = (float)g1[ig1];
-    float[] g2f = new float[ng2];
-    for (int ig2=0; ig2<ng2; ig2++)
-      g2f[ig2] = (float)g2[ig2];
-    float[] g3f = new float[ng3];
-    for (int ig3=0; ig3<ng3; ig3++)
-      g3f[ig3] = (float)g3[ig3];
-    
-    // compute derivative in first dimension
-    float[][][] d = new float[ng3][ng2][ng1];
-    for (int i3=0; i3<ng3; i3++) {
-      for (int i2=0; i2<ng2; i2++) {
-        CubicInterpolator ci = 
-            new CubicInterpolator(Method.LINEAR,g1f,u[0][i2]);
-        ci.interpolate1(g1f,d[i3][i2]);
-      }
-    }
-    
-    // interpolate shifts and derivatives in the second dimension
-    float[][] u23 = new float[ng3][ng2];
-    float[][] d23 = new float[ng3][ng2];
-    float[][][] ui23 = new float[n3][n2][ng1];
-    float[][][] di23 = new float[n3][n2][ng1];
-    for (int i1=0; i1<ng1; i1++) {
-      for (int i3=0; i3<ng3; i3++) {
-        for (int i2=0; i2<ng2; i2++) {
-          u23[i3][i2] = u[i3][i2][i1];
-          d23[i3][i2] = d[i3][i2][i1];
-        }
-      }
-      BicubicInterpolator2 ciu = new BicubicInterpolator2(
-          BicubicInterpolator2.Method.SPLINE,
-          BicubicInterpolator2.Method.SPLINE,
-          g2f,g3f,u23);
-      BicubicInterpolator2 cid = new BicubicInterpolator2(
-          BicubicInterpolator2.Method.SPLINE,
-          BicubicInterpolator2.Method.SPLINE,
-          g2f,g3f,d23);
-      for (int i3=0; i3<n3; i3++) {
-//        CubicInterpolator ciu = new CubicInterpolator(Method.SPLINE,g2f,u23[i3]);
-//        CubicInterpolator cid = new CubicInterpolator(Method.SPLINE,g2f,d23[i3]);
-        
-        for (int i2=0; i2<n2; i2++) {
-          ui23[i3][i2][i1] = ciu.interpolate(i2,i3);
-          di23[i3][i2][i1] = cid.interpolate(i2,i3);
-//          ui23[i3][i2][i1] = ciu.interpolate(i2);
-//          di23[i3][i2][i1] = cid.interpolate(i2);
-        }  
-      }
-    }
-    
-    // interpolate in the first dimension, using derivatives
-    float[][][] ui = new float[n3][n2][n1];
+    // interpolate the first dimension
     for (int i3=0; i3<n3; i3++) {
       for (int i2=0; i2<n2; i2++) {
-        CubicInterpolator ci = 
-            new CubicInterpolator(g1f,ui23[i3][i2],di23[i3][i2]);
-        for (int i1=0; i1<n1; i1++) {
+        float[] x = new float[ng1];
+        for (int i1=0; i1<ng1; i1++)
+          x[i1] = x1[i3][i2][g1Flat[i1]];
+        CubicInterpolator ci = new CubicInterpolator(m,x,ui23[i3][i2]);
+        for (int i1=0; i1<n1; i1++)
           ui[i3][i2][i1] = ci.interpolate(i1);
-        }
-      }
-    }
-    return ui;
-  }
-  
-  /**
-   * Interpolates sparse shifts on an irregular grid (g1 indices are
-   * not constant for all g2). Computes the derivatives of the shifts
-   * in the first dimension, interpolates the shifts and derivatives
-   * in the n2 dimension with spline interpolation, and finally, 
-   * constructs a cubic interpolator from those values to interpolate
-   * the n1 values.
-   * @param n1
-   * @param n2
-   * @param g1Flat
-   * @param g2
-   * @param u
-   * @param x1
-   * @return
-   */
-  public static float[][] interpolateSparseShifts(
-      int n1, int n2, int[] g1Flat, int[] g2, float[][] u, float[][] x1)
-  {
-    int ng1 = g1Flat.length;
-    int ng2 = g2.length;
-    Check.argument(ng1==u[0].length,"ng1==u[0].length: "+ng1+"=="+u[0].length);
-    Check.argument(ng2==u.length,"ng2==u.length: "+ng2+"=="+u.length);
-    float[][] g1f = new float[n2][ng1];
-    for (int i2=0; i2<n2; i2++) {
-      for (int ig=0; ig<ng1; ig++)
-        g1f[i2][ig] = x1[i2][g1Flat[ig]];
-    }
-    float[] g2f = new float[ng2];
-    for (int ig=0; ig<ng2; ig++)
-      g2f[ig] = (float)g2[ig];
-    
-    // compute derivative in first dimension
-    float[][] d = new float[ng2][ng1];
-    for (int i2=0; i2<ng2; i2++) {
-      CubicInterpolator ci = 
-          new CubicInterpolator(Method.LINEAR,g1f[g2[i2]],u[i2]);
-      ci.interpolate1(g1f[g2[i2]],d[i2]);
-    }
-    
-    // interpolate shifts and derivatives in the second dimension
-    float[] u2 = new float[ng2];
-    float[] d2 = new float[ng2];
-    float[][] ui2 = new float[n2][ng1];
-    float[][] di2 = new float[n2][ng1];
-    for (int i1=0; i1<ng1; i1++) {
-      for (int i2=0; i2<ng2; i2++) {
-        u2[i2] = u[i2][i1];
-        d2[i2] = d[i2][i1];
-      }
-      CubicInterpolator ciu = new CubicInterpolator(Method.SPLINE,g2f,u2);
-      CubicInterpolator cid = new CubicInterpolator(Method.SPLINE,g2f,d2);
-      for (int i2=0; i2<n2; i2++) {
-        ui2[i2][i1] = ciu.interpolate(i2);
-        di2[i2][i1] = cid.interpolate(i2);
-      }
-    }
-    
-    // interpolate in the first dimension, using derivatives
-    float[][] ui = new float[n2][n1];
-    for (int i2=0; i2<n2; i2++) {
-      CubicInterpolator ci = new CubicInterpolator(g1f[i2],ui2[i2],di2[i2]);
-      for (int i1=0; i1<n1; i1++) {
-        ui[i2][i1] = ci.interpolate(i1);
-      }
-    }
-    return ui;
-  }
-  
-  public static float[][][] interpolateSparseShifts(
-      int n1, int n2, int n3, int[] g1Flat, int[] g2, int[] g3, 
-      float[][][] u, float[][][] x1)
-  {
-    int ng1 = g1Flat.length;
-    int ng2 = g2.length;
-    int ng3 = g3.length;
-    Check.argument(
-        ng1==u[0][0].length,"ng1==u[0][0].length: "+ng1+"=="+u[0][0].length);
-    Check.argument(ng2==u[0].length,"ng2==u[0].length: "+ng2+"=="+u[0].length);
-    Check.argument(ng3==u.length,"ng3==u.length: "+ng3+"=="+u.length);
-    float[][][] g1f = new float[n3][n2][ng1];
-    for (int i3=0; i3<n3; i3++) {
-      for (int i2=0; i2<n2; i2++) {
-        for (int ig=0; ig<ng1; ig++)
-          g1f[i3][i2][ig] = x1[i3][i2][g1Flat[ig]];
-      }
-    }
-    float[] g2f = new float[ng2];
-    for (int ig=0; ig<ng2; ig++)
-      g2f[ig] = (float)g2[ig];
-    float[] g3f = new float[ng3];
-    for (int ig=0; ig<ng3; ig++)
-      g3f[ig] = (float)g3[ig];
-    
-    // compute derivative in first dimension
-    float[][][] d = new float[ng3][ng2][ng1];
-    for (int i3=0; i3<ng3; i3++) {
-      for (int i2=0; i2<ng2; i2++) {
-        CubicInterpolator ci = 
-            new CubicInterpolator(Method.LINEAR,g1f[g3[i3]][g2[i2]],u[i3][i2]);
-        ci.interpolate1(g1f[g3[i3]][g2[i2]],d[i3][i2]);
-      }
-    }
-    
-    // interpolate shifts and derivatives in the second dimension
-    float[][] u23 = new float[ng3][ng2];
-    float[][] d23 = new float[ng3][ng2];
-    float[][][] ui23 = new float[n3][n2][ng1];
-    float[][][] di23 = new float[n3][n2][ng1];
-    for (int i1=0; i1<ng1; i1++) {
-      for (int i3=0; i3<ng3; i3++) {
-        for (int i2=0; i2<ng2; i2++) {
-          u23[i3][i2] = u[i3][i2][i1];
-          d23[i3][i2] = d[i3][i2][i1];
-        }
-      }
-      BicubicInterpolator2 ciu = new BicubicInterpolator2(
-          BicubicInterpolator2.Method.SPLINE,
-          BicubicInterpolator2.Method.SPLINE,
-          g2f,g3f,u23);
-      BicubicInterpolator2 cid = new BicubicInterpolator2(
-          BicubicInterpolator2.Method.SPLINE,
-          BicubicInterpolator2.Method.SPLINE,
-          g2f,g3f,d23);
-      for (int i3=0; i3<n3; i3++) {
-        for (int i2=0; i2<n2; i2++) {
-          ui23[i3][i2][i1] = ciu.interpolate(i2,i3);
-          di23[i3][i2][i1] = cid.interpolate(i2,i3);
-        }  
-      }
-    }
-    
-    // interpolate in the first dimension, using derivatives
-    float[][][] ui = new float[n3][n2][n1];
-    for (int i3=0; i3<n3; i3++) {
-      for (int i2=0; i2<n2; i2++) {
-        CubicInterpolator ci = 
-            new CubicInterpolator(g1f[i3][i2],ui23[i3][i2],di23[i3][i2]);
-        for (int i1=0; i1<n1; i1++) {
-          ui[i3][i2][i1] = ci.interpolate(i1);
-        }
-      }
-    }
-    return ui;
-  }
-  
-  public static float[][] interpolateC2L1(
-      int n1, int n2, int[] g1Flat, int[] g2, float[][] u, float[][] y1)
-  {
-    int ng1 = g1Flat.length;
-    int ng2 = g2.length;
-    Check.argument(ng1==u[0].length,"ng1==u[0].length: "+ng1+"=="+u[0].length);
-    Check.argument(ng2==u.length,"ng2==u.length: "+ng2+"=="+u.length);
-    float[] g1f = new float[ng1];
-    for (int ig1=0; ig1<ng1; ig1++)
-      g1f[ig1] = (float)g1Flat[ig1];
-    float[] g2f = new float[ng2];
-    for (int ig2=0; ig2<ng2; ig2++)
-      g2f[ig2] = (float)g2[ig2];
-    
-    float[] u2 = new float[ng2];
-    float[][] ui2 = new float[n2][ng1];
-    for (int i1=0; i1<ng1; i1++) {
-      for (int i2=0; i2<ng2; i2++)
-        u2[i2] = u[i2][i1];
-      CubicInterpolator ciu = new CubicInterpolator(Method.SPLINE,g2f,u2);
-      for (int i2=0; i2<n2; i2++)
-        ui2[i2][i1] = ciu.interpolate(i2);
-    }
-    
-    float[][] ui = new float[n2][n1];
-    for (int i2=0; i2<n2; i2++) {
-      CubicInterpolator ci = 
-          new CubicInterpolator(Method.LINEAR,g1f,ui2[i2]);
-      for (int i1=0; i1<n1; i1++) {
-        float y = y1[i2][i1];
-        ui[i2][i1] = ci.interpolate(y);
       }
     }
     return ui;
@@ -2523,7 +2522,8 @@ public class DynamicWarpingC {
    * @return smoothed alignment errors with size 
    *  [_n2][g1.length][_nel].
    */
-  private float[][][] smoothErrors1(final float[][] pp, final float[][] ps,
+  private float[][][] smoothErrors1(
+      final float[][] pp, final float[][] ps,
       final float r1min, final float r1max, final int[] g1)
   {
     final int ng1 = g1.length;
