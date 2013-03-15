@@ -3,6 +3,7 @@ package warp;
 import static edu.mines.jtk.util.ArrayMath.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -135,15 +136,17 @@ public class Subsample {
     int[] i = rampint(0,1,n);
     float[] fa = abs(f);
     quickIndexSort(fa,i);
-//    StringBuffer sb = new StringBuffer();
-//    for (int ii=0; ii<10; ii++) {
-//      sb.append(i[nm-ii]+",");
-//    }
-//    System.out.println("Top 10: "+sb.toString());
-    int[] g = new int[ng];
-    for (int ig=0; ig<ng; ig++) {
-      g[ig] = i[nm-ig]; 
+    StringBuffer sb = new StringBuffer();
+    for (int ii=0; ii<20; ii++) {
+      sb.append(i[nm-ii]+",");
     }
+    System.out.println("Top 20: "+sb.toString());
+    int[] g = new int[ng+2];
+    g[0] = 0;
+    g[ng+1] = nm;
+    for (int ig=0; ig<ng; ig++)
+      g[ig+1] = i[nm-ig]; 
+    Arrays.sort(g);
     return g;
   }
 

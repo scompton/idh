@@ -2,6 +2,8 @@ package viewer;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -10,8 +12,13 @@ import java.awt.event.MouseMotionAdapter;
 import java.awt.event.MouseMotionListener;
 import java.awt.image.IndexColorModel;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
+import javax.swing.JMenuItem;
 import javax.swing.KeyStroke;
 
 import edu.mines.jtk.awt.Mode;
@@ -104,10 +111,42 @@ public class Viewer3P {
     _vf = new ViewerFrame(_pp,_pv1);
     SliceMode sm = new SliceMode(_vf.getModeManager());
     _vf.addToMenu(new ModeMenuItem(sm));
+    final Viewer3P v3p = this;
+    JMenuItem changeSlices = new JMenuItem("Change slices");
+    changeSlices.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        new SliceFrame(v3p);
+      }
+    });
+    _vf.addToMenu(changeSlices);
   }
   
+  public int getN1() {
+    return _n1;
+  }
+  public int getN2() {
+    return _n2;
+  }
+  public int getN3() {
+    return _n3;
+  }
   public void setSlices(int k1, int k2, int k3) {
     _pp.setSlices(k1,k2,k3);
+    _k1 = k1;
+    _k2 = k2;
+    _k3 = k3;
+  }
+  
+  public int[] getSlices() {
+    return new int[]{_k1,_k2,_k3};
+  }
+  
+  public void updateSlices(int k1, int k2, int k3) {
+    _pp.setSlices(k1,k2,k3);
+    setSlicesPixels(k1, k2, k3,_sf3);
+//    setSlicesPoints(k1,k2,k3,_sf3x1,_sf3x2); //TODO delete me?
+    setSlicesPoints(k1,k2,k3);
     _k1 = k1;
     _k2 = k2;
     _k3 = k3;
@@ -212,6 +251,94 @@ public class Viewer3P {
 //    _vf.addPointsOverlay(_pts[0],"points","2");
   }
 
+  //TODO appears to be too costly, delete me?
+  public void addPoints(float[][][] x1, float[][][] x2) {
+    _havePoints = true;
+    _sf3x1 = new SimpleFloat3(x1);
+    _sf3x2 = new SimpleFloat3(x2);
+    PointsView pt23 = _pp.addPoints(0,0,slice23(_sf3x1),slice23(_sf3x2));
+    PointsView pt13 = _pp.addPoints(1,1,slice13(_sf3x1),slice13(_sf3x2));
+    PointsView pt12 = _pp.addPoints(1,0,slice12(_sf3x1),slice12(_sf3x2));
+    _pts = new PointsView[]{pt12,pt13,pt23};
+    for (PointsView ptv : _pts) {
+      ptv.setStyle("rO");
+      ptv.setMarkSize(8.0f);
+    }
+//    _vf.addPointsOverlay(_pts[0],"points","2");
+  }
+
+  public static Map<Integer,float[][][]>[] getSparseCoordsMap(
+      int[][][] g1, int[] g2, int[] g3, float d1, float d2, float d3)
+  {
+    int ng1 = g1[0][0].length;
+    int ng2 = g2.length;
+    int ng3 = g3.length;
+    Map<Integer,float[][][]>[] maps = new HashMap[3];
+    Map<Integer,float[][][]> i3Map = new HashMap<Integer, float[][][]>();
+    Map<Integer,float[][][]> i2Map = new HashMap<Integer, float[][][]>();
+    Map<Integer,float[][][]> i1Map = new HashMap<Integer, float[][][]>();
+
+    Map<Integer,List<Float>> i12Map = new HashMap<Integer,List<Float>>();
+    Map<Integer,List<Float>> i13Map = new HashMap<Integer,List<Float>>();
+    for (int i3=0; i3<ng3; i3++) {
+      float[][] x211 = new float[ng2][ng1];
+      float[][] x212 = new float[ng2][ng1];
+      for (int i2=0; i2<ng2; i2++) {
+        for (int i1=0; i1<ng1; i1++) {
+          int i1g = g1[g3[i3]][g2[i2]][i1];
+          if (i12Map.containsKey(i1g)) {
+            i12Map.get(i1g).add(g2[i2]*d2);
+            i13Map.get(i1g).add(g3[i3]*d3);
+          } else {
+            List<Float> l12 = new ArrayList<Float>();
+            l12.add(g2[i2]*d2);
+            i12Map.put(i1g,l12);
+            List<Float> l13 = new ArrayList<Float>();
+            l13.add(g3[i3]*d3);
+            i13Map.put(i1g,l13);
+          }
+          x211[i2][i1] = (float)g1[g3[i3]][g2[i2]][i1]*d1;
+          x212[i2][i1] = (float)g2[i2]*d2;
+        }
+      }
+      i3Map.put(g3[i3],new float[][][]{x211,x212});
+    }
+    
+    for (int i2=0; i2<ng2; i2++) {
+      float[][] x131 = new float[ng3][ng1];
+      float[][] x132 = new float[ng3][ng1];
+      for (int i3=0; i3<ng3; i3++) {
+        for (int i1=0; i1<ng1; i1++) {
+          x131[i3][i1] = (float)g1[g3[i3]][g2[i2]][i1]*d1;
+          x132[i3][i1] = (float)g3[i3]*d3;
+        }
+      }
+      i2Map.put(g2[i2],new float[][][]{x131,x132});
+    }
+    
+    Iterator<Integer> it = i12Map.keySet().iterator();
+    while (it.hasNext()) {
+      int i1 = it.next();
+      List<Float> l12 = i12Map.get(i1);
+      List<Float> l13 = i13Map.get(i1);
+      int nl2 = l12.size();
+      int nl3 = l13.size();
+      float[][] x232 = new float[nl3][nl2];
+      float[][] x233 = new float[nl3][nl2];
+      for (int i3=0; i3<nl3; i3++) {
+        for (int i2=0; i2<nl2; i2++) {
+          x232[i3][i2] = l12.get(i2);
+          x233[i3][i2] = l13.get(i3);
+        }
+      }
+      i1Map.put(i1,new float[][][]{x232,x233});
+    }
+    maps[0] = i1Map;
+    maps[1] = i2Map;
+    maps[2] = i3Map;
+    return maps;
+  }
+  
   /**
    * Sets the plot title.
    * @param title the title; null for no title.
@@ -338,6 +465,14 @@ public class Viewer3P {
 //    _pp.setColorBarWidthMinimum(100);
   }
   
+  public void setVFormat(int irow, String format) {
+    _pp.setVFormat(irow,format);
+  }
+  
+  public void setVInterval(int irow, float interval) {
+    _pp.setVInterval(irow,interval);
+  }
+  
   public void setColorBarWidthMinimum(int widthMinimum) {
     _pp.setColorBarWidthMinimum(widthMinimum);
   }
@@ -398,6 +533,8 @@ public class Viewer3P {
   private PixelsView[] _pv2;
   private PointsView[] _pts;
   private SimpleFloat3 _sf3;
+  private SimpleFloat3 _sf3x1;
+  private SimpleFloat3 _sf3x2;
   private Map<Integer,float[][][]> _i1Map;
   private Map<Integer,float[][][]> _i2Map;
   private Map<Integer,float[][][]> _i3Map;
@@ -417,6 +554,24 @@ public class Viewer3P {
       _pv2[1].set(_s1,_s3,slice13(sf3));
     if (_k3!=k3)
       _pv2[0].set(_s1,_s2,slice12(sf3));
+  }
+  
+  //TODO This appears to be too costly? Delete me? 
+  private void setSlicesPoints(
+      int k1, int k2, int k3, SimpleFloat3 sf3x1, SimpleFloat3 sf3x2) 
+  {
+    if (_pts==null)
+      return;
+    if (_k1!=k1) {
+      if (_transpose23)
+        _pts[2].set(slice23(sf3x2),slice23(sf3x1));
+      else
+        _pts[2].set(slice23(sf3x1),slice23(sf3x2));
+    }
+    if (_k2!=k2)
+      _pts[1].set(slice13(sf3x1),slice13(sf3x2));
+    if (_k3!=k3)
+      _pts[0].set(slice12(sf3x1),slice12(sf3x2));
   }
   
   private void setSlicesPoints(int k1, int k2, int k3) {
@@ -502,7 +657,7 @@ public class Viewer3P {
 
     protected SliceMode(ModeManager manager) {
       super(manager);
-      setName("Change slices");
+      setName("Slice Mode");
       setMnemonicKey(KeyEvent.VK_S);
       setAcceleratorKey(KeyStroke.getKeyStroke(KeyEvent.VK_S,0));
       setShortDescription("Click/drag in any tile to change slices");
@@ -526,12 +681,15 @@ public class Viewer3P {
     // Handles mouse pressed and released events.
     private MouseListener _ml = new MouseAdapter() {
       public void mousePressed(MouseEvent e) {
+        boolean print = false;
+        if (e.isControlDown())
+          print = true;
         int x = e.getX();
         int y = e.getY();
         Object source = e.getSource();
         if (source instanceof Tile) {
           Tile tile = (Tile)source;
-          setSlices(tile,x,y);
+          setSlices(tile,x,y,print);
         }
       }
       public void mouseReleased(MouseEvent e) {} // Do nothing.
@@ -540,17 +698,20 @@ public class Viewer3P {
     // Handles mouse dragged events.
     private MouseMotionListener _mml = new MouseMotionAdapter() {
       public void mouseDragged(MouseEvent e) {
+        boolean print = false;
+        if (e.isControlDown())
+          print = true;
         int x = e.getX();
         int y = e.getY();
         Object source = e.getSource();
         if (source instanceof Tile) {
           Tile tile = (Tile)source;
-          setSlices(tile,x,y);
+          setSlices(tile,x,y,print);
         }
       }
     };
 
-    private void setSlices(Tile tile, int x, int y) {
+    private void setSlices(Tile tile, int x, int y, boolean print) {
       int row = tile.getRowIndex();
       int col = tile.getColumnIndex();
 //      System.out.format("row=%d, col=%d\n",row,col);
@@ -569,16 +730,12 @@ public class Viewer3P {
           k3 = _s3.indexOfNearest(worldX);
         }
       }
-//      System.out.format(
-//          "x=%d, y=%d, worldX=%f, worldY=%f, k1=%d, k2=%d, k3=%d\n",
-//          x,y,worldX,worldY,k1,k2,k3);
-      _pp.setSlices(k1,k2,k3);
-      setSlicesPixels(k1,k2,k3,_sf3);
-      setSlicesPoints(k1,k2,k3);
-      _k1 = k1;
-      _k2 = k2;
-      _k3 = k3;
+      if (print)
+        System.out.format(
+            "worldX=%4.2f, worldY=%4.2f, k1=%3d, k2=%3d, k3=%3d\n",
+            worldX,worldY,k1,k2,k3);
+      updateSlices(k1,k2,k3);
     }
   }
-  
+    
 }

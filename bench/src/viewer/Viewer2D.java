@@ -1,18 +1,24 @@
 package viewer;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.image.IndexColorModel;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.swing.DefaultBoundedRangeModel;
 import javax.swing.JSlider;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
+import edu.mines.jtk.dsp.EigenTensors2;
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.io.ArrayInputStream;
 import edu.mines.jtk.mosaic.ColorBar;
 import edu.mines.jtk.mosaic.PixelsView;
+import edu.mines.jtk.mosaic.TensorsView;
+import edu.mines.jtk.mosaic.PixelsView.Interpolation;
 import edu.mines.jtk.mosaic.PlotPanel;
 import edu.mines.jtk.mosaic.PlotPanel.Orientation;
 import edu.mines.jtk.mosaic.PointsView;
@@ -30,76 +36,154 @@ import edu.mines.jtk.util.Clips;
 public class Viewer2D {
 
   /**
-   * Constructs a
-   * @param f
+   * Constructs a pixels view of {@code f}.
+   * @param f the pixel values.
    */
   public Viewer2D(float[][] f) {
     this(f,null);
   }
   
-  public Viewer2D(float[][] f, Orientation o) {
-    this(null,null,f,o);
+  /**
+   * Constructs a pixels view of {@code f}, with specified 
+   * orientation.
+   * @param f the pixel values.
+   * @param orientation the orientation for the pixels.
+   */
+  public Viewer2D(float[][] f, Orientation orientation) {
+    this(null,null,f,orientation);
   }
   
+  /**
+   * Constructs a pixels view of {@code f} with given samplings.
+   * @param f the pixel values.
+   * @parama s1 the sampling of the first dimension of f.
+   * @parama s2 the sampling of the second dimension of f.
+   */
   public Viewer2D(Sampling s1, Sampling s2, float[][] f) {
     this(s1,s2,f,null);
   }
   
+  /**
+   * Constructs a pixels view of {@code f} with given samplings 
+   * and with specified orientation. 
+   * @param f the pixel values.
+   * @parama s1 the sampling of the first dimension of f.
+   * @parama s2 the sampling of the second dimension of f.
+   * @param orientation the orientation for the pixels.
+   */
   public Viewer2D(
       Sampling s1, Sampling s2, float[][] f, Orientation orientation)
   {
     _s1 = (s1==null)?new Sampling(f[0].length):s1;
     _s2 = (s2==null)?new Sampling(f.length   ):s2;
-    orientation  = (orientation==null )?Orientation.X1DOWN_X2RIGHT:orientation;
+    _orientation = (orientation==null )?Orientation.X1DOWN_X2RIGHT:orientation;
     
     // Make initial panel.
-    _pp = new PlotPanel(orientation);
+    _pp = new PlotPanel(_orientation);
     _pv1 = _pp.addPixels(_s1,_s2,f);
     _pf = new ViewerFrame(_pp,new PixelsView[]{_pv1});
   }
   
+  /**
+   * Constructs a pixels view of {@code f}.
+   * @param f the pixel values.
+   */
   public Viewer2D(double[][] f) {
     this(f,null);
   }
   
-  public Viewer2D(double[][] f, Orientation o) {
-    this(null,null,f,o);
+  /**
+   * Constructs a pixels view of {@code f}, with specified 
+   * orientation.
+   * @param f the pixel values.
+   * @param orientation the orientation for the pixels.
+   */
+  public Viewer2D(double[][] f, Orientation orientation) {
+    this(null,null,f,orientation);
   }
   
+  /**
+   * Constructs a pixels view of {@code f} with given samplings.
+   * @param f the pixel values.
+   * @parama s1 the sampling of the first dimension of f.
+   * @parama s2 the sampling of the second dimension of f.
+   */
   public Viewer2D(Sampling s1, Sampling s2, double[][] f) {
     this(s1,s2,f,null);
   }
   
-  public Viewer2D(Sampling s1, Sampling s2, double[][] f, Orientation o) {
-    this(s1,s2,convertToFloat(f),o);
+  /**
+   * Constructs a pixels view of {@code f} with given samplings 
+   * and with specified orientation. 
+   * @param f the pixel values.
+   * @parama s1 the sampling of the first dimension of f.
+   * @parama s2 the sampling of the second dimension of f.
+   * @param orientation the orientation for the pixels.
+   */
+  public Viewer2D(
+      Sampling s1, Sampling s2, double[][] f, Orientation orientation) 
+  {
+    this(s1,s2,convertToFloat(f),orientation);
   }
   
+  /**
+   * Constructs a 2D pixels view of {@code f} with a slider
+   * bar that allows slicing through the full 3D volume.
+   * @param f the pixel values.
+   */
   public Viewer2D(float[][][] f) {
     this(f,null);
   }
   
-  public Viewer2D(float[][][] f, Orientation o) {
-    this(null,null,null,f,o);
+  /**
+   * Constructs a 2D pixels view of {@code f} with a slider
+   * bar that allows slicing through the full 3D volume with
+   * the specified orientation.
+   * @param f the pixel values.
+   * @param orientation the orientation for the pixels.
+   */
+  public Viewer2D(float[][][] f, Orientation orientation) {
+    this(null,null,null,f,orientation);
   }
   
+  /**
+   * Constructs a 2D pixels view of {@code f} with a slider
+   * bar that allows slicing through the full 3D volume with
+   * the specified samplings.
+   * @param s1 sampling of the first dimension of f.
+   * @param s2 sampling of the second dimension of f.
+   * @param s3 sampling of the third dimension of f.
+   * @param f the pixel values.
+   */
   public Viewer2D(Sampling s1, Sampling s2, Sampling s3, float[][][] f) {
     this(s1,s2,s3,f,null);
   }
   
+  /**
+   * Constructs a 2D pixels view of {@code f} with a slider
+   * bar that allows slicing through the full 3D volume with
+   * the specified samplings and orientation.
+   * @param s1 sampling of the first dimension of f.
+   * @param s2 sampling of the second dimension of f.
+   * @param s3 sampling of the third dimension of f.
+   * @param f the pixel values.
+   * @param orientation the orientation for the pixels.
+   */
   public Viewer2D(
-      Sampling s1, Sampling s2, Sampling s3, float[][][] f, Orientation o)
+      Sampling s1, Sampling s2, Sampling s3, float[][][] f, 
+      Orientation orientation)
   {
     _f = f;
     _s1 = (s1==null)?new Sampling(f[0][0].length):s1;
     _s2 = (s2==null)?new Sampling(f[0].length   ):s2;
     _s3 = (s3==null)?new Sampling(f.length      ):s3;
-    o  = (o==null )?Orientation.X1DOWN_X2RIGHT:o;
+    _orientation  = (orientation==null )?Orientation.X1DOWN_X2RIGHT:orientation;
     
     // Make initial panel, displaying the middle frame.
     int n3 = _s3.getCount();
     _i3 = n3/2;
     int r3 = (int)_s3.getValue(_i3);
-    _pp = new PlotPanel(o);
+    _pp = new PlotPanel(_orientation);
     _title = String.valueOf(_i3);
     _pp.setTitle(_title);
     _pv1 = _pp.addPixels(_s1,_s2,f[_i3]);
@@ -107,10 +191,8 @@ public class Viewer2D {
     _pv1.setClips(clips.getClipMin(),clips.getClipMax());
     
     SliderListener sl = new SliderListener();
-    //TODO Fix sampling usage here. The slider need an int so it 
-    // doesn't make sense to use sampling values.
     DefaultBoundedRangeModel brm = new DefaultBoundedRangeModel(
-        r3,0,(int)_s3.getFirst(),(int)_s3.getLast());
+        r3,0,0,n3-1);
     JSlider slider = new JSlider(brm);
     slider.setMajorTickSpacing(n3/10);
     slider.setMinorTickSpacing(n3/150);
@@ -143,31 +225,39 @@ public class Viewer2D {
     _pf.addOptions(new PixelsView[]{_pv2},"2");
   }
   
-  public void addPoints(float[] x2) {
-    addPoints(x2,"w-",4.0f);
-  }
-  
-  public void addPoints(float[] x2, String style, float width) {
+  /**
+   * Adds a view of points (x1,x2) for a sampled function x2(x1).
+   * @param x2 array of x2 coordinates.
+   * @param label the label for these points in the options menu,
+   *  or {@code null} for no label.
+   * @return the points view.
+   */
+  public PointsView addPoints(float[] x2, String label) {
     Check.argument(_s1.getCount()==x2.length,
         "x2.length is not consistend with sampling");
-    _pt1 = _pp.addPoints(_s1,x2);
-    _pt1.setStyle(style);
-    _pt1.setLineWidth(width);
-    _pf.addOptions(_pt1,"pt1","1");
+    int size = _ptMap.size();
+    PointsView pt = _pp.addPoints(_s1,x2);
+    _pf.addOptions(pt,label,Integer.toString(size+1));
+    return pt;
   }
   
-  public void addPoints(float[][] x2) {
-    addPoints(x2,"w-",4.0f);
-  }
-  
-  public void addPoints(float[][] x2, String style, float width) {
+  /**
+   * Adds a view of points (x1,x2) for a sampled function x2(x1),
+   * for all x3.
+   * @param x2 array of x2 coordinates for each x3.
+   * @param label the label for these points in the options menu,
+   *  or {@code null} for no label.
+   * @return the points view.
+   */
+  public PointsView addPoints(float[][] x2, String label) {
     Check.argument(_s1.getCount()==x2[0].length,
         "x2.length is not consistend with sampling");
-    _p = x2;
-    _pt1 = _pp.addPoints(_s1,x2[_i3]);
-    _pt1.setStyle(style);
-    _pt1.setLineWidth(width);
-    _pf.addOptions(_pt1,"pt1","1");
+    int size = _ptMap.size();
+    PointsView pt = _pp.addPoints(_s1,x2[_i3]);
+    _ptMap.put(pt,x2);
+    updatePoints();
+    _pf.addOptions(pt,label,Integer.toString(size+1));
+    return pt;
   }
   
   public void addPoints(float[] x1, float[] x2) {
@@ -199,7 +289,6 @@ public class Viewer2D {
     _x23 = x2;
     _pt2 = _pp.addPoints(x1[_i3],x2[_i3]);
     _pt2.setStyle("rO");
-//    _pt2.setStyle("wO");
     _pt2.setMarkSize(14.0f);
     _pf.addOptions(_pt2,"pt2","2");
   }
@@ -219,6 +308,32 @@ public class Viewer2D {
     _pf.addOptions(_pt2,"pt2","2");
   }
 
+  public void addTensors(EigenTensors2 et2) {
+    addTensors(et2,_s2.getCount()/10,Color.YELLOW,1.0f);
+  }
+  
+  public void addTensors(EigenTensors2 et2, int ne, Color color, float width) {
+    TensorsView tensorView = new TensorsView(_s1,_s2,et2);
+    TensorsView.Orientation orientation;
+    if (_orientation.equals(PlotPanel.Orientation.X1DOWN_X2RIGHT))
+      orientation = TensorsView.Orientation.X1DOWN_X2RIGHT;
+    else
+      orientation = TensorsView.Orientation.X1RIGHT_X2UP;
+    tensorView.setOrientation(orientation);
+    tensorView.setEllipsesDisplayed(ne);
+    tensorView.setLineColor(color);
+    Sampling e1 = new Sampling(12,0.25,0.25);
+    Sampling e2 = new Sampling(10,0.5,0.0);
+    tensorView.setEllipsesDisplayed(e1,e2);
+    tensorView.setLineWidth(width);
+    tensorView.setScale(1);
+    _pp.addTiledView(tensorView);
+  }
+  
+  public void setInterpolation(Interpolation interpolation) {
+    _pv1.setInterpolation(interpolation);
+  }
+  
   public void setTitle(String title) {
     _title = title;
     if (_i3!=Integer.MIN_VALUE)
@@ -325,24 +440,31 @@ public class Viewer2D {
   ////////////////////////////////////////////////////////////////////////////
   // Private
   
+  
   private ViewerFrame _pf;
   private PlotPanel _pp;
   private PixelsView _pv1;
   private PixelsView _pv2;
-  private PointsView _pt1;
+  private Map<PointsView,float[][]> _ptMap = 
+      new HashMap<PointsView,float[][]>(); // Map for all added points views.
+  PointsView[] _pts = new PointsView[0]; // Array of points views for updating.
   private PointsView _pt2;
+  private Orientation _orientation;
   private Sampling _s1;
   private Sampling _s2;
   private Sampling _s3;
   private String _title = "";
   private float[][][] _f;
   private float[][][] _g;
-  private float[][] _p;
   private float[][] _x1;
   private float[][] _x2;
   private float[][][] _x13;
   private float[][][] _x23;
   private int _i3 = Integer.MIN_VALUE;
+  
+  private void updatePoints() {
+    _pts = _ptMap.keySet().toArray(new PointsView[0]);
+  }
 
   private static float[][] convertToFloat(double[][] a) {
     int n2 = a.length;
@@ -365,8 +487,11 @@ public class Viewer2D {
       _pv1.set(_f[i3]);
       if (_g!=null)
         _pv2.set(_g[i3]);
-      if (_p!=null)
-        _pt1.set(_s1,_p[i3]);
+      for (PointsView pt : _pts) {
+        pt.set(_s1,_ptMap.get(pt)[i3]);
+      }
+//      if (_p!=null)
+//        _pt1.set(_s1,_p[i3]);
       if (_x1!=null && _x2!=null)
         _pt2.set(_x1[i3],_x2[i3]);
       if (_x13!=null && _x23!=null)
