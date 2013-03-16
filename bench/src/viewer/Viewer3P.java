@@ -97,6 +97,12 @@ public class Viewer3P {
     _k1 = _n1/2;
     _k2 = _n2/2;
     _k3 = _n3/2;
+    _l1Min = _s1.getFirst();
+    _l2Min = _s2.getFirst();
+    _l3Min = _s3.getFirst();
+    _l1Max = _s1.getLast();
+    _l2Max = _s2.getLast();
+    _l3Max = _s3.getLast();
     // Make initial panel, displaying the middle frame.
     _pp = new PlotPanelPixels3(_orientation,AxesPlacement.LEFT_BOTTOM,
         _s1,_s2,_s3,f);
@@ -111,17 +117,57 @@ public class Viewer3P {
     _vf = new ViewerFrame(_pp,_pv1);
     SliceMode sm = new SliceMode(_vf.getModeManager());
     _vf.addToMenu(new ModeMenuItem(sm));
-    final Viewer3P v3p = this;
-    JMenuItem changeSlices = new JMenuItem("Change slices");
+    
+    // Add SliceFrame dialog to options menu.
+    JMenuItem changeSlices = new JMenuItem("Change Slices");
+    final SliceFrame sf = new SliceFrame(this);
     changeSlices.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent e) {
-        new SliceFrame(v3p);
+        sf.getFrame().setVisible(true);
       }
     });
     _vf.addToMenu(changeSlices);
+    
+    // Add LimitsFrame3P dialog to the options menu.
+    JMenuItem changeLimits = new JMenuItem("Change Limits");
+    final LimitsFrame3P lf3p = new LimitsFrame3P(this);
+    changeLimits.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        lf3p.getFrame().setVisible(true);
+      }
+    });
+    _vf.addToMenu(changeLimits);
   }
   
+  public Sampling getSampling1() {
+    return _s1;
+  }
+  public Sampling getSampling2() {
+    return _s2;
+  }
+  public Sampling getSampling3() {
+    return _s3;
+  }
+  public double getL1Min() {
+    return _l1Min;
+  }
+  public double getL2Min() {
+    return _l2Min;
+  }
+  public double getL3Min() {
+    return _l3Min;
+  }
+  public double getL1Max() {
+    return _l1Max;
+  }
+  public double getL2Max() {
+    return _l2Max;
+  }
+  public double getL3Max() {
+    return _l3Max;
+  }
   public int getN1() {
     return _n1;
   }
@@ -378,6 +424,8 @@ public class Viewer3P {
    * @param max the maximum value.
    */
   public void setLimits1(double min, double max) {
+    _l1Min = min;
+    _l1Max = max;
     if (_orientation==Orientation.X1DOWN_X2RIGHT) {
       _pp.setVLimits(1,min,max);
     } else if (_orientation==Orientation.X1DOWN_X3RIGHT) {
@@ -395,6 +443,8 @@ public class Viewer3P {
    * @param max the maximum value.
    */
   public void setLimits2(double min, double max) {
+    _l2Min = min;
+    _l2Max = max;
     if (_orientation==Orientation.X1DOWN_X2RIGHT) {
       _pp.setHLimits(0,min,max);
     } else if (_orientation==Orientation.X1DOWN_X3RIGHT) {
@@ -414,6 +464,8 @@ public class Viewer3P {
    * @param max the maximum value.
    */
   public void setLimits3(double min, double max) {
+    _l3Min = min;
+    _l3Max = max;
     if (_orientation==Orientation.X1DOWN_X2RIGHT) {
       _pp.setHLimits(1,min,max);
       _pp.setVLimits(0,min,max,PlotPanel.Orientation.X1RIGHT_X2UP);
@@ -522,6 +574,12 @@ public class Viewer3P {
   int _k3;
   int _k2;
   int _k1;
+  private double _l1Min;
+  private double _l2Min;
+  private double _l3Min;
+  private double _l1Max;
+  private double _l2Max;
+  private double _l3Max;
   private Sampling _s1;
   private Sampling _s2;
   private Sampling _s3;

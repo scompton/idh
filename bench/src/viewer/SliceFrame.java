@@ -20,11 +20,21 @@ import edu.mines.jtk.util.ArrayMath;
 
 public class SliceFrame extends JPanel implements PropertyChangeListener {
   
+  /**
+   * Constructs a JFrame with options to change the slices for
+   * a {@link PlotPanelPixels3}. Slices can be changed via a text 
+   * field or JSlider. The frame is constructed here, but is not 
+   * made visible by default. Use the {@link #getFrame()} method 
+   * to make the frame visible when required. 
+   * @param v the Viewer3P instance that contains the 
+   *  {@link PlotPanelPixels3} instance.
+   */
   public SliceFrame(Viewer3P v) {
     super(new GridBagLayout());
     SliderListener sl = new SliderListener();
     GridBagConstraints c = new GridBagConstraints();
     c.insets = new Insets(0,10,0,0);
+    
     _v = v;
     int[] slices = v.getSlices();
     _k1Val = slices[0];
@@ -61,7 +71,6 @@ public class SliceFrame extends JPanel implements PropertyChangeListener {
     int ts1 = 1;
     while ((_n1/ts1)>N_TICKS) ts1++; 
     _sliderK1.setMajorTickSpacing(ts1);
-//    _sliderK1.setMinorTickSpacing(_n1/150);
     _sliderK1.setPaintLabels(true);
     _sliderK1.setPaintTicks(true);
     _sliderK1.addChangeListener(sl);
@@ -94,7 +103,6 @@ public class SliceFrame extends JPanel implements PropertyChangeListener {
     int ts2 = 1;
     while ((_n2/ts2)>N_TICKS) ts2++;
     _sliderK2.setMajorTickSpacing(ts2);
-//    _sliderK2.setMinorTickSpacing(_n2/150);
     _sliderK2.setPaintLabels(true);
     _sliderK2.setPaintTicks(true);
     _sliderK2.addChangeListener(sl);
@@ -127,7 +135,6 @@ public class SliceFrame extends JPanel implements PropertyChangeListener {
     int ts3 = 1;
     while ((_n3/ts3)>N_TICKS) ts3++;
     _sliderK3.setMajorTickSpacing(ts3);
-//    _sliderK3.setMinorTickSpacing(_n3/150);
     _sliderK3.setPaintLabels(true);
     _sliderK3.setPaintTicks(true);
     _sliderK3.addChangeListener(sl);
@@ -137,11 +144,18 @@ public class SliceFrame extends JPanel implements PropertyChangeListener {
     c.gridy = 2;
     add(_sliderK3,c);
     
-    JFrame frame = new JFrame("Change Slices:");
-    frame.add(this);
-    frame.setSize(500,180);
-    frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-    frame.setVisible(true);
+    _frame = new JFrame("Enter Slices:");
+    _frame.add(this);
+    _frame.setSize(500,180);
+    _frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+  }
+  
+  /**
+   * Returns the frame.
+   * @return the frame.
+   */
+  public JFrame getFrame() {
+    return _frame;
   }
 
   @Override
@@ -174,6 +188,7 @@ public class SliceFrame extends JPanel implements PropertyChangeListener {
     new SliceFrame(new Viewer3P(ArrayMath.zerofloat(1999,500,14)));
   }
 
+  private JFrame _frame;
   private Viewer3P _v;
   private JFormattedTextField _k1;
   private JFormattedTextField _k2;

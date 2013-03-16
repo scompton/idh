@@ -14,25 +14,35 @@ import edu.mines.jtk.mosaic.PixelsView;
 
 public class AlphaFrame extends JPanel implements ChangeListener {
   
-  public AlphaFrame(float alpha, PixelsView[] pv) {
+  public AlphaFrame(PixelsView[] pv) {
     _pv = pv;
-    DefaultBoundedRangeModel brm = 
-        new DefaultBoundedRangeModel((int)(alpha*100),0,0,100);
-    JSlider slider = new JSlider(brm);
-    slider.setMajorTickSpacing(25);
-    slider.setMinorTickSpacing(5);
-    slider.setPaintLabels(true);
-    slider.setPaintTicks(true);
-    slider.addChangeListener(this);
-    add(slider);
+    DefaultBoundedRangeModel brm = new DefaultBoundedRangeModel(100,0,0,100);
+    _slider = new JSlider(brm);
+    _slider.setMajorTickSpacing(25);
+    _slider.setMinorTickSpacing(5);
+    _slider.setPaintLabels(true);
+    _slider.setPaintTicks(true);
+    _slider.addChangeListener(this);
+    add(_slider);
     
-    JFrame frame = new JFrame("Transparency");
-    frame.add(this);
-    frame.pack();
-    frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-    frame.setVisible(true);
+    _frame = new JFrame("Transparency");
+    _frame.add(this);
+    _frame.pack();
+    _frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
   }
 
+  /**
+   * Returns the frame.
+   * @return the frame.
+   */
+  public JFrame getFrame() {
+    return _frame;
+  }
+  
+  public void setAlpha(float alpha) {
+    _slider.setValue((int)(alpha*100));
+  }
+  
   @Override
   public void stateChanged(ChangeEvent e) {
     JSlider source = (JSlider)e.getSource();
@@ -42,6 +52,9 @@ public class AlphaFrame extends JPanel implements ChangeListener {
       pv.setColorModel(ColorMap.setAlpha(icm,perc/100.0));
   }
   
+  private JFrame _frame;
+  private JSlider _slider;
   private PixelsView[] _pv;
+  private static final long serialVersionUID = 1L;
   
 }

@@ -123,11 +123,13 @@ public class ViewerFrame extends PlotFrame {
   private void addAlphaOptions(final PixelsView[] pv, String label) {
     String name = (label==null)?"Change Alpha":"Change Alpha("+label+")";
     JMenuItem changeAlpha = new JMenuItem(name);
+    final AlphaFrame af = new AlphaFrame(pv);
     changeAlpha.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent e) {
         float a = pv[0].getColorModel().getAlpha(0)/255.0f;
-        new AlphaFrame(a,pv);
+        af.setAlpha(a);
+        af.getFrame().setVisible(true);
       }
     });
     _options.add(changeAlpha);
@@ -136,12 +138,15 @@ public class ViewerFrame extends PlotFrame {
   private void addClipOptions(final PixelsView[] pv, String label) {
     String name = (label==null)?"Change Clips":"Change Clips ("+label+")";
     JMenuItem changeClips = new JMenuItem(name);
+    final ClipFrame cf = new ClipFrame(pv);
     changeClips.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent e) {
         float clipMin = pv[0].getClipMin();
         float clipMax = pv[0].getClipMax();
-        new ClipFrame(clipMin,clipMax,pv);
+        System.out.println("Min="+clipMin+", Max="+clipMax);
+        cf.setValues(clipMin,clipMax);
+        cf.getFrame().setVisible(true);
       }
     });
     _options.add(changeClips);
