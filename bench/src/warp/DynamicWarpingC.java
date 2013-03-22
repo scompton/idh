@@ -262,6 +262,7 @@ public class DynamicWarpingC {
     normalizeErrors(es);
     print("Finished 3rd dimension smoothing in "+s.time()+" seconds");
     
+    final int ng1 = es[0][0].length;
     final int ng2 = es[0].length;
     final int ng3 = es.length;
     final float[][][] u = new float[ng3][ng2][];
@@ -275,7 +276,7 @@ public class DynamicWarpingC {
     }});
     for (int i3=0; i3<ng3; i3++) {
       for (int i2=0; i2<ng2; i2++) {
-        for (int i1=1; i1<g1[0].length; i1++) {
+        for (int i1=1; i1<ng1; i1++) {
           float n = u[i3][i2][i1]-u[i3][i2][i1-1];
           float d = g1[g3[i3]][g2[i2]][i1] - g1[g3[i3]][g2[i2]][i1-1];
           float r = n/d;
@@ -1360,17 +1361,17 @@ public class DynamicWarpingC {
   private SincInterp _si; // for warping with non-integer shifts
   private boolean _doLinear = true;
   private static final CubicInterpolator.Method CIM = 
-      CubicInterpolator.Method.SPLINE;
+      CubicInterpolator.Method.MONOTONIC;
   private static final BicubicInterpolator2.Method BCIM1 =
       BicubicInterpolator2.Method.MONOTONIC;
   private static final BicubicInterpolator2.Method BCIM2 =
-      BicubicInterpolator2.Method.SPLINE;
+      BicubicInterpolator2.Method.MONOTONIC;
   private static final TricubicInterpolator3.Method TCIM1 = 
       TricubicInterpolator3.Method.MONOTONIC;
   private static final TricubicInterpolator3.Method TCIM2 = 
-      TricubicInterpolator3.Method.SPLINE;
+      TricubicInterpolator3.Method.MONOTONIC;
   private static final TricubicInterpolator3.Method TCIM3 = 
-      TricubicInterpolator3.Method.SPLINE;
+      TricubicInterpolator3.Method.MONOTONIC;
   
   private float error(float f, float g) {
     return pow(abs(f-g),_epow);
