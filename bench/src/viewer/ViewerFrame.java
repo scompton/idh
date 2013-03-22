@@ -144,7 +144,6 @@ public class ViewerFrame extends PlotFrame {
       public void actionPerformed(ActionEvent e) {
         float clipMin = pv[0].getClipMin();
         float clipMax = pv[0].getClipMax();
-        System.out.println("Min="+clipMin+", Max="+clipMax);
         cf.setValues(clipMin,clipMax);
         cf.getFrame().setVisible(true);
       }

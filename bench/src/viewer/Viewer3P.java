@@ -191,7 +191,6 @@ public class Viewer3P {
   public void updateSlices(int k1, int k2, int k3) {
     _pp.setSlices(k1,k2,k3);
     setSlicesPixels(k1, k2, k3,_sf3);
-//    setSlicesPoints(k1,k2,k3,_sf3x1,_sf3x2); //TODO delete me?
     setSlicesPoints(k1,k2,k3);
     _k1 = k1;
     _k2 = k2;
@@ -267,6 +266,12 @@ public class Viewer3P {
   }
   
   public void addPoints(Map<Integer,float[][][]>[] maps) {
+    addPoints(maps,"rO",8.0f);
+  }
+
+  public void addPoints(
+      Map<Integer,float[][][]>[] maps, String style, float size) 
+  {
     _havePoints = true;
     PointsView pt12 = null; 
     PointsView pt13 = null;
@@ -280,36 +285,20 @@ public class Viewer3P {
     if (i1Floats!=null) {
 //      pt23 = _pp.addPoints(0,0,i1Floats[0],i1Floats[1]);
       pt23 = _pp.addPoints(0,0,i1Floats[1],i1Floats[0]);
-      pt23.setStyle("rO");
-      pt23.setMarkSize(8.0f);
+      pt23.setStyle(style);
+      pt23.setMarkSize(size);
     }
     if (i2Floats!=null) {
       pt13 = _pp.addPoints(1,1,i2Floats[0],i2Floats[1]);
-      pt13.setStyle("rO");
-      pt13.setMarkSize(8.0f);
+      pt13.setStyle(style);
+      pt13.setMarkSize(size);
     }
     if (i3Floats!=null) {
       pt12 = _pp.addPoints(1,0,i3Floats[0],i3Floats[1]);
-      pt12.setStyle("rO");
-      pt12.setMarkSize(8.0f);
+      pt12.setStyle(style);
+      pt12.setMarkSize(size);
     }
     _pts = new PointsView[]{pt12,pt13,pt23};
-//    _vf.addPointsOverlay(_pts[0],"points","2");
-  }
-
-  //TODO appears to be too costly, delete me?
-  public void addPoints(float[][][] x1, float[][][] x2) {
-    _havePoints = true;
-    _sf3x1 = new SimpleFloat3(x1);
-    _sf3x2 = new SimpleFloat3(x2);
-    PointsView pt23 = _pp.addPoints(0,0,slice23(_sf3x1),slice23(_sf3x2));
-    PointsView pt13 = _pp.addPoints(1,1,slice13(_sf3x1),slice13(_sf3x2));
-    PointsView pt12 = _pp.addPoints(1,0,slice12(_sf3x1),slice12(_sf3x2));
-    _pts = new PointsView[]{pt12,pt13,pt23};
-    for (PointsView ptv : _pts) {
-      ptv.setStyle("rO");
-      ptv.setMarkSize(8.0f);
-    }
 //    _vf.addPointsOverlay(_pts[0],"points","2");
   }
 
@@ -343,7 +332,7 @@ public class Viewer3P {
             l13.add(g3[i3]*d3);
             i13Map.put(i1g,l13);
           }
-          x211[i2][i1] = (float)g1[g3[i3]][g2[i2]][i1]*d1;
+          x211[i2][i1] = (float)i1g*d1;
           x212[i2][i1] = (float)g2[i2]*d2;
         }
       }
@@ -371,11 +360,9 @@ public class Viewer3P {
       int nl3 = l13.size();
       float[][] x232 = new float[nl3][nl2];
       float[][] x233 = new float[nl3][nl2];
-      for (int i3=0; i3<nl3; i3++) {
-        for (int i2=0; i2<nl2; i2++) {
-          x232[i3][i2] = l12.get(i2);
-          x233[i3][i2] = l13.get(i3);
-        }
+      for (int i=0; i<nl3; i++) {
+        x232[i][i] = l12.get(i);
+        x233[i][i] = l13.get(i);
       }
       i1Map.put(i1,new float[][][]{x232,x233});
     }
@@ -591,8 +578,6 @@ public class Viewer3P {
   private PixelsView[] _pv2;
   private PointsView[] _pts;
   private SimpleFloat3 _sf3;
-  private SimpleFloat3 _sf3x1;
-  private SimpleFloat3 _sf3x2;
   private Map<Integer,float[][][]> _i1Map;
   private Map<Integer,float[][][]> _i2Map;
   private Map<Integer,float[][][]> _i3Map;
@@ -612,24 +597,6 @@ public class Viewer3P {
       _pv2[1].set(_s1,_s3,slice13(sf3));
     if (_k3!=k3)
       _pv2[0].set(_s1,_s2,slice12(sf3));
-  }
-  
-  //TODO This appears to be too costly? Delete me? 
-  private void setSlicesPoints(
-      int k1, int k2, int k3, SimpleFloat3 sf3x1, SimpleFloat3 sf3x2) 
-  {
-    if (_pts==null)
-      return;
-    if (_k1!=k1) {
-      if (_transpose23)
-        _pts[2].set(slice23(sf3x2),slice23(sf3x1));
-      else
-        _pts[2].set(slice23(sf3x1),slice23(sf3x2));
-    }
-    if (_k2!=k2)
-      _pts[1].set(slice13(sf3x1),slice13(sf3x2));
-    if (_k3!=k3)
-      _pts[0].set(slice12(sf3x1),slice12(sf3x2));
   }
   
   private void setSlicesPoints(int k1, int k2, int k3) {

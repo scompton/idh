@@ -2,12 +2,15 @@ package viewer;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.image.IndexColorModel;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.swing.DefaultBoundedRangeModel;
+import javax.swing.JMenuItem;
 import javax.swing.JSlider;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -78,10 +81,33 @@ public class Viewer2D {
     _s2 = (s2==null)?new Sampling(f.length   ):s2;
     _orientation = (orientation==null )?Orientation.X1DOWN_X2RIGHT:orientation;
     
+    if (_orientation==Orientation.X1DOWN_X2RIGHT) {
+      _hMin = _s2.getFirst();
+      _hMax = _s2.getLast();
+      _vMin = _s1.getFirst();
+      _vMax = _s1.getLast();
+    } else {
+      _hMin = _s1.getFirst();
+      _hMax = _s1.getLast();
+      _vMin = _s2.getFirst();
+      _vMax = _s2.getLast();
+    }
+    
     // Make initial panel.
     _pp = new PlotPanel(_orientation);
     _pv1 = _pp.addPixels(_s1,_s2,f);
     _pf = new ViewerFrame(_pp,new PixelsView[]{_pv1});
+    
+    // Add LimitsFrame2D dialog to the options menu.
+    JMenuItem changeLimits = new JMenuItem("Change Limits");
+    final LimitsFrame2D lf2d = new LimitsFrame2D(this);
+    changeLimits.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        lf2d.getFrame().setVisible(true);
+      }
+    });
+    _pf.addToMenu(changeLimits);
   }
   
   /**
@@ -179,6 +205,18 @@ public class Viewer2D {
     _s3 = (s3==null)?new Sampling(f.length      ):s3;
     _orientation  = (orientation==null )?Orientation.X1DOWN_X2RIGHT:orientation;
     
+    if (_orientation==Orientation.X1DOWN_X2RIGHT) {
+      _hMin = _s2.getFirst();
+      _hMax = _s2.getLast();
+      _vMin = _s1.getFirst();
+      _vMax = _s1.getLast();
+    } else {
+      _hMin = _s1.getFirst();
+      _hMax = _s1.getLast();
+      _vMin = _s2.getFirst();
+      _vMax = _s2.getLast();
+    }
+    
     // Make initial panel, displaying the middle frame.
     int n3 = _s3.getCount();
     _i3 = n3/2;
@@ -202,8 +240,40 @@ public class Viewer2D {
       
     _pf = new ViewerFrame(_pp,new PixelsView[]{_pv1});
     _pf.add(slider,BorderLayout.SOUTH);
+    
+    // Add LimitsFrame2D dialog to the options menu.
+    JMenuItem changeLimits = new JMenuItem("Change Limits");
+    final LimitsFrame2D lf2d = new LimitsFrame2D(this);
+    changeLimits.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        lf2d.getFrame().setVisible(true);
+      }
+    });
+    _pf.addToMenu(changeLimits);
   }
   
+  public Sampling getSampling1() {
+    return _s1;
+  }
+  public Sampling getSampling2() {
+    return _s2;
+  }
+  public Sampling getSampling3() {
+    return _s3;
+  }
+  public double getHMin() {
+    return _hMin;
+  }
+  public double getHMax() {
+    return _hMax;
+  }
+  public double getVMin() {
+    return _vMin;
+  }
+  public double getVMax() {
+    return _vMax;
+  }
   public void addPixels(float[][] f) {
     Check.argument(f.length==_s2.getCount(),
         "f.length is not consistent with sampling");
@@ -351,10 +421,14 @@ public class Viewer2D {
   }
   
   public void setHLimits(double hmin, double hmax) {
+    _hMin = hmin;
+    _hMax = hmax;
     _pp.setHLimits(hmin,hmax);
   }
   
   public void setVLimits(double vmin, double vmax) {
+    _vMin = vmin;
+    _vMax = vmax;
     _pp.setVLimits(vmin,vmax);
   }
   
@@ -453,6 +527,10 @@ public class Viewer2D {
   private Sampling _s1;
   private Sampling _s2;
   private Sampling _s3;
+  private double _hMin;
+  private double _hMax;
+  private double _vMin;
+  private double _vMax;
   private String _title = "";
   private float[][][] _f;
   private float[][][] _g;
