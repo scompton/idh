@@ -199,9 +199,17 @@ public class DynamicWarpingC {
     final float[][] u = new float[ng2][];
     Parallel.loop(ng2,new Parallel.LoopInt() {
     public void compute(int i2) {
-      float[][][] dm = accumulateForward(es[i2],g1[i2],r1min,r1max);
+      float[][][] dm = accumulateForward(es[i2],g1[g2[i2]],r1min,r1max);
       u[i2] = backtrackReverse(dm[0],dm[1]);
     }});
+    for (int i2=0; i2<ng2; i2++) {
+      for (int i1=1; i1<g1[0].length; i1++) {
+        float n = u[i2][i1]-u[i2][i1-1];
+        float d = g1[g2[i2]][i1] - g1[g2[i2]][i1-1];
+        float r = n/d;
+        assert r>=r1min && r<=r1max:"n="+n+", d="+d+", r="+r;
+      }
+    }
     return u;
   }
   
@@ -260,10 +268,21 @@ public class DynamicWarpingC {
     Parallel.loop(ng3,new Parallel.LoopInt() {
     public void compute(int i3) {
       for (int i2=0; i2<ng2; i2++) {
-        float[][][] dm = accumulateForward(es[i3][i2],g1[i3][i2],r1min,r1max);
+        float[][][] dm = 
+            accumulateForward(es[i3][i2],g1[g3[i3]][g2[i2]],r1min,r1max);
         u[i3][i2] = backtrackReverse(dm[0],dm[1]);  
       }
     }});
+    for (int i3=0; i3<ng3; i3++) {
+      for (int i2=0; i2<ng2; i2++) {
+        for (int i1=1; i1<g1[0].length; i1++) {
+          float n = u[i3][i2][i1]-u[i3][i2][i1-1];
+          float d = g1[g3[i3]][g2[i2]][i1] - g1[g3[i3]][g2[i2]][i1-1];
+          float r = n/d;
+          assert r>=r1min && r<=r1max:"n="+n+", d="+d+", r="+r;
+        }
+      }
+    }
     return u;
   }
   
