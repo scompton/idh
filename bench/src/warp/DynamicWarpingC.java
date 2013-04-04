@@ -5,9 +5,6 @@ import edu.mines.jtk.dsp.SincInterp;
 import edu.mines.jtk.interp.BicubicInterpolator2;
 import edu.mines.jtk.interp.BilinearInterpolator2;
 import edu.mines.jtk.interp.CubicInterpolator;
-import edu.mines.jtk.interp.CubicInterpolator.Method;
-import edu.mines.jtk.interp.TricubicInterpolator3;
-import edu.mines.jtk.interp.TrilinearInterpolator3;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
@@ -16,6 +13,12 @@ import static edu.mines.jtk.util.ArrayMath.*;
  */
 public class DynamicWarpingC {
 
+  public enum Interp {
+    LINEAR,
+    MONOTONIC,
+    SPLINE
+  }
+  
   /**
    * Constructor for dynamic warping of a PP and PS trace. The 
    * PS trace is warped to the PP trace. Note that the PP and
@@ -128,10 +131,6 @@ public class DynamicWarpingC {
     return _nel;
   }
   
-  public void setInterpolation(boolean doLinear) {
-    _doLinear = doLinear;
-  }
-    
   /**
    * Find shifts for 1D trace. For the input trace PP[n1], 
    * shifts are computed for PP[ng1] where ng1 is the number 
@@ -520,56 +519,32 @@ public class DynamicWarpingC {
    * @param dr1 sparse grid increment in first dimension. 
    * @return shifts for 2D images from averaged alignment errors.
    */
-  public float[][] findShifts2(float r1min, float r1max, int dg1) {
+  public float[] findShifts2(float r1min, float r1max, int dg1) {
     final float[][] e = computeErrorsSum2();
     final int[] g1 = Subsample.subsample(_ne1,dg1);
     dump(g1);
     final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
-    final float[] u1 = 
-        interpolate(_ne1,g1,backtrackReverse(dm[0],dm[1]),_doLinear);
-    final float[][] u = new float[_n2][];
-    for (int i2=0; i2<_n2; i2++) {
-      u[i2] = copy(u1);
-    }
-    return u;
+    return backtrackReverse(dm[0],dm[1]);
   }
   
-  public float[][] findShifts2(float r1min, float r1max, int[] g1) {
+  public float[] findShifts2(float r1min, float r1max, int[] g1) {
     final float[][] e = computeErrorsSum2();
     final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
-    final float[] u1 = 
-        interpolate(_ne1,g1,backtrackReverse(dm[0],dm[1]),_doLinear);
-    final float[][] u = new float[_n2][];
-    for (int i2=0; i2<_n2; i2++) {
-      u[i2] = copy(u1);
-    }
-    return u;
+    return backtrackReverse(dm[0],dm[1]);
   }
   
-  public float[][] findShifts2M(float r1min, float r1max, int[] g1) {
+  public float[] findShifts2M(float r1min, float r1max, int[] g1) {
     final float[][] e = computeErrorsSum2();
     final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
-    final float[] u1 = 
-        interpolate(_ne1,g1,backtrackReverse(dm[0],dm[1]),_doLinear);
-    final float[][] u = new float[_n2][];
-    for (int i2=0; i2<_n2; i2++) {
-      u[i2] = copy(u1);
-    }
-    return u;
+    return backtrackReverse(dm[0],dm[1]);
   }
   
-  public float[][] findShifts2MFlat(
+  public float[] findShifts2MFlat(
       float[][] x1, float r1min, float r1max, int[] g1) 
   {
     final float[][] e = computeErrorsSum2(x1);
     final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
-    final float[] u1 =
-        interpolate(_ne1,g1,backtrackReverse(dm[0],dm[1]),_doLinear);
-    final float[][] u = new float[_n2][];
-    for (int i2=0; i2<_n2; i2++) {
-      u[i2] = copy(u1);
-    }
-    return u;
+    return backtrackReverse(dm[0],dm[1]);
   }
   
   public float[][] unflattenShifts(float[][] r, float[][] u) {
@@ -594,69 +569,45 @@ public class DynamicWarpingC {
    * @param dr1 sparse grid increment in first dimension. 
    * @return shifts for 2D images from averaged alignment errors.
    */
-  public float[][][] findShifts3(float r1min, float r1max, int dg1) {
+  public float[] findShifts3(float r1min, float r1max, int dg1) {
     float[][] e3Avg = computeErrors3Average();
     return findShifts3(e3Avg,r1min,r1max,dg1);
   }
   
-  public float[][][] findShifts3(
+  public float[] findShifts3(
       float[][] e3Avg, float r1min, float r1max, int dg1) 
   {
     final int[] g1 = Subsample.subsample(_ne1,dg1);
     dump(g1);
     final float[][][] dm = accumulateForwardSparse(e3Avg,r1min,r1max,g1);
-    final float[] u1 = 
-        interpolate(_ne1,g1,backtrackReverse(dm[0],dm[1]),_doLinear);
-    final float[][][] u = new float[_n3][_n2][];
-    for (int i3=0; i3<_n3; i3++) {
-      for (int i2=0; i2<_n2; i2++) {
-        u[i3][i2] = copy(u1);
-      }
-    }
-    return u;
+    return backtrackReverse(dm[0],dm[1]);
   }
   
-  public float[][][] findShifts3M(float r1min, float r1max, int[] g1) {
+  public float[] findShifts3M(float r1min, float r1max, int[] g1) {
     final float[][] e3Avg = computeErrors3Average();
     return findShifts3M(e3Avg,r1min,r1max,g1); 
   }
   
-  public float[][][] findShifts3M(
+  public float[] findShifts3M(
       float[][] e3Avg, float r1min, float r1max, int[] g1) 
   {
     final float[][] e = computeErrors3Average();
     final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
-    final float[] u1 = 
-        interpolate(_ne1,g1,backtrackReverse(dm[0],dm[1]),_doLinear);
-    final float[][][] u = new float[_n3][_n2][];
-    for (int i3=0; i3<_n3; i3++) {
-      for (int i2=0; i2<_n2; i2++) {
-        u[i3][i2] = copy(u1);
-      }
-    }
-    return u;
+    return backtrackReverse(dm[0],dm[1]);
   }
   
-  public float[][][] findShifts3MFlat(
+  public float[] findShifts3MFlat(
       float[][][] x1, float r1min, float r1max, int[] g1)
   {
     float[][] e3AvgF = computeErrors3Average(x1);
     return findShifts3MFlat(e3AvgF,x1,r1min,r1max,g1);
   }
   
-  public float[][][] findShifts3MFlat(
+  public float[] findShifts3MFlat(
       float[][] e3AvgF, float[][][] x1, float r1min, float r1max, int[] g1) 
   {
     final float[][][] dm = accumulateForwardSparse(e3AvgF,r1min,r1max,g1);
-    final float[] u1 = 
-        interpolate(_ne1,g1,backtrackReverse(dm[0],dm[1]),_doLinear);
-    final float[][][] u = new float[_n3][_n2][];
-    for (int i3=0; i3<_n3; i3++) {
-      for (int i2=0; i2<_n2; i2++) {
-        u[i3][i2] = copy(u1);
-      }
-    }
-    return u;
+    return backtrackReverse(dm[0],dm[1]);
   }
   
   /**
@@ -834,8 +785,8 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Interpolates u, sampled on sparse grid g, to a uniformly 
-   * sampled array of length n.
+   * Interpolates subsampled shifts u[ng] to uniformly sampled shifts
+   * ui[n].
    * @param n length of the output array.
    * @param g sparse grid indices.
    * @param u sparse shifts.
@@ -844,140 +795,89 @@ public class DynamicWarpingC {
    * @return the interpolated shifts.
    */
   public static float[] interpolate(
-      int n, int[] g, float[] u, boolean doLinear) 
+      int n, int[] g, float[] u, Interp interp1) 
   {
     int ng = g.length;
     float[] gf = new float[ng];
     float[] ui = new float[n ];
     for (int ig=0; ig<ng; ig++)
       gf[ig] = (float)g[ig];
-    Method m = (doLinear)?Method.LINEAR:Method.MONOTONIC;
-    CubicInterpolator ci = new CubicInterpolator(m,ng,gf,u);
+    CubicInterpolator.Method m1;
+    switch (interp1) {
+      case LINEAR:    m1 = CubicInterpolator.Method.LINEAR; break;
+      case MONOTONIC: m1 = CubicInterpolator.Method.MONOTONIC; break;
+      case SPLINE:    m1 = CubicInterpolator.Method.SPLINE; break;
+      default: throw new IllegalArgumentException(
+          interp1.toString()+" is not a recognized interpolation method.");
+    }
+    CubicInterpolator ci = new CubicInterpolator(m1,ng,gf,u);
     for (int i=0; i<n; i++)
       ui[i] = ci.interpolate(i);
     return ui;
   }
-
+  
   /**
-   * Interpolates u, sampled on sparse grid g, to a uniformly 
-   * sampled array of size [n2][n1].
+   * Interpolates subsampled shifts u[ng2][ng1] to uniformly sampled 
+   * shifts ui[n2][n1]. The coordinates of the subsampled shifts u 
+   * are defined by the input index arrays g1 and g2. The g2 array is
+   * assumed to contain indices consistent for all n1 locations. That
+   * is, g2 indices are the same at every i1, for i1=0,...,n1-1. 
+   * </p>
+   * The g1 indices are assumed to be regular and consistent for all
+   * i2 in either the input image space or the flattened image space.
+   * The x1 array, if not {@code null}, contains the x1 coordinates 
+   * of the unflattened image such that x1 = x1[i2][g1[i1]]. If x1 is
+   * null, then g1 indices are assumed to be regular and consistent 
+   * for all i2 in the unflattened image space.
+   * </p>
+   * The interpolation is done in two passes. First interpolation
+   * is done in the second dimension where subsampling must be 
+   * regular. The second pass does interpolation in the first
+   * dimension where subsampling may be irregular.
    * @param n1 length of first dimension of output array.
    * @param n2 length of second dimension of output array.
    * @param g1 first dimension sparse grid indices.
    * @param g2 second dimension sparse grid indices.
    * @param u sparse shifts.
-   * @param doLinear {@code true} for bilinear interpolation,
-   *  {@code false} for bicubic.
-   * @return the interpolated shifts.
+   * @param x1 array that maps g1 indices, which are regular in the
+   *  flattened space, to the x1 coordinates in the unflattened 
+   *  image space, or {@code null} if g1 indices are already regular
+   *  in the unflattened image space.
+   * @param interp1 interpolation method for the i1 (fast) dimension.
+   * @param interp2 interpolation method for the i2 (slow) dimension.
+   * @return the interpolated shifts ui[n3][n2][n1].
    */
   public static float[][] interpolate(
-      int n1, int n2, int[] g1, int[] g2, float[][] u, boolean doLinear)
+      int n1, int n2, int[] g1, int[] g2, float[][] u, float[][] x1,
+      Interp interp1, Interp interp2) 
   {
     int ng1 = g1.length;
-    int ng2 = g2.length;
-    Check.argument(ng1==u[0].length,"ng1==u[0].length: "+ng1+"=="+u[0].length);
-    Check.argument(ng2==u.length,"ng2==u.length: "+ng2+"=="+u.length);
-    float[] g1f = new float[ng1];
-    float[] g2f = new float[ng2];
-    for (int ig1=0; ig1<ng1; ig1++)
-      g1f[ig1] = (float)g1[ig1];
-    for (int ig2=0; ig2<ng2; ig2++)
-      g2f[ig2] = (float)g2[ig2];
-    Sampling s1 = new Sampling(n1,1.0,0.0);
-    Sampling s2 = new Sampling(n2,1.0,0.0);
-    if (doLinear) {
-      BilinearInterpolator2 bli = new BilinearInterpolator2(g1f,g2f,u);
-      return bli.interpolate(s1,s2);  
-    } else {
-      BicubicInterpolator2 bci = 
-          new BicubicInterpolator2(BCIM1,BCIM2,g1f,g2f,u);
-      return bci.interpolate(s1,s2); 
-    }
-  }
-  
-  /**
-   * Interpolates u, sampled on sparse grid g, to a uniformly 
-   * sampled array of size [n3][n2][n1].
-   * @param n1 length of first dimension of output array.
-   * @param n2 length of second dimension of output array.
-   * @param n3 length of third dimension of output array.
-   * @param g1 first dimension sparse grid indices.
-   * @param g2 second dimension sparse grid indices.
-   * @param g3 third dimension sparse grid indices.
-   * @param u sparse shifts.
-   * @param doLinear {@code true} for trilinear interpolation,
-   *  {@code false} for tricubic.
-   * @return the interpolated shifts.
-   */
-  public static float[][][] interpolate(
-      int n1, int n2, int n3, int[] g1, int[] g2, int[] g3, float[][][] u,
-      boolean doLinear)
-  {
-    int ng1 = g1.length;
-    int ng2 = g2.length;
-    int ng3 = g3.length;
-    Check.argument(
-        ng1==u[0][0].length,"ng1==u[0][0].length: "+ng1+"=="+u[0][0].length);
-    Check.argument(ng2==u[0].length,"ng2==u[0].length: "+ng2+"=="+u[0].length);
-    Check.argument(ng3==u.length,"ng3==u.length: "+ng3+"=="+u.length);
-    float[] g1f = new float[ng1];
-    float[] g2f = new float[ng2];
-    float[] g3f = new float[ng3];
-    for (int ig1=0; ig1<ng1; ig1++)
-      g1f[ig1] = (float)g1[ig1];
-    for (int ig2=0; ig2<ng2; ig2++)
-      g2f[ig2] = (float)g2[ig2];
-    for (int ig3=0; ig3<ng3; ig3++)
-      g3f[ig3] = (float)g3[ig3];
-    Sampling s1 = new Sampling(n1,1.0,0.0);
-    Sampling s2 = new Sampling(n2,1.0,0.0);
-    Sampling s3 = new Sampling(n3,1.0,0.0);
-    if (doLinear) {
-      TrilinearInterpolator3 tli = new TrilinearInterpolator3(g1f,g2f,g3f,u);
-      return tli.interpolate(s1,s2,s3);
-    } else {
-      TricubicInterpolator3 tci = 
-          new TricubicInterpolator3(TCIM1,TCIM2,TCIM3,g1f,g2f,g3f,u);
-      return tci.interpolate(s1,s2,s3);
-    }
-  }
-  
-  /**
-   * Interpolates u, sampled on a structurally aligned sparse 
-   * grid g, to a uniformly sampled array of size [n2][n1]. The
-   * interpolation is done in two passes. First interpolation
-   * is done in the second dimension where sampling is regular. 
-   * The second pass does interpolation in the first dimension 
-   * where flattened coordinates from {@code g1Flat} are mapped 
-   * to unflattened space before interpolation.
-   * @param n1 length of first dimension of output array.
-   * @param n2 length of second dimension of output array.
-   * @param g1Flat first dimension sparse grid indices in 
-   *  flattened coordinates.
-   * @param g2 second dimension sparse grid indices.
-   * @param u sparse shifts.
-   * @param x1 array of sampled x1(y1,y2). That is, the 
-   *  unflattened coordinates for flattened samples y1,y2.
-   * @param doLinear {@code true} for linear interpolation,
-   *  {@code false} for cubic monotonic.
-   * @return the interpolated shifts.
-   */
-  public static float[][] interpolate(
-      int n1, int n2, int[] g1Flat, int[] g2, float[][] u, float[][] x1,
-      boolean doLinear) 
-  {
-    int ng1 = g1Flat.length;
     int ng2 = g2.length;
     Check.argument(ng1==u[0].length,"ng1==u[0].length: "+ng1+"=="+u[0].length);
     Check.argument(ng2==u.length,"ng2==u.length: "+ng2+"=="+u.length);
     float[] g2f = new float[ng2];
     for (int ig2=0; ig2<ng2; ig2++)
       g2f[ig2] = g2[ig2];
-
+    if (x1==null)
+      x1 = rampfloat(0.0f,1.0f,0.0f,n1,n2);
+    
     float[][] ui = new float[n2][n1];
-    Method m = Method.MONOTONIC;
-    if (doLinear)
-      m = Method.LINEAR;
+    CubicInterpolator.Method m2;
+    switch (interp2) {
+      case LINEAR:    m2 = CubicInterpolator.Method.LINEAR; break;
+      case MONOTONIC: m2 = CubicInterpolator.Method.MONOTONIC; break;
+      case SPLINE:    m2 = CubicInterpolator.Method.SPLINE; break;
+      default: throw new IllegalArgumentException(
+          interp2.toString()+" is not a recognized interpolation method.");
+    }
+    CubicInterpolator.Method m1;
+    switch (interp1) {
+      case LINEAR:    m1 = CubicInterpolator.Method.LINEAR; break;
+      case MONOTONIC: m1 = CubicInterpolator.Method.MONOTONIC; break;
+      case SPLINE:    m1 = CubicInterpolator.Method.SPLINE; break;
+      default: throw new IllegalArgumentException(
+          interp1.toString()+" is not a recognized interpolation method.");
+    }
     
     // interpolate in the second dimension.
     float[] u2 = new float[ng2];
@@ -985,7 +885,7 @@ public class DynamicWarpingC {
     for (int i1=0; i1<ng1; i1++) {
       for (int i2=0; i2<ng2; i2++)
         u2[i2] = u[i2][i1];
-      CubicInterpolator ciu = new CubicInterpolator(m,g2f,u2);
+      CubicInterpolator ciu = new CubicInterpolator(m2,g2f,u2);
       for (int i2=0; i2<n2; i2++)
         ui2[i2][i1] = ciu.interpolate(i2);
     }
@@ -994,41 +894,57 @@ public class DynamicWarpingC {
     for (int i2=0; i2<n2; i2++) {
       float[] x = new float[ng1];
       for (int i1=0; i1<ng1; i1++)
-        x[i1] = x1[i2][g1Flat[i1]];
-      CubicInterpolator ci = new CubicInterpolator(m,x,ui2[i2]);
+        x[i1] = x1[i2][g1[i1]];
+      CubicInterpolator ci = new CubicInterpolator(m1,x,ui2[i2]);
       for (int i1=0; i1<n1; i1++)
         ui[i2][i1] = ci.interpolate(i1);
     }
+    
     return ui;
   }
   
   /**
-   * Interpolates u, sampled on a structurally aligned sparse 
-   * grid g, to a uniformly sampled array of size [n2][n1]. The
-   * interpolation is done in two passes. First interpolation
-   * is done in the second and third dimension where sampling
-   * is regular. The second pass does interpolation in the first
-   * dimension where flattened coordinates from {@code g1Flat}
-   * are mapped to unflattened space before interpolation.
+   * Interpolates subsampled shifts u[ng3][ng2][ng1] to uniformly 
+   * sampled shifts ui[n3][n2][n1]. The coordinates of the 
+   * subsampled shifts u are defined by the input index arrays g1, 
+   * g2, and g3. The indices in the g3 array must be the same at 
+   * every i2, for i2=0,...,n2-1 and i1, for i1=0,...n1-1. The indices
+   * in the g2 array must be the same at every i3, for i3=0,...,n3-1, 
+   * and i1, for i1=0,...,n1-1. 
+   * </p>
+   * The g1 indices are assumed to be regular and consistent for all
+   * i3 and i2 in either the input image space or the flattened image
+   * space. The x1 array, if not {@code null}, contains the x1 
+   * coordinates of the unflattened image such that 
+   * x1 = x1[i3][i2][g1[i1]]. If x1 is null, then g1 indices are
+   * assumed to be regular and consistent for all i3 and i2 in the
+   * unflattened image space.
+   * </p>
+   * The interpolation is done in two passes. First interpolation
+   * is done in the second and third dimension where subsampling
+   * must be regular. The second pass does interpolation in the 
+   * first dimension where subsampling may be irregular.
    * @param n1 length of first dimension of output array.
    * @param n2 length of second dimension of output array.
    * @param n3 length of third dimension of output array.
-   * @param g1Flat first dimension sparse grid indices in 
-   *  flattened coordinates.
+   * @param g1 first dimension sparse grid indices.
    * @param g2 second dimension sparse grid indices.
    * @param g3 third dimension sparse grid indices.
    * @param u sparse shifts.
-   * @param x1 array of sampled x1(y1,y2,y3). That is, unflattened
-   *  coordinates for flattened samples y1,y2,y3.
-   * @param doLinear {@code true} for linear interpolation,
-   *  {@code false} for cubic monotic.
-   * @return the interpolated shifts.
+   * @param x1 array that maps g1 indices, which are regular in the
+   *  flattened space, to the x1 coordinates in the unflattened 
+   *  image space, or {@code null} if g1 indices are already regular
+   *  in the unflattened image space.
+   * @param interp1 interpolation method for the i1 (fast) dimension.
+   * @param interp23 interpolation method for the i2 (middle) and i3
+   *  (slow) dimensions.
+   * @return the interpolated shifts ui[n3][n2][n1].
    */
   public static float[][][] interpolate(
-      int n1, int n2, int n3, int[] g1Flat, int[] g2, int[] g3,
-      float[][][] u, float[][][] x1, boolean doLinear) 
+      int n1, int n2, int n3, int[] g1, int[] g2, int[] g3,
+      float[][][] u, float[][][] x1, Interp interp1, Interp interp23) 
   {
-    int ng1 = g1Flat.length;
+    int ng1 = g1.length;
     int ng2 = g2.length;
     int ng3 = g3.length;
     Check.argument(
@@ -1041,10 +957,33 @@ public class DynamicWarpingC {
       g2f[ig2] = g2[ig2];
     for (int ig3=0; ig3<ng3; ig3++)
       g3f[ig3] = g3[ig3];
+    if (x1==null)
+      x1 = rampfloat(0.0f,1.0f,0.0f,0.0f,n1,n2,n3); 
     
-    Method m = doLinear?Method.LINEAR:Method.MONOTONIC;// 1st dim interp method
-    float[][][] ui = new float[n3][n2][n1];
+    CubicInterpolator.Method m1;
+    switch (interp1) {
+      case LINEAR:    m1 = CubicInterpolator.Method.LINEAR; break;
+      case MONOTONIC: m1 = CubicInterpolator.Method.MONOTONIC; break;
+      case SPLINE:    m1 = CubicInterpolator.Method.SPLINE; break;
+      default: throw new IllegalArgumentException(
+          interp1.toString()+" is not a recognized interpolation method.");
+    }
     
+    BicubicInterpolator2.Method m23 = null;
+    boolean doLinear;
+    switch (interp23) {
+      case LINEAR:    doLinear = true; 
+                      break;
+      case MONOTONIC: doLinear = false; 
+                      m23 = BicubicInterpolator2.Method.MONOTONIC; 
+                      break;
+      case SPLINE:    doLinear = false; 
+                      m23 = BicubicInterpolator2.Method.SPLINE; 
+                      break;
+      default: throw new IllegalArgumentException(
+          interp1.toString()+" is not a recognized interpolation method.");
+    }
+
     // interpolate the second and third dimension.
     float[][] u23 = new float[ng3][ng2];
     float[][][] ui23 = new float[n3][n2][ng1];
@@ -1059,23 +998,21 @@ public class DynamicWarpingC {
             ui23[i3][i2][i1] = bli.interpolate(i2,i3);
       } else {
         BicubicInterpolator2 bci = 
-            new BicubicInterpolator2(
-                BicubicInterpolator2.Method.MONOTONIC,
-                BicubicInterpolator2.Method.MONOTONIC,
-                g2f,g3f,u23);
+            new BicubicInterpolator2(m23,m23,g2f,g3f,u23);
         for (int i3=0; i3<n3; i3++)
           for (int i2=0; i2<n2; i2++)
             ui23[i3][i2][i1] = bci.interpolate(i2,i3);
       }
     }
 
+    float[][][] ui = new float[n3][n2][n1];
     // interpolate the first dimension
     for (int i3=0; i3<n3; i3++) {
       for (int i2=0; i2<n2; i2++) {
         float[] x = new float[ng1];
         for (int i1=0; i1<ng1; i1++)
-          x[i1] = x1[i3][i2][g1Flat[i1]];
-        CubicInterpolator ci = new CubicInterpolator(m,x,ui23[i3][i2]);
+          x[i1] = x1[i3][i2][g1[i1]];
+        CubicInterpolator ci = new CubicInterpolator(m1,x,ui23[i3][i2]);
         for (int i1=0; i1<n1; i1++)
           ui[i3][i2][i1] = ci.interpolate(i1);
       }
@@ -1359,19 +1296,6 @@ public class DynamicWarpingC {
   private float _scale; // computed scaling for pp traces
   private float _epow = 2; // exponent used for alignment errors |f-g|^e
   private SincInterp _si; // for warping with non-integer shifts
-  private boolean _doLinear = true;
-  private static final CubicInterpolator.Method CIM = 
-      CubicInterpolator.Method.MONOTONIC;
-  private static final BicubicInterpolator2.Method BCIM1 =
-      BicubicInterpolator2.Method.MONOTONIC;
-  private static final BicubicInterpolator2.Method BCIM2 =
-      BicubicInterpolator2.Method.MONOTONIC;
-  private static final TricubicInterpolator3.Method TCIM1 = 
-      TricubicInterpolator3.Method.MONOTONIC;
-  private static final TricubicInterpolator3.Method TCIM2 = 
-      TricubicInterpolator3.Method.MONOTONIC;
-  private static final TricubicInterpolator3.Method TCIM3 = 
-      TricubicInterpolator3.Method.MONOTONIC;
   
   private float error(float f, float g) {
     return pow(abs(f-g),_epow);
