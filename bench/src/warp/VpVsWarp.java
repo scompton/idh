@@ -17,7 +17,7 @@ public class VpVsWarp {
    * @param s Sampling.
    * @return synthetic Vp/Vs.
    */
-  public static float[] getVpVs(float a, float b, Sampling s) {
+  public static float[] getVpVs(float m, float a, float b, Sampling s) {
     Check.argument(a>=-1.0 & a<=1.0,"a>=-1.0 & a<=1.0");
     int n1 = s.getCount();
     double ft = s.getFirst();
@@ -25,11 +25,11 @@ public class VpVsWarp {
     float[] vpvs = new float[n1];
     for (int i1=0; i1<n1; i1++) {
       double t = ft+i1*dt;
-      vpvs[i1] = 2.0f + a*(float)cos(2.0*PI*b*t);
+      vpvs[i1] = m + a*(float)cos(2.0*PI*b*t);
     }
     return vpvs;
   }
-  
+ 
   /**
    * Computes the shifts u, from the vpvs values.
    * @param vpvs array of computed vpvs values.
@@ -83,7 +83,18 @@ public class VpVsWarp {
     }
     return pp;
   }
-  
+
+  public static float[] warp(float[] f, float[] u) {
+    int n1 = f.length;
+    float[] g = new float[n1];
+    SincInterp si = new SincInterp();
+    for (int i=0; i<n1; ++i) {
+      double y = i;
+      g[i] = si.interpolate(n1,1.0,0.0,f,y-u[i]);
+    }
+    return g;
+  }
+
   public static float[][] shift2(int n2, float[] x, double scale, double f) {
     int n1 = x.length;
     float[][] s = new float[n2][n1];
@@ -101,7 +112,7 @@ public class VpVsWarp {
     }
     return s;
   }
-  
+
   public static float[][][] shift3(
       int n3, float[][] x, double scale, double f)
   {
@@ -122,7 +133,19 @@ public class VpVsWarp {
     }
     return s;
   }
-  
+
+  public static void normalize(float[] f, float nmin, float nmax) {
+    final int n1 = f.length;
+    final float vmin = min(f);
+    final float vmax = max(f);
+    final float range = vmax-vmin;
+    final float nrange = nmax-nmin;
+    for (int i1=0; i1<n1; ++i1) {
+      float vi = f[i1];
+      f[i1] = nrange*(vi-vmin)/range + nmin;
+    }
+  }
+
 //  public static double uy(double y, SincInterpolator si) {
 //    double uy = 0.0;
 //    double up;
