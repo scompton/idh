@@ -12,6 +12,7 @@ public class VpVsWarp {
    * Computes Vp/Vs values at every time sample. The values
    * correspond to a scaled cosine function with a constant
    * frequency b.
+   * @param m
    * @param a scale factor between -1.0 and 1.0.
    * @param b frequency in Hz.
    * @param s Sampling.
@@ -134,36 +135,4 @@ public class VpVsWarp {
     return s;
   }
 
-  public static void normalize(float[] f, float nmin, float nmax) {
-    final int n1 = f.length;
-    final float vmin = min(f);
-    final float vmax = max(f);
-    final float range = vmax-vmin;
-    final float nrange = nmax-nmin;
-    for (int i1=0; i1<n1; ++i1) {
-      float vi = f[i1];
-      f[i1] = nrange*(vi-vmin)/range + nmin;
-    }
-  }
-
-//  public static double uy(double y, SincInterpolator si) {
-//    double uy = 0.0;
-//    double up;
-//    do {
-//      up = uy;
-//      uy = si.interpolate(y-uy);
-//    } while (abs(uy-up)>0.0001);
-//    return uy;
-//  }
-  
-//  public static float[] warp(float[] f, float[] vpvs) {
-//    int n1 = f.length;
-//    float[] u = getU(vpvs);
-//    SincInterpolator si = new SincInterpolator();
-//    float[] g = new float[n1];
-//    si.setUniform(n1,1.0,0.0,f);
-//    si.interpolate(n1,u,g);
-//    return g;
-//  }
-  
 }

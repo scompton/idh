@@ -3,11 +3,8 @@ package warp;
 import static edu.mines.jtk.util.ArrayMath.*;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class Subsample {
 
@@ -83,6 +80,21 @@ public class Subsample {
     return g;
   }
 
+  /**
+   * Subsamples indices of an array of floats preferentially
+   * selecting the indices of f with the highest absolute value
+   * amplitudes. This selection ensures that the first and 
+   * last sample are always included in the subsampled indices,
+   * and that the number of subsamples is equal to {@code ng}. The 
+   * interval between selected indices decreased from {@code d } as
+   * needed to meet this requirement.
+   * @param f the input array to preferentially subsample.
+   * @param d the constraint on the subsample interval.
+   * @param ng the number of samples included in the subsampled array.
+   * @return an integer array of sparse grid indices. The 
+   *  length of this array is {@code ng} and the interval {@code d} 
+   *  may be modified to meet this requirement. 
+   */
   public static int[] subsample(float[] f, int d, int ng) {
     int n = f.length;
     int nm = n-1;
@@ -130,53 +142,6 @@ public class Subsample {
     return g;
   }
 
-  public static int[] subsampleNgMax(float[] f, int ng) {
-    int n = f.length;
-    int nm = n-1;
-    int[] i = rampint(0,1,n);
-    float[] fa = abs(f);
-    quickIndexSort(fa,i);
-    StringBuffer sb = new StringBuffer();
-    for (int ii=0; ii<20; ii++) {
-      sb.append(i[nm-ii]+",");
-    }
-    System.out.println("Top 20: "+sb.toString());
-    int[] g = new int[ng+2];
-    g[0] = 0;
-    g[ng+1] = nm;
-    for (int ig=0; ig<ng; ig++)
-      g[ig+1] = i[nm-ig]; 
-    Arrays.sort(g);
-    return g;
-  }
-
-  public static Map<Integer,float[][]> getMXB(
-      int[] g, float rmin, float rmax, boolean up) 
-  {
-    Map<Integer,float[][]> mxbMap= new HashMap<Integer,float[][]>();
-    int ks = up? 1:-1;
-    int ms = up?-1: 1;
-    int ng = g.length;
-    for (int ig=1; ig<ng; ig++) {
-      int dg = g[ig]-g[ig-1];
-      if (mxbMap.containsKey(dg))
-        continue;
-      int kmin = (int)ceil( rmin*dg);
-      int kmax = (int)floor(rmax*dg);
-      int nk = kmax+1;
-//      System.out.println("dg="+dg+", kmin="+kmin+", kmax="+kmax+", nk="+nk);
-      float[][] mx = new float[nk][dg+1];
-      for (int k=kmin; k<=kmax; k++) {
-        float m = (float)k/dg*ms;
-        for (int x=0; x<=dg; x++) {
-          mx[k][x] = m*x+ks*k;
-        }  
-      }
-      mxbMap.put(dg,mx);
-    }
-    return mxbMap;
-  }
-  
   public static void main(String[] args) {
     if (args.length != 2) {
       System.out.println("Usage: java Decompose numberOfSamples delta");
