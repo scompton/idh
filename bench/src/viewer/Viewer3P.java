@@ -41,7 +41,7 @@ import edu.mines.jtk.util.SimpleFloat3;
  * Wraps PlotPanelPixels3 with some convenient options. 
  */
 public class Viewer3P {
-
+  
   /**
    * Construct a 3 panel view of f, with default orientation,
    * {@link Orientation#X1DOWN_X2RIGHT} and default Samplings.
@@ -107,8 +107,8 @@ public class Viewer3P {
     _pp = new PlotPanelPixels3(_orientation,AxesPlacement.LEFT_BOTTOM,
         _s1,_s2,_s3,f);
     _pp.setSlices(_k1,_k2,_k3);
-    _pp.getMosaic().setHeightElastic(0,100);
-    _pp.getMosaic().setHeightElastic(1,200);
+//    _pp.getMosaic().setHeightElastic(0,100);
+//    _pp.getMosaic().setHeightElastic(1,200);
     _pv1 = new PixelsView[]{
         _pp.getPixelsView12(),
         _pp.getPixelsView13(),
@@ -308,6 +308,7 @@ public class Viewer3P {
     int ng1 = g1[0][0].length;
     int ng2 = g2.length;
     int ng3 = g3.length;
+    @SuppressWarnings("unchecked")
     Map<Integer,float[][][]>[] maps = new HashMap[3];
     Map<Integer,float[][][]> i3Map = new HashMap<Integer, float[][][]>();
     Map<Integer,float[][][]> i2Map = new HashMap<Integer, float[][][]>();
@@ -466,14 +467,6 @@ public class Viewer3P {
     }
   }
   
-  public void setHInterval(double interval) {
-    _pp.setHInterval(interval);
-  }
-
-  public void setVInterval(double interval) {
-    _pp.setVInterval(interval);
-  }
-  
   public void setClips1(float clipMin, float clipMax) {
     _pp.setClips(clipMin,clipMax);
   }
@@ -510,6 +503,10 @@ public class Viewer3P {
   
   public void setVInterval(int irow, float interval) {
     _pp.setVInterval(irow,interval);
+  }
+  
+  public void setHInterval(int icol, float interval) {
+    _pp.setHInterval(icol,interval);
   }
   
   public void setColorBarWidthMinimum(int widthMinimum) {

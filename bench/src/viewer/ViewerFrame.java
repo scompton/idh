@@ -24,6 +24,7 @@ import edu.mines.jtk.mosaic.PixelsView;
 import edu.mines.jtk.mosaic.PixelsView.Interpolation;
 import edu.mines.jtk.mosaic.PlotFrame;
 import edu.mines.jtk.mosaic.PlotPanel;
+import edu.mines.jtk.mosaic.PlotPanel.Orientation;
 import edu.mines.jtk.mosaic.PlotPanelPixels3;
 import edu.mines.jtk.mosaic.PointsView;
 import edu.mines.jtk.mosaic.TiledView;
@@ -44,17 +45,27 @@ public class ViewerFrame extends PlotFrame {
    * {@link PlotPanelPixels3}, all three PixelsViews can be passed
    * into the {@code pv} array.
    * </p>
-   * Other pixels can be added with the 
+   * Options for other pixels can be added with the 
    * {@link #addOptions(PixelsView[], String)} method.
-   * @param panel
-   * @param pv
+   * @param orientation the {@link PlotPanel.Orientation}
    */
+  public ViewerFrame(Orientation orientation) {
+    super(new PlotPanel(orientation));
+    JMenuBar menuBar = new JMenuBar();
+    _options = new JMenu("Options");
+    addSaveOption(this);
+    menuBar.add(_options);
+    setJMenuBar(menuBar);
+    addMouseListener(_ml);
+    setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+  }
+
   public ViewerFrame(PlotPanel panel, PixelsView[] pv) {
     super(panel);
     _panel = panel;
     JMenuBar menuBar = new JMenuBar();
     _options = new JMenu("Options");
-    addInterpolationOption(pv);
+    addInterpolationOption(pv,null);
     addClipOptions(pv,null);
     addColorOptions(pv,null);
     addSaveOption(this);
@@ -82,10 +93,12 @@ public class ViewerFrame extends PlotFrame {
    *  the options menu or {@code null} for no label.
    */
   public void addOptions(PixelsView[] pv, String label) {
+    _pvCount++;
     addClipOptions(pv,label);
     addColorOptions(pv,label);
-    addAlphaOptions(pv,label);
-    addRemoveOptions(pv[0],label,"3"); //TODO what about mulitple PixelsViews?
+    addInterpolationOption(pv,label);
+    if (_pvCount>1)
+      addAlphaOptions(pv,label);
   }
   
   /**
@@ -95,20 +108,23 @@ public class ViewerFrame extends PlotFrame {
    * @param label label the label for the added settings in
    *  the options menu or {@code null} for no label.
    */
-  public void addOptions(PointsView ptv, String label, String key) {
-//    addRemoveOptions(ptv,label,"2");
-    addRemoveOptions(ptv,label,key);
+  public void addOptions(PointsView ptv, String label) {
+    _ptCount++;
+    addRemoveOptions(ptv,label,Integer.toString(_ptCount));
   }
   
   ////////////////////////////////////////////////////////////////////////
   // Private
   
+  private int _pvCount = 0;
+  private int _ptCount = 0;
   private JMenu _options;
-  private PlotPanel _panel;
+  private PlotPanel _panel = super.getPlotPanel();
   private static final long serialVersionUID = 1L;
   
-  private void addInterpolationOption(final PixelsView[] pv) {
-    String name = "Change Interpolation";
+  private void addInterpolationOption(final PixelsView[] pv, String label) {
+    String name = (label==null)?"Change Interpolation":
+      "Change Interpolation("+label+")";
     JMenu changeInterp = new JMenu(name);
     JMenuItem nearest = new JMenuItem("Nearest Neighbor");
     JMenuItem linear  = new JMenuItem("Linear");
@@ -195,7 +211,7 @@ public class ViewerFrame extends PlotFrame {
   private void addRemoveOptions(
       final TiledView tv, String label, String key)
   {
-    String name = "Add/Remove "+label;
+    String name = "Add/Remove ("+label+")";
     JMenuItem addRemove = new JMenuItem(name);
     addRemove.addActionListener(new AddRemoveListener(tv));
     addRemove.setAccelerator(KeyStroke.getKeyStroke(key));
@@ -275,4 +291,5 @@ public class ViewerFrame extends PlotFrame {
     }
     public void mouseReleased(MouseEvent e) {} // Do nothing.
   };
+  
 }

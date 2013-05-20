@@ -13,7 +13,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import edu.mines.jtk.mosaic.PlotPanelPixels3;
-import edu.mines.jtk.util.ArrayMath;
 
 public class LimitsFrame2D extends JPanel implements PropertyChangeListener {
   
@@ -136,9 +135,9 @@ public class LimitsFrame2D extends JPanel implements PropertyChangeListener {
   }
   
   public static void main(String[] args) {
-    LimitsFrame2D lf2d = 
-        new LimitsFrame2D(new Viewer2D(ArrayMath.zerofloat(1999,500,14)));
-    lf2d.getFrame().setVisible(true);
+//    LimitsFrame2D lf2d = 
+//        new LimitsFrame2D(new Viewer2DNew(ArrayMath.zerofloat(1999,500,14)));
+//    lf2d.getFrame().setVisible(true);
   }
 
   private final JFrame _frame;

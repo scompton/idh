@@ -4,7 +4,6 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.image.IndexColorModel;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,7 +20,6 @@ import edu.mines.jtk.io.ArrayInputStream;
 import edu.mines.jtk.mosaic.ColorBar;
 import edu.mines.jtk.mosaic.PixelsView;
 import edu.mines.jtk.mosaic.TensorsView;
-import edu.mines.jtk.mosaic.PixelsView.Interpolation;
 import edu.mines.jtk.mosaic.PlotPanel;
 import edu.mines.jtk.mosaic.PlotPanel.Orientation;
 import edu.mines.jtk.mosaic.PointsView;
@@ -42,8 +40,8 @@ public class Viewer2D {
    * Constructs a pixels view of {@code f}.
    * @param f the pixel values.
    */
-  public Viewer2D(float[][] f) {
-    this(f,null);
+  public Viewer2D() {
+    this((Orientation)null);
   }
   
   /**
@@ -52,205 +50,10 @@ public class Viewer2D {
    * @param f the pixel values.
    * @param orientation the orientation for the pixels.
    */
-  public Viewer2D(float[][] f, Orientation orientation) {
-    this(null,null,f,orientation);
-  }
-  
-  /**
-   * Constructs a pixels view of {@code f} with given samplings.
-   * @param f the pixel values.
-   * @parama s1 the sampling of the first dimension of f.
-   * @parama s2 the sampling of the second dimension of f.
-   */
-  public Viewer2D(Sampling s1, Sampling s2, float[][] f) {
-    this(s1,s2,f,null);
-  }
-  
-  /**
-   * Constructs a pixels view of {@code f} with given samplings 
-   * and with specified orientation. 
-   * @param f the pixel values.
-   * @parama s1 the sampling of the first dimension of f.
-   * @parama s2 the sampling of the second dimension of f.
-   * @param orientation the orientation for the pixels.
-   */
-  public Viewer2D(
-      Sampling s1, Sampling s2, float[][] f, Orientation orientation)
-  {
-    _s1 = (s1==null)?new Sampling(f[0].length):s1;
-    _s2 = (s2==null)?new Sampling(f.length   ):s2;
+  public Viewer2D(Orientation orientation) {
     _orientation = (orientation==null )?Orientation.X1DOWN_X2RIGHT:orientation;
-    
-    if (_orientation==Orientation.X1DOWN_X2RIGHT) {
-      _hMin = _s2.getFirst();
-      _hMax = _s2.getLast();
-      _vMin = _s1.getFirst();
-      _vMax = _s1.getLast();
-    } else {
-      _hMin = _s1.getFirst();
-      _hMax = _s1.getLast();
-      _vMin = _s2.getFirst();
-      _vMax = _s2.getLast();
-    }
-    
-    // Make initial panel.
-    _pp = new PlotPanel(_orientation);
-    _pv1 = _pp.addPixels(_s1,_s2,f);
-    _pf = new ViewerFrame(_pp,new PixelsView[]{_pv1});
-    
-    // Add LimitsFrame2D dialog to the options menu.
-    JMenuItem changeLimits = new JMenuItem("Change Limits");
-    final LimitsFrame2D lf2d = new LimitsFrame2D(this);
-    changeLimits.addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(ActionEvent e) {
-        lf2d.getFrame().setVisible(true);
-      }
-    });
-    _pf.addToMenu(changeLimits);
-  }
-  
-  /**
-   * Constructs a pixels view of {@code f}.
-   * @param f the pixel values.
-   */
-  public Viewer2D(double[][] f) {
-    this(f,null);
-  }
-  
-  /**
-   * Constructs a pixels view of {@code f}, with specified 
-   * orientation.
-   * @param f the pixel values.
-   * @param orientation the orientation for the pixels.
-   */
-  public Viewer2D(double[][] f, Orientation orientation) {
-    this(null,null,f,orientation);
-  }
-  
-  /**
-   * Constructs a pixels view of {@code f} with given samplings.
-   * @param f the pixel values.
-   * @parama s1 the sampling of the first dimension of f.
-   * @parama s2 the sampling of the second dimension of f.
-   */
-  public Viewer2D(Sampling s1, Sampling s2, double[][] f) {
-    this(s1,s2,f,null);
-  }
-  
-  /**
-   * Constructs a pixels view of {@code f} with given samplings 
-   * and with specified orientation. 
-   * @param f the pixel values.
-   * @parama s1 the sampling of the first dimension of f.
-   * @parama s2 the sampling of the second dimension of f.
-   * @param orientation the orientation for the pixels.
-   */
-  public Viewer2D(
-      Sampling s1, Sampling s2, double[][] f, Orientation orientation) 
-  {
-    this(s1,s2,convertToFloat(f),orientation);
-  }
-  
-  /**
-   * Constructs a 2D pixels view of {@code f} with a slider
-   * bar that allows slicing through the full 3D volume.
-   * @param f the pixel values.
-   */
-  public Viewer2D(float[][][] f) {
-    this(f,null);
-  }
-  
-  /**
-   * Constructs a 2D pixels view of {@code f} with a slider
-   * bar that allows slicing through the full 3D volume with
-   * the specified orientation.
-   * @param f the pixel values.
-   * @param orientation the orientation for the pixels.
-   */
-  public Viewer2D(float[][][] f, Orientation orientation) {
-    this(null,null,null,f,orientation);
-  }
-  
-  /**
-   * Constructs a 2D pixels view of {@code f} with a slider
-   * bar that allows slicing through the full 3D volume with
-   * the specified samplings.
-   * @param s1 sampling of the first dimension of f.
-   * @param s2 sampling of the second dimension of f.
-   * @param s3 sampling of the third dimension of f.
-   * @param f the pixel values.
-   */
-  public Viewer2D(Sampling s1, Sampling s2, Sampling s3, float[][][] f) {
-    this(s1,s2,s3,f,null);
-  }
-  
-  /**
-   * Constructs a 2D pixels view of {@code f} with a slider
-   * bar that allows slicing through the full 3D volume with
-   * the specified samplings and orientation.
-   * @param s1 sampling of the first dimension of f.
-   * @param s2 sampling of the second dimension of f.
-   * @param s3 sampling of the third dimension of f.
-   * @param f the pixel values.
-   * @param orientation the orientation for the pixels.
-   */
-  public Viewer2D(
-      Sampling s1, Sampling s2, Sampling s3, float[][][] f, 
-      Orientation orientation)
-  {
-    _f = f;
-    _s1 = (s1==null)?new Sampling(f[0][0].length):s1;
-    _s2 = (s2==null)?new Sampling(f[0].length   ):s2;
-    _s3 = (s3==null)?new Sampling(f.length      ):s3;
-    _orientation  = (orientation==null )?Orientation.X1DOWN_X2RIGHT:orientation;
-    
-    if (_orientation==Orientation.X1DOWN_X2RIGHT) {
-      _hMin = _s2.getFirst();
-      _hMax = _s2.getLast();
-      _vMin = _s1.getFirst();
-      _vMax = _s1.getLast();
-    } else {
-      _hMin = _s1.getFirst();
-      _hMax = _s1.getLast();
-      _vMin = _s2.getFirst();
-      _vMax = _s2.getLast();
-    }
-    
-    // Make initial panel, displaying the middle frame.
-    int n3 = _s3.getCount();
-    _i3 = n3/2;
-    int r3 = (int)_s3.getValue(_i3);
-    _pp = new PlotPanel(_orientation);
-    _title = String.valueOf(_i3);
-    _pp.setTitle(_title);
-    _pv1 = _pp.addPixels(_s1,_s2,f[_i3]);
-    Clips clips = new Clips(f);
-    _pv1.setClips(clips.getClipMin(),clips.getClipMax());
-    
-    SliderListener sl = new SliderListener();
-    DefaultBoundedRangeModel brm = new DefaultBoundedRangeModel(
-        r3,0,0,n3-1);
-    JSlider slider = new JSlider(brm);
-    slider.setMajorTickSpacing(n3/10);
-    slider.setMinorTickSpacing(n3/150);
-    slider.setPaintLabels(true);
-    slider.setPaintTicks(true);
-    slider.addChangeListener(sl);
-      
-    _pf = new ViewerFrame(_pp,new PixelsView[]{_pv1});
-    _pf.add(slider,BorderLayout.SOUTH);
-    
-    // Add LimitsFrame2D dialog to the options menu.
-    JMenuItem changeLimits = new JMenuItem("Change Limits");
-    final LimitsFrame2D lf2d = new LimitsFrame2D(this);
-    changeLimits.addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(ActionEvent e) {
-        lf2d.getFrame().setVisible(true);
-      }
-    });
-    _pf.addToMenu(changeLimits);
+    _vf = new ViewerFrame(_orientation); // Make empty panel.
+    _pp = _vf.getPlotPanel();
   }
   
   public Sampling getSampling1() {
@@ -274,25 +77,100 @@ public class Viewer2D {
   public double getVMax() {
     return _vMax;
   }
-  public void addPixels(float[][] f) {
-    Check.argument(f.length==_s2.getCount(),
-        "f.length is not consistent with sampling");
-    Check.argument(f[0].length==_s1.getCount(),
-        "f[0].length is not consistent with sampling");
-    _pv2 = _pp.addPixels(_s1,_s2,f);
-    _pf.addOptions(new PixelsView[]{_pv2},"2");
+  
+  public PixelsView addPixels(double[][] f, String label) {
+    Sampling s1 = new Sampling(f[0].length);
+    Sampling s2 = new Sampling(f.length);
+    return addPixels(s1,s2,f,label);
   }
   
-  public void addPixels(float[][][] f) {
-    Check.argument(f.length==_s3.getCount(),
-        "f.length is not consistent with sampling");
-    Check.argument(f[0].length==_s2.getCount(),
-        "f[0].length is not consistent with sampling");
-    Check.argument(f[0][0].length==_s1.getCount(),
-        "f[0][0].length is not consistent with sampling");
-    _g = f;
-    _pv2 = _pp.addPixels(_s1,_s2,f[_i3]);
-    _pf.addOptions(new PixelsView[]{_pv2},"2");
+  public PixelsView addPixels(
+      Sampling s1, Sampling s2, double[][] f, String label) 
+  {
+    return addPixels(s1,s2,convertToFloat(f),label);
+  }
+  
+  public PixelsView addPixels(float[][] f, String label) {
+    Sampling s1 = new Sampling(f[0].length);
+    Sampling s2 = new Sampling(f.length);
+    return addPixels(s1,s2,f,label);
+  }
+  
+  public PixelsView addPixels(
+      Sampling s1, Sampling s2, float[][] f, String label) 
+  {
+    if (_s1==null && _s2==null) {
+      _s1 = s1;
+      _s2 = s2;
+      if (_orientation==Orientation.X1DOWN_X2RIGHT) {
+        _hMin = _s2.getFirst();
+        _hMax = _s2.getLast();
+        _vMin = _s1.getFirst();
+        _vMax = _s1.getLast();
+      } else {
+        _hMin = _s1.getFirst();
+        _hMax = _s1.getLast();
+        _vMin = _s2.getFirst();
+        _vMax = _s2.getLast();
+      }
+    } else {
+      Check.argument(f.length==_s2.getCount(),
+          "f.length is not consistent with sampling");
+      Check.argument(f[0].length==_s1.getCount(),
+          "f[0].length is not consistent with sampling");
+    }
+    PixelsView pv = _pp.addPixels(_s1,_s2,f);
+    _vf.addOptions(new PixelsView[]{pv},label);
+    return pv;
+  }
+  
+  public PixelsView addPixels(float[][][] f, String label) {
+    Sampling s1 = new Sampling(f[0][0].length);
+    Sampling s2 = new Sampling(f[0].length);
+    Sampling s3 = new Sampling(f.length);
+    return addPixels(s1,s2,s3,f,label);
+  }
+  
+  public PixelsView addPixels(
+      Sampling s1, Sampling s2, Sampling s3, float[][][] f, String label) 
+  {
+    if (_s1==null && _s2==null && _s3==null) {
+      _s1 = s1;
+      _s2 = s2;
+      _s3 = s3;
+      if (_orientation==Orientation.X1DOWN_X2RIGHT) {
+        _hMin = _s2.getFirst();
+        _hMax = _s2.getLast();
+        _vMin = _s1.getFirst();
+        _vMax = _s1.getLast();
+      } else {
+        _hMin = _s1.getFirst();
+        _hMax = _s1.getLast();
+        _vMin = _s2.getFirst();
+        _vMax = _s2.getLast();
+      }
+    } else {
+      Check.argument(f.length==_s3.getCount(),
+          "f.length is not consistent with sampling");
+      Check.argument(f[0].length==_s2.getCount(),
+          "f[0].length is not consistent with sampling");
+      Check.argument(f[0][0].length==_s1.getCount(),
+          "f[0][0].length is not consistent with sampling");  
+    }
+    
+    //al panel, displaying the middle frame.
+    int n3 = _s3.getCount();
+    _i3 = n3/2;
+//    _title = String.valueOf(_i3);
+//    _pp.setTitle(_title);
+    PixelsView pv = _pp.addPixels(_s1,_s2,f[_i3]);
+    Clips clips = new Clips(f);
+    pv.setClips(clips.getClipMin(),clips.getClipMax());
+
+    _vf.addOptions(new PixelsView[]{pv},label);
+    _pv3Map.put(pv,f);
+    updatePixels();
+    return pv;
   }
   
   /**
@@ -305,9 +183,8 @@ public class Viewer2D {
   public PointsView addPoints(float[] x2, String label) {
     Check.argument(_s1.getCount()==x2.length,
         "x2.length is not consistend with sampling");
-    int size = _ptMap.size();
     PointsView pt = _pp.addPoints(_s1,x2);
-    _pf.addOptions(pt,label,Integer.toString(size+1));
+    _vf.addOptions(pt,label);
     return pt;
   }
   
@@ -322,60 +199,39 @@ public class Viewer2D {
   public PointsView addPoints(float[][] x2, String label) {
     Check.argument(_s1.getCount()==x2[0].length,
         "x2.length is not consistend with sampling");
-    int size = _ptMap.size();
     PointsView pt = _pp.addPoints(_s1,x2[_i3]);
     _ptMap.put(pt,x2);
     updatePoints();
-    _pf.addOptions(pt,label,Integer.toString(size+1));
+    _vf.addOptions(pt,label);
     return pt;
   }
   
-  public void addPoints(float[] x1, float[] x2) {
-    addPoints(x1,x2,"rO",14.0f);
+  public PointsView addPoints(float[] x1, float[] x2, String label) {
+    PointsView pt = _pp.addPoints(x1,x2);
+    _vf.addOptions(pt,label);
+    return pt;
   }
   
-  public void addPoints(
-      float[] x1, float[] x2, String style, float size) 
-  {
-    _pt2 = _pp.addPoints(x1,x2);
-    _pt2.setStyle(style);
-    _pt2.setMarkSize(size);
-    _pf.addOptions(_pt2,"pt2","2");
+  public PointsView addPoints2(float[][] x1, float[][] x2, String label) {
+    PointsView pt = _pp.addPoints(x1,x2);
+    _vf.addOptions(pt,label);
+    return pt;
   }
   
-  public void addPoints2(float[][] x1, float[][] x2) {
-    addPoints2(x1, x2,"rO",14.0f);
+  public PointsView addPoints3(float[][][] x1, float[][][] x2, String label) {
+    PointsView pt = _pp.addPoints(x1[_i3],x2[_i3]);
+    _pt123Map.put(pt,new float[][][][]{x1,x2});
+    updatePoints123();
+    _vf.addOptions(pt,label);
+    return pt;
   }
   
-  public void addPoints2(float[][] x1, float[][] x2, String style, float size) {
-    _pt2 = _pp.addPoints(x1,x2);
-    _pt2.setStyle(style);
-    _pt2.setMarkSize(size);
-    _pf.addOptions(_pt2,"pt2","2");
-  }
-  
-  public void addPoints3(float[][][] x1, float[][][] x2) {
-    _x13 = x1;
-    _x23 = x2;
-    _pt2 = _pp.addPoints(x1[_i3],x2[_i3]);
-    _pt2.setStyle("rO");
-    _pt2.setMarkSize(14.0f);
-    _pf.addOptions(_pt2,"pt2","2");
-  }
-  
-  public void addPoints(float[][] x1, float[][] x2) {
-    addPoints(x1,x2,"rO",14.0f);
-  }
-  
-  public void addPoints(float[][] x1, float[][] x2, String style, float size) {
-    Check.argument(x1.length==_f.length,"x1.length==f.length");
-    Check.argument(x2.length==_f.length,"x2.length==f.length");
-    _x1 = x1;
-    _x2 = x2;
-    _pt2 = _pp.addPoints(x1[_i3],x2[_i3]);
-    _pt2.setStyle(style);
-    _pt2.setMarkSize(size);
-    _pf.addOptions(_pt2,"pt2","2");
+  public PointsView addPoints(float[][] x1, float[][] x2, String label) {
+    PointsView pt = _pp.addPoints(x1[_i3],x2[_i3]);
+    _pt122Map.put(pt,new float[][][]{x1,x2});
+    updatePoints122();
+    _vf.addOptions(pt,label);
+    return pt;
   }
 
   public void addTensors(EigenTensors2 et2) {
@@ -398,10 +254,6 @@ public class Viewer2D {
     tensorView.setLineWidth(width);
     tensorView.setScale(1);
     _pp.addTiledView(tensorView);
-  }
-  
-  public void setInterpolation(Interpolation interpolation) {
-    _pv1.setInterpolation(interpolation);
   }
   
   public void setTitle(String title) {
@@ -448,25 +300,6 @@ public class Viewer2D {
     _pp.setVInterval(interval);
   }
   
-  public void setClips1(float clipMin, float clipMax) {
-    _pv1.setClips(clipMin,clipMax);
-  }
-  
-  public void setClips2(float clipMin, float clipMax) {
-    if (_pv2==null)
-      throw new IllegalStateException(
-          "Second PixelsView has not been added to plot panel.");
-    _pv2.setClips(clipMin,clipMax);
-  }
-
-  public void setColorModel1(IndexColorModel colorModel) {
-    _pv1.setColorModel(colorModel);
-  }
-  
-  public void setColorModel2(IndexColorModel colorModel) {
-    _pv2.setColorModel(colorModel);
-  }
-  
   public ColorBar addColorBar(String label) {
     return _pp.addColorBar(label);
   }
@@ -476,23 +309,48 @@ public class Viewer2D {
   }
   
   public void setSize(int width, int height) {
-    _pf.setSize(width,height);
+    _vf.setSize(width,height);
   }
   
   public void setFontSizeForPrint(double fontSize, double plotWidth) {
-    _pf.setFontSizeForPrint(fontSize,plotWidth);
+    _vf.setFontSizeForPrint(fontSize,plotWidth);
   }
   
   public void setFontSizeForSlide(double fracWidth, double fracHeight) {
-    _pf.setFontSizeForSlide(fracWidth, fracHeight);
+    _vf.setFontSizeForSlide(fracWidth, fracHeight);
   }
   
   public void paintToPng(double dpi, double win, String fileName) {
-    _pf.paintToPng(dpi,win,fileName);
+    _vf.paintToPng(dpi,win,fileName);
   }
   
   public void show() {
-    _pf.setVisible(true);
+    // Add LimitsFrame2D dialog to the options menu.
+    JMenuItem changeLimits = new JMenuItem("Change Limits");
+    final LimitsFrame2D lf2d = new LimitsFrame2D(this);
+    changeLimits.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        lf2d.getFrame().setVisible(true);
+      }
+    });
+    _vf.addToMenu(changeLimits);
+    
+    if (_pv3Map.size()>0) {
+      int n3 = _s3.getCount();
+      int r3 = (int)_s3.getValue(_i3);
+      SliderListener sl = new SliderListener();
+      DefaultBoundedRangeModel brm = new DefaultBoundedRangeModel(
+          r3,0,0,n3-1);
+      JSlider slider = new JSlider(brm);
+      slider.setMajorTickSpacing(n3/10);
+      slider.setMinorTickSpacing(n3/150);
+      slider.setPaintLabels(true);
+      slider.setPaintTicks(true);
+      slider.addChangeListener(sl);
+      _vf.add(slider,BorderLayout.SOUTH);  
+    }
+    _vf.setVisible(true);
   }
   
   public static void main(String[] args) throws IOException {
@@ -507,41 +365,53 @@ public class Viewer2D {
     float[][][] f = new float[n3][n2][n1]; 
     ais.readFloats(f);
     ais.close();
-    Viewer2D v = new Viewer2D(f);
+    Viewer2D v = new Viewer2D();
+    v.addPixels(f,"f");
     v.show();
   }
 
   ////////////////////////////////////////////////////////////////////////////
   // Private
   
-  
-  private ViewerFrame _pf;
+  private ViewerFrame _vf;
   private PlotPanel _pp;
-  private PixelsView _pv1;
-  private PixelsView _pv2;
+  private Map<PixelsView,float[][][]> _pv3Map = 
+      new HashMap<PixelsView,float[][][]>();
   private Map<PointsView,float[][]> _ptMap = 
-      new HashMap<PointsView,float[][]>(); // Map for all added points views.
-  PointsView[] _pts = new PointsView[0]; // Array of points views for updating.
-  private PointsView _pt2;
+      new HashMap<PointsView,float[][]>();
+  private Map<PointsView,float[][][]> _pt122Map = 
+      new HashMap<PointsView,float[][][]>();
+  private Map<PointsView,float[][][][]> _pt123Map = 
+      new HashMap<PointsView,float[][][][]>();
+  PointsView[] _pts = new PointsView[0];
+  PointsView[] _pts122 = new PointsView[0];
+  PointsView[] _pts123 = new PointsView[0];
+  PixelsView[] _pvs = new PixelsView[0];
   private Orientation _orientation;
-  private Sampling _s1;
-  private Sampling _s2;
-  private Sampling _s3;
+  private Sampling _s1 = null;
+  private Sampling _s2 = null;
+  private Sampling _s3 = null;
   private double _hMin;
   private double _hMax;
   private double _vMin;
   private double _vMax;
   private String _title = "";
-  private float[][][] _f;
-  private float[][][] _g;
-  private float[][] _x1;
-  private float[][] _x2;
-  private float[][][] _x13;
-  private float[][][] _x23;
   private int _i3 = Integer.MIN_VALUE;
   
+  private void updatePixels() {
+    _pvs = _pv3Map.keySet().toArray(new PixelsView[0]);
+  }
+
   private void updatePoints() {
     _pts = _ptMap.keySet().toArray(new PointsView[0]);
+  }
+
+  private void updatePoints122() {
+    _pts122 = _pt122Map.keySet().toArray(new PointsView[0]);
+  }
+
+  private void updatePoints123() {
+    _pts123 = _pt123Map.keySet().toArray(new PointsView[0]);
   }
 
   private static float[][] convertToFloat(double[][] a) {
@@ -562,22 +432,22 @@ public class Viewer2D {
     public void stateChanged(ChangeEvent e) {
       JSlider source = (JSlider)e.getSource();
       int i3 = (int)source.getValue();
-      _pv1.set(_f[i3]);
-      if (_g!=null)
-        _pv2.set(_g[i3]);
-      for (PointsView pt : _pts) {
+      for (PixelsView pv : _pvs)
+        pv.set(_pv3Map.get(pv)[i3]);
+      for (PointsView pt : _pts)
         pt.set(_s1,_ptMap.get(pt)[i3]);
+      for (PointsView pt : _pts122) {
+        float[][][] x1x2 = _pt122Map.get(pt);
+        pt.set(x1x2[0][i3],x1x2[1][i3]);
       }
-//      if (_p!=null)
-//        _pt1.set(_s1,_p[i3]);
-      if (_x1!=null && _x2!=null)
-        _pt2.set(_x1[i3],_x2[i3]);
-      if (_x13!=null && _x23!=null)
-        _pt2.set(_x13[i3],_x23[i3]);
+      for (PointsView pt : _pts123) {
+        float[][][][] x1x2 = _pt123Map.get(pt);
+        pt.set(x1x2[0][i3],x1x2[1][i3]);
+      }
       _i3 = i3;
       _pp.removeTitle();
       _pp.setTitle(_title+" "+_i3);
-      _pf.repaint();
+      _vf.repaint();
     }
   }
   
