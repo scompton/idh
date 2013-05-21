@@ -28,7 +28,6 @@ import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.io.ArrayInputStream;
 import edu.mines.jtk.mosaic.PixelsView;
 import edu.mines.jtk.mosaic.PlotPanelPixels3.Orientation;
-import edu.mines.jtk.mosaic.PlotPanel;
 import edu.mines.jtk.mosaic.Tile;
 import edu.mines.jtk.mosaic.PlotPanelPixels3;
 import edu.mines.jtk.mosaic.PlotPanelPixels3.AxesPlacement;
@@ -456,7 +455,9 @@ public class Viewer3P {
     _l3Max = max;
     if (_orientation==Orientation.X1DOWN_X2RIGHT) {
       _pp.setHLimits(1,min,max);
-      _pp.setVLimits(0,min,max,PlotPanel.Orientation.X1RIGHT_X2UP);
+      //TODO this method is in my forked JTK, but I don't want to
+      // force this dependency. Comment out for now.
+//      _pp.setVLimits(0,min,max,PlotPanel.Orientation.X1RIGHT_X2UP);
     } else if (_orientation==Orientation.X1DOWN_X3RIGHT) {
       _pp.setHLimits(0,min,max);
     } else if (_orientation==Orientation.X1RIGHT_X2UP) {
