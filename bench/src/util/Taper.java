@@ -7,6 +7,7 @@ import javax.swing.SwingUtilities;
 import viewer.Viewer2D;
 
 import edu.mines.jtk.awt.ColorMap;
+import edu.mines.jtk.mosaic.PixelsView;
 
 public class Taper {
 
@@ -62,14 +63,16 @@ public class Taper {
     SwingUtilities.invokeLater(new Runnable() {
       @Override
       public void run() {
-        Viewer2D v = new Viewer2D(f);
+        Viewer2D v = new Viewer2D();
         v.setTitle("Input");
-        v.setColorModel1(ColorMap.JET);
+        PixelsView pv1 = v.addPixels(f,"f");
+        pv1.setColorModel(ColorMap.JET);
         v.addColorBar(null);
         v.show();
-        Viewer2D vt = new Viewer2D(ft);
+        Viewer2D vt = new Viewer2D();
         vt.setTitle("Tapered");
-        vt.setColorModel1(ColorMap.JET);
+        PixelsView pv2 = vt.addPixels(ft,"ft");
+        pv2.setColorModel(ColorMap.JET);
         vt.addColorBar(null);
         vt.show();
       }
