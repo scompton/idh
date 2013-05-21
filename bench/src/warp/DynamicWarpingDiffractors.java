@@ -8,7 +8,7 @@ package warp;
 
 import edu.mines.jtk.dsp.RecursiveExponentialFilter;
 import edu.mines.jtk.dsp.Sampling;
-import edu.mines.jtk.dsp.SincInterpolator;
+import edu.mines.jtk.dsp.SincInterp;
 import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
@@ -117,7 +117,7 @@ public class DynamicWarpingDiffractors {
     _fr = fr;
     _nl = (_lmax-_lmin)*_fr+1;
     _shifts = new Sampling(_nl,1.0/_fr,_lmin);
-    _si = new SincInterpolator();
+    _si = new SincInterp();
     _extrap = ErrorExtrapolation.NEAREST;
   }
 
@@ -520,10 +520,8 @@ public class DynamicWarpingDiffractors {
    */
   public void applyShifts(float[] u, float[] g, float[] h) {
     int n1 = u.length;
-    _si.setUniformSampling(n1,1.0,0.0);
-    _si.setUniformSamples(g);
     for (int i1=0; i1<n1; ++i1) {
-      h[i1] = _si.interpolate(i1+u[i1]);
+      h[i1] = _si.interpolate(n1,1.0,0.0,g,i1+u[i1]);
     }
   }
 
@@ -539,19 +537,10 @@ public class DynamicWarpingDiffractors {
     final float[][] uf = u;
     final float[][] gf = g;
     final float[][] hf = h;
-    final Parallel.Unsafe<SincInterpolator> siu =
-      new Parallel.Unsafe<SincInterpolator>();
     Parallel.loop(n2,new Parallel.LoopInt() {
     public void compute(int i2) {
-      SincInterpolator si = siu.get();
-      if (si==null) {
-        si = new SincInterpolator();
-        si.setUniformSampling(n1,1.0,0.0);
-        siu.set(si);
-      }
-      si.setUniformSamples(gf[i2]);
       for (int i1=0; i1<n1; ++i1) {
-        hf[i2][i1] = si.interpolate(i1+uf[i2][i1]);
+        hf[i2][i1] = _si.interpolate(n1,1.0,0.0,gf[i2],i1+uf[i2][i1]);
       }
     }});
   }
@@ -1193,7 +1182,7 @@ public class DynamicWarpingDiffractors {
   private RecursiveExponentialFilter _ref1; // for smoothing shifts
   private RecursiveExponentialFilter _ref2; // for smoothing shifts
   private RecursiveExponentialFilter _ref3; // for smoothing shifts
-  private SincInterpolator _si; // for warping with non-integer shifts
+  private SincInterp _si; // for warping with non-integer shifts
   private int _owl2 = 50; // window size in 2nd dimension for 3D images
   private int _owl3 = 50; // window size in 3rd dimension for 3D images
   private double _owf2 = 0.5; // fraction of window overlap in 2nd dimension
@@ -1303,11 +1292,8 @@ public class DynamicWarpingDiffractors {
     int n1 = f.length;
     int nx = (n1-1)*_fr+1;
     int n1m = n1-1;
-    SincInterpolator si = new SincInterpolator();
-    si.setUniformSampling(n1,1.0f,0.0f);
-    si.setUniformSamples(g);
     float[] gi = new float[nx];
-    si.interpolate(nx,_shifts.getDelta(),0.0,gi);
+    _si.interpolate(n1,1.0f,0.0f,g,nx,rampfloat(0.0f,1.0f,nx),gi);
     boolean average = _extrap==ErrorExtrapolation.AVERAGE;
     boolean nearest = _extrap==ErrorExtrapolation.NEAREST;
     boolean reflect = _extrap==ErrorExtrapolation.REFLECT;
