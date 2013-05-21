@@ -46,7 +46,7 @@ public class AlphaFrame extends JPanel implements ChangeListener {
   @Override
   public void stateChanged(ChangeEvent e) {
     JSlider source = (JSlider)e.getSource();
-    int perc = (int)source.getValue();
+    int perc = source.getValue();
     IndexColorModel icm = _pv[0].getColorModel();
     for (PixelsView pv : _pv)
       pv.setColorModel(ColorMap.setAlpha(icm,perc/100.0));

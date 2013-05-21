@@ -431,7 +431,7 @@ public class Viewer2D {
     @Override
     public void stateChanged(ChangeEvent e) {
       JSlider source = (JSlider)e.getSource();
-      int i3 = (int)source.getValue();
+      int i3 = source.getValue();
       for (PixelsView pv : _pvs)
         pv.set(_pv3Map.get(pv)[i3]);
       for (PointsView pt : _pts)

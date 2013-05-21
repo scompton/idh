@@ -130,9 +130,9 @@ public class Model {
 	        // in .obj, f v1 .... the vertex index used start from 1, so -1 here
 	        //remap them to the right spot
 	        idx[0][0] = (idx[0][0] > 0) ?
-	            (idx[0][0] - 1) : ((int)_positions.size() - idx[0][0]);
+	            (idx[0][0] - 1) : (_positions.size() - idx[0][0]);
 	        idx[0][1] = (idx[0][1] > 0) ?
-	            (idx[0][1] - 1) : ((int)_normals.size() - idx[0][1]);
+	            (idx[0][1] - 1) : (_normals.size() - idx[0][1]);
 
 	        //grab the second vertex to prime
 	        line = line.substring(line.indexOf(" ") + 1);
@@ -142,9 +142,9 @@ public class Model {
 
 	        //remap them to the right spot
 	        idx[1][0] = (idx[1][0] > 0) ? 
-	            (idx[1][0] - 1) : ((int)_positions.size() - idx[1][0]);
+	            (idx[1][0] - 1) : (_positions.size() - idx[1][0]);
 	        idx[1][1] = (idx[1][1] > 0) ? 
-	            (idx[1][1] - 1) : ((int)_normals.size() - idx[1][1]);
+	            (idx[1][1] - 1) : (_normals.size() - idx[1][1]);
 
 	        //grab the third vertex to prime
 	        line = line.substring(line.indexOf(" ") + 1);
@@ -154,9 +154,9 @@ public class Model {
 	          
 	        //remap them to the right spot
 	        idx[2][0] = (idx[2][0] > 0) ? 
-	            (idx[2][0] - 1) : ((int)_positions.size() - idx[2][0]);
+	            (idx[2][0] - 1) : (_positions.size() - idx[2][0]);
 	        idx[2][1] = (idx[2][1] > 0) ? 
-	            (idx[2][1] - 1) : ((int)_normals.size() - idx[2][1]);
+	            (idx[2][1] - 1) : (_normals.size() - idx[2][1]);
 
 	        //add the indices
 	        for (int ii = 0; ii < 3; ii++) {
@@ -230,15 +230,15 @@ public class Model {
 	}
 
 	public int getPositionCount()  {
-		return (_posSize > 0) ? (int)_positions.size() / _posSize : 0;
+		return (_posSize > 0) ? _positions.size() / _posSize : 0;
 	}
 
 	public int getNormalCount()  {
-		return (int)_normals.size()/3;
+		return _normals.size()/3;
 	}
 
 	public int getIndexCount()  {
-		return (int)_pIndex.size();
+		return _pIndex.size();
 	}
 
 	public float[] getVertices() {
