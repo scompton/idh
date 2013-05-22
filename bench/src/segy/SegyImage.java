@@ -309,6 +309,23 @@ public class SegyImage {
   }
 
   /**
+   * Sets bytes used to find x and y CDP coordinates in trace headers.
+   * Both x and y CDP coordinates are represented by four-byte integers,
+   * but these integers are not always placed in the standard bytes
+   * 181-184 (for X) and 185-188 (for Y) of trace headers.
+   * This method allows these standard byte locations to be overridden.
+   * <p>
+   * Note that the first byte is 1, not 0, as in the documentation
+   * for SEG-Y format.
+   * @param xByte first byte of x CDP coordinate.
+   * @param yByte first byte of y CDP coordinate.
+   */
+  public void setXYCDPBytes(int xByte, int yByte) {
+    _ixhi = (xByte-1)/4;
+    _iyhi = (yByte-1)/4;
+  }
+
+  /**
    * Returns a guess for the format code, if a guess is possible.
    * Currently attempts to guess only if either IBM or IEEE floats.
    * <p>
@@ -835,6 +852,8 @@ public class SegyImage {
   private byte[] _bbuf; // buffer for trace samples as bytes
   private boolean _infoBH; // true, if binary header info has been loaded
   private boolean _infoTH; // true, if trace header info has been loaded
+  private int _ixhi = 45; // index in trace header of integer x CDP coordinate
+  private int _iyhi = 46; // index in trace header of integer y CDP coordinate
   private int _i2hi = 48; // index in trace header of integer xline number
   private int _i3hi = 47; // index in trace header of integer iline number
 
@@ -1120,8 +1139,8 @@ public class SegyImage {
           sxy *= pxy;
         else if (pxy<0) // if negative, divide
           sxy /= -pxy;
-        double x = hi[45]*sxy; // x coordinate
-        double y = hi[46]*sxy; // y coordinate
+        double x = hi[_ixhi]*sxy; // x coordinate
+        double y = hi[_iyhi]*sxy; // y coordinate
         int i2 = hi[_i2hi]; // xline number
         if (i2==0) // if no xline number, ... 
           i2 = hi[5]; // try the CDP number
