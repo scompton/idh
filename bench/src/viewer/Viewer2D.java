@@ -56,6 +56,14 @@ public class Viewer2D {
     _pp = _vf.getPlotPanel();
   }
   
+  /**
+   * Get the {@link ViewerFrame}.
+   * @return the {@link ViewerFrame}.
+   */
+  public ViewerFrame getViewerFrame() {
+    return _vf;
+  }
+
   public Sampling getSampling1() {
     return _s1;
   }
