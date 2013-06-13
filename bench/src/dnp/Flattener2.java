@@ -7,7 +7,6 @@ available at http://www.eclipse.org/legal/cpl-v10.html
 package dnp;
 
 import edu.mines.jtk.dsp.*;
-import edu.mines.jtk.util.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
 /**
@@ -388,9 +387,14 @@ public class Flattener2 {
     int n1 = r[0].length;
     int n2 = r.length;
     for (int i2=0; i2<n2; ++i2) {
+      if (Float.isInfinite(r[i2][0])) r[i2][0] = 0.0f;
+      if (Float.isNaN(r[i2][0]))      r[i2][0] = 0.0f;
       for (int i1=1; i1<n1; ++i1) {
-        if (r[i2][i1]<=r[i2][i1-1]-0.99f)
+        if (Float.isInfinite(r[i2][i1])) r[i2][i1] = 0.0f;
+        if (Float.isNaN(r[i2][i1]))      r[i2][i1] = 0.0f;
+        if (r[i2][i1]<=r[i2][i1-1]-0.99f) {
           r[i2][i1] = r[i2][i1-1]-0.99f;
+        }
       }
     }
   }
