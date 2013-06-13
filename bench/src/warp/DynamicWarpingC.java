@@ -233,7 +233,7 @@ public class DynamicWarpingC {
     for (int i2=0; i2<ng2; i2++) {
       for (int i1=1; i1<g1[0].length; i1++) {
         float n = u[i2][i1] - u[i2][i1-1];
-        float d = g1[g2[i2]][i1] - g1[g2[i2]][i1-1];
+        float d = g1i[g2[i2]][i1] - g1i[g2[i2]][i1-1];
         float r = n/d;
         assert r>=r1min && r<=r1max:"n="+n+", d="+d+", r="+r;
       }
@@ -539,6 +539,54 @@ public class DynamicWarpingC {
     return vpvs;
   }
   
+  public static float[] extrapolate(float[] f, int n1) {
+    int n1f = f.length;
+    float v = f[n1f-1];
+    float[] ef = new float[n1];
+    for (int i1=0; i1<n1f; i1++) {
+      ef[i1] = f[i1];
+    }
+    for (int i1=n1f; i1<n1; i1++) {
+      ef[i1] = v;
+    }
+    return ef;
+  }
+  
+  public static float[][] extrapolate(float[][] f, int n1) {
+    int n1f = f[0].length;
+    int n2 = f.length;
+    float[][] ef = new float[n2][n1];
+    for (int i2=0; i2<n2; i2++) {
+      float v = f[i2][n1f-1];
+      for (int i1=0; i1<n1f; i1++) {
+        ef[i2][i1] = f[i2][i1];
+      }
+      for (int i1=n1f; i1<n1; i1++) {
+        ef[i2][i1] = v;
+      }
+    }
+    return ef;
+  }
+  
+  public static float[][][] extrapolate(float[][][] f, int n1) {
+    int n1f = f[0][0].length;
+    int n2 = f[0].length;
+    int n3 = f.length;
+    float[][][] ef = new float[n3][n2][n1];
+    for (int i3=0; i3<n3; i3++) {
+      for (int i2=0; i2<n2; i2++) {
+        float v = f[i3][i2][n1f-1];
+        for (int i1=0; i1<n1f; i1++) {
+          ef[i3][i2][i1] = f[i3][i2][i1];
+        }
+        for (int i1=n1f; i1<n1; i1++) {
+          ef[i3][i2][i1] = v;
+        }
+      }  
+    }
+    return ef;
+  }
+  
   ///////////////////////////////////////////////////////////////////////////
   // for research and atypical applications
   
@@ -555,83 +603,13 @@ public class DynamicWarpingC {
     final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
     return backtrackReverse(dm[0],dm[1]);
   }
-  
-  /**
-   * Find shifts for 2D images in the flattened space.
-   * @param y1
-   * @param r1min
-   * @param r1max
-   * @param g1
-   * @return
-   */
-  public float[] findShifts2MFlat(
-      float[][] y1, float r1min, float r1max, int[] g1) 
-  {
-    final float[][] e = computeErrorsSum2(y1);
-    final float[][][] dm = accumulateForwardSparse(e,r1min,r1max,g1);
-    return backtrackReverse(dm[0],dm[1]);
-  }
-  
-  public float[][] unflatten(float[][] x1, int[] g1, float[] u) {
-    int ng1 = g1.length;
-    float[][] uu = new float[_n2][ng1];
-    for (int i2=0; i2<_n2; i2++) {
-      for (int i1=0; i1<ng1; i1++) {
-        int x1i = (int)(x1[i2][g1[i1]]+0.5f);
-        uu[i2][x1i] = u[i1];
-      }
-    }
-    return uu;
-  }
-  
-  public float[][] unflatten(float[][] x1, float[] u) {
-    int n1 = u.length;
-    float[][] uu = new float[_n2][n1];
-    for (int i2=0; i2<_n2; i2++) {
-      for (int i1=0; i1<n1; i1++) {
-//        uu[i2][i1] = _si.interpolate(n1,1.0,0.0,u,x1[i2][i1]);
-//        int x1i = (int)(x1[i2][i1]+0.5f);
-//        uu[i2][i1] = u[x1i];
-        uu[i2][i1] = u[i1]+x1[i2][i1];
-      }
-    }
-    return uu;
-  }
-  
-  public float[][] unflattenShifts(float[][] r, float[][] u) {
-    int n2 = u.length;
-    int n1 = u[0].length;
-//    SincInterp si = new SincInterp();
-    float[][] uf = new float[n2][n1];
-    for (int i2=0; i2<n2; i2++) {
-      for (int i1=0; i1<n1; i1++) {
-        uf[i2][i1] = r[i2][i1] + u[i2][i1];
-      }
-//      si.interpolate(n1,1.0,0.0,u[i2],n1,x1[i2],uf[i2]);
-    }
-    return uf;
-  }
-  
+
   public float[] findShifts3(float r1min, float r1max, int[] g1) {
     float[][] e3Avg = computeErrorsSum3();
     final float[][][] dm = accumulateForwardSparse(e3Avg,r1min,r1max,g1);
     return backtrackReverse(dm[0],dm[1]);
   }
-  
-  public float[] findShifts3MFlat(
-      float[][][] x1, float r1min, float r1max, int[] g1)
-  {
-    float[][] e3AvgF = computeErrors3Average(x1);
-    return findShifts3MFlat(e3AvgF,x1,r1min,r1max,g1);
-  }
-  
-  public float[] findShifts3MFlat(
-      float[][] e3AvgF, float[][][] x1, float r1min, float r1max, int[] g1) 
-  {
-    final float[][][] dm = accumulateForwardSparse(e3AvgF,r1min,r1max,g1);
-    return backtrackReverse(dm[0],dm[1]);
-  }
-  
+
   public float[][] applyShifts(
       float[] u1, float[] uS, float[] ps1, float[] ps2)
   {
@@ -650,7 +628,7 @@ public class DynamicWarpingC {
     }
     return new float[][]{ps1w, ps2w};
   }
-  
+
   /**
    * Computes an array of VpVs ratios an array of shifts u
    * using a backward difference approximation.
@@ -666,7 +644,7 @@ public class DynamicWarpingC {
       vpvs[i1] = 1.0f + 2.0f*(u[i1]-u[i1-1]);
     return vpvs;
   }
-  
+
   /**
    * Compute alignment errors for 1D traces.
    * @return alignment errors for 1D traces.
@@ -677,7 +655,7 @@ public class DynamicWarpingC {
     normalizeErrors(e);
     return e;
   }
-  
+
   /**
    * Compute alignment errors for 2D traces.
    * @return alignment errors for 2D traces.
@@ -690,7 +668,7 @@ public class DynamicWarpingC {
     }});
     return e;
   }
-  
+
   /**
    * Returns alignment errors for 2D images. Alignment errors
    * at every trace are the sum of 2*w nearby traces. 
@@ -707,7 +685,7 @@ public class DynamicWarpingC {
     }});
     return e;
   }
-  
+
   /**
    * Compute summed alignment errors for 2D images.
    * @return summed alignment errors for 2D images. 
@@ -724,32 +702,7 @@ public class DynamicWarpingC {
     }});
     return e;
   }
-  
-  /**
-   * Compute summed alignment errors for 2D images in the 
-   * flattened space.
-   * @param y1
-   * @return
-   */
-  public float[][] computeErrorsSum2(float[][] y1) {
-    final float[][][] e2 = new float[_n2][_ne1][_nel];
-    Parallel.loop(_n2,new Parallel.LoopInt() {
-    public void compute(int i2) {
-      computeErrors(_pp2[i2],_ps2[i2],e2[i2]);  
-    }});
-    float[][] e = new float[_ne1][_nel];
-    for (int i2=1; i2<_n2; i2++) {
-      for (int il=0; il<_nel; il++) {
-        float[] et = new float[_ne1];
-        for (int i1=0; i1<_ne1; i1++)
-          et[i1] = e2[i2][i1][il];
-        for (int i1=0; i1<_ne1; i1++)
-          e[i1][il] = e[i1][il] + _si.interpolate(_ne1,1.0,0.0,et,y1[i2][i1]);
-      }
-    }
-    return e;
-  }
-  
+
   /**
    * Compute summed alignment errors for 3D images.
    * @return summed alignment errors for 3D images. 
@@ -768,32 +721,7 @@ public class DynamicWarpingC {
     }});
     return e;
   }
-  
-  /**
-   * Compute summed alignment errors for 3D images. The summation
-   * is along structure
-   * @param x1
-   * @return summed alignment errors for 3D images. 
-   */
-  public float[][] computeErrors3Average(float[][][] x1) {
-    final float[][][][] e3 = new float[_n3][_n2][_ne1][_nel];
-    Parallel.loop(_n3,new Parallel.LoopInt() {
-    public void compute(int i3) {
-      for (int i2=0; i2<_n2; i2++)
-        computeErrors(_pp3[i3][i2],_ps3[i3][i2],e3[i3][i2]);  
-    }});
-    float[][] e = zerofloat(_nel,_ne1);
-    for (int i3=0; i3<_n3; i3++) {
-      for (int i2=0; i2<_n2; i2++) {
-        for (int i1=0; i1<_ne1; i1++) {
-          int x = (int)(x1[i3][i2][i1]+0.5);
-          e[i1] = add(e[i1],e3[i3][i2][x]);  
-        }
-      }
-    }
-    return e;
-  }
-  
+
   public float[][][] accumulateForward(
       float[][] e, int[] g, float rmin, float rmax)
   {
@@ -802,7 +730,7 @@ public class DynamicWarpingC {
     accumulateFromSparse(1,e,d,m,g,rmin,rmax);
     return new float[][][]{d,m};
   }
-  
+
   public static float[][][] accumulateForwardSparse(
       float[][] e, float rmin, float rmax, int[] g)
   {
@@ -852,55 +780,7 @@ public class DynamicWarpingC {
     }
     return sv;
   }
-  
-  public static float[] extrapolateShifts(float[] u, int n1) {
-    int nu = u.length;
-    float v = u[nu-1];
-    float[] eu = new float[n1];
-    for (int iu=0; iu<nu; ++iu) {
-      eu[iu] = u[iu];
-    }
-    for (int iu=nu; iu<n1; ++iu) {
-      eu[iu] = v;
-    }
-    return eu;
-  }
-  
-  public static float[][] extrapolateShifts(float[][] u, int n1) {
-    int nu = u[0].length;
-    int n2 = u.length;
-    float[][] eu = new float[n2][n1];
-    for (int i2=0; i2<n2; ++i2) {
-      float v = u[i2][nu-1];
-      for (int iu=0; iu<nu; ++iu) {
-        eu[i2][iu] = u[i2][iu];
-      }
-      for (int iu=nu; iu<n1; ++iu) {
-        eu[i2][iu] = v;
-      }
-    }
-    return eu;
-  }
-  
-  public static float[][][] extrapolateShifts(float[][][] u, int n1) {
-    int nu = u[0][0].length;
-    int n2 = u[0].length;
-    int n3 = u.length;
-    float[][][] eu = new float[n3][n2][n1];
-    for (int i3=0; i3<n3; i3++) {
-      for (int i2=0; i2<n2; i2++) {
-        float v = u[i3][i2][nu-1];
-        for (int iu=0; iu<nu; iu++) {
-          eu[i3][i2][iu] = u[i3][i2][iu];
-        }
-        for (int iu=nu; iu<n1; ++iu) {
-          eu[i3][i2][iu] = v;
-        }
-      }  
-    }
-    return eu;
-  }
-  
+
   /**
    * Normalizes values to be in range [0,1].
    * @param e input/output array.
