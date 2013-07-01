@@ -23,22 +23,34 @@ public class DynamicWarpingC {
    * Constructor for dynamic warping of a PP and PS trace. The 
    * PS trace is warped to the PP trace. Note that the PP and
    * PS array do not need to be the same length. The maximum
-   * shift is determined by the given {@code vpvsAvg}.
+   * shift index is determined by the given {@code vpvsAvg}, 
+   * and the minimum shift is 0.
+   * @param pp the PP trace.
+   * @param ps the PS trace
+   * @param vpvsAvg a guess of the average Vp/Vs ratio at the
+   *  last PP time of interest. Usually 2.0 is a good starting
+   *  guess.
+   */
+  public DynamicWarpingC(float[] pp, float[] ps, float vpvsAvg) {
+    this(pp,ps,vpvsAvg,0);
+  }
+  
+  /**
+   * Constructor for dynamic warping of a PP and PS trace. The 
+   * PS trace is warped to the PP trace. Note that the PP and
+   * PS array do not need to be the same length. The maximum
+   * shift index is determined by the given {@code vpvsAvg}, 
+   * and the minimum shift index is specified by sMin.
    * @param pp 
    * @param ps
    * @param vpvsAvg
+   * @param sMin the minimum shift index. Can be negative.
    */
-  public DynamicWarpingC(float[] pp, float[] ps, float vpvsAvg) {
+  public DynamicWarpingC(float[] pp, float[] ps, float vpvsAvg, int sMin) {
     Check.argument(vpvsAvg>=1,"vpvsAvg>=1");
-    _scale = 2.0f/(vpvsAvg+1.0f);
     int n1pp = pp.length;
     int n1ps = ps.length;
-    _fr = 1;
-    int[] el = computeErrorLengths(n1pp,n1ps,0);
-    _nel = el[1];
-    _ne1 = el[0];
-    _n1pp = n1pp;
-    _n1ps = n1ps;
+    initShifts(n1pp,n1ps,vpvsAvg,sMin);
     _pp1 = pp;
     _ps1 = ps;
     print("PP/PS Traces="+_n2+", PP Sample Length="+_n1pp+
@@ -58,17 +70,25 @@ public class DynamicWarpingC {
    * @param vpvsAvg
    */
   public DynamicWarpingC(float[][] pp, float[][] ps, float vpvsAvg) {
+    this(pp,ps,vpvsAvg,0);
+  }
+  
+  /**
+   * Constructor for dynamic warping of 2D PP and PS images. The 
+   * PS traces are warped to the PP traces. Note that the number of 
+   * PP and PS traces must be the same, but the traces do not need
+   * to be the same length. The maximum shift is determined by the
+   * given {@code vpvsAvg}.
+   * @param pp 
+   * @param ps
+   * @param vpvsAvg
+   */
+  public DynamicWarpingC(float[][] pp, float[][] ps, float vpvsAvg, int sMin) {
     Check.argument(vpvsAvg>=1,"vpvsAvg>=1");
     Check.argument(pp.length==ps.length,"pp.length==ps.length");
-    _scale = 2.0f/(vpvsAvg+1.0f);
     int n1pp = pp[0].length;
     int n1ps = ps[0].length;
-    _fr = 1;
-    int[] el = computeErrorLengths(n1pp,n1ps,0);
-    _nel = el[1];
-    _ne1 = el[0];
-    _n1pp = n1pp;
-    _n1ps = n1ps;
+    initShifts(n1pp,n1ps,vpvsAvg,sMin);
     _n2 = pp.length;
     _pp2 = pp;
     _ps2 = ps;
@@ -89,28 +109,38 @@ public class DynamicWarpingC {
    * @param vpvsAvg
    */
   public DynamicWarpingC(float[][][] pp, float[][][] ps, float vpvsAvg) {
+    this(pp,ps,vpvsAvg,0);
+  }
+  
+  /**
+   * Constructor for dynamic warping of 3D PP and PS images. The 
+   * PS traces are warped to the PP traces. Note that the number of 
+   * PP and PS traces must be the same, but the traces do not need 
+   * to be the same length. The maximum shift is determined by the
+   * given {@code vpvsAvg}. 
+   * @param pp 
+   * @param ps
+   * @param vpvsAvg
+   */
+  public DynamicWarpingC(
+      float[][][] pp, float[][][] ps, float vpvsAvg, int sMin) 
+  {
     Check.argument(vpvsAvg>=1,"vpvsAvg>=1");
     Check.argument(pp.length==ps.length,"pp.length==ps.length");
     Check.argument(pp[0].length==ps[0].length,"pp[0].length==ps[0].length");
-    _scale = 2.0f/(vpvsAvg+1.0f);
     int n1pp = pp[0][0].length;
     int n1ps = ps[0][0].length;
-    _fr = 1;
-    int[] el = computeErrorLengths(n1pp,n1ps,0);
-    _nel = el[1];
-    _ne1 = el[0];
-    _n1pp = n1pp;
-    _n1ps = n1ps;
+    initShifts(n1pp,n1ps,vpvsAvg,sMin);
     _n2 = pp[0].length;
     _n3 = pp.length;
     _pp3 = pp;
     _ps3 = ps;
     print("PP/PS Ensembles="+_n3+", PP/PS Traces="+_n2+
-        ", PP Sample Length="+_n1pp+", PP Sample Length for Warping="+_ne1+
-        ", PS Sample Length="+_n1ps+", Number of Lags="+_nel);
+          ", PP Sample Length="+_n1pp+", PP Sample Length for Warping="+_ne1+
+          ", PS Sample Length="+_n1ps+", Number of Lags="+_nel);
     _si = new SincInterp();
   }
-
+  
   /**
    * Returns the number of PP samples used for alignment errors.
    * This length is computed from the average Vp/Vs given in the 
@@ -130,7 +160,7 @@ public class DynamicWarpingC {
   public int getNumberOfLags() {
     return _nel;
   }
-
+  
   /**
    * Find shifts for 1D traces. For the input trace {@code PP[ne1]}, shifts 
    * {@code u} are computed on a subsampled grid such that the computed shifts 
@@ -755,13 +785,13 @@ public class DynamicWarpingC {
   
   public float[] backtrackReverse(float[][] d, float[][] m) {
     float[] u = new float[d.length];
-    backtrack(-1,_shifts1,d,m,u);
+    backtrack(-1,_sl1,d,m,u);
     return u;
   }
   
   public float[] backtrackForward(float[][] d, float[][] m) {
     float[] u = new float[d.length];
-    backtrack(1,_shifts1,d,m,u);
+    backtrack(1,_sl1,d,m,u);
     return u;
   }
 
@@ -987,10 +1017,9 @@ public class DynamicWarpingC {
   private float[][] _ps2; // ps traces
   private float[][][] _pp3; // pp traces
   private float[][][] _ps3; // ps traces
-  private int _fr; // fractional shift factor (1.0/_fr is the shift interval)
-  private Sampling _shifts1; // sampling of pp to ps1 shift values
+  private int _sMin; // Minimum shift index
+  private Sampling _sl1; // sampling of pp to ps1 shift values
   private Sampling _shiftsS; // sampling of ps1 to ps2 shift values
-  private float _scale; // computed scaling for pp traces
   private float _epow = 2; // exponent used for alignment errors |f-g|^e
   private SincInterp _si; // for warping with non-integer shifts
   
@@ -1234,6 +1263,17 @@ public class DynamicWarpingC {
 //    }
 //  }
 
+  private void initShifts(int n1pp, int n1ps, float vpvsAvg, int sMin) {
+    _sMin = sMin;
+    float scale = 2.0f/(vpvsAvg+1.0f);
+    int[] el = computeErrorLengths(n1pp,n1ps,0,scale);
+    _nel = el[1]-_sMin;
+    _ne1 = el[0];
+    _n1pp = n1pp;
+    _n1ps = n1ps;
+    _sl1 = new Sampling(_nel,1.0,_sMin);
+  }
+  
   /**
    * Compute the error array lengths [n1][nl]. n1 is scaled by the
    * vpvs ratio set in the constructor and nl is difference between
@@ -1246,17 +1286,16 @@ public class DynamicWarpingC {
    * @param maxShift
    * @return
    */
-  private int[] computeErrorLengths(int npp, int nps, int maxShift) {
-    int nppMax = (int)(nps*_scale);
+  private int[] computeErrorLengths(
+      int npp, int nps, int maxShift, float scale) 
+  {
+    int nppMax = (int)(nps*scale);
     int nl = nps-nppMax;
-    print("nppMax="+nppMax+", nl="+nl);
     if (maxShift!=0) {
       nl = maxShift;
       nppMax = nps-nl;
     }
     nppMax = (nppMax>npp)?npp:nppMax;
-    nl = (nl-1)*_fr+1;
-    _shifts1 = new Sampling(nl,1.0/_fr,0.0);
     return new int[]{nppMax,nl};
   }
   
@@ -1274,16 +1313,15 @@ public class DynamicWarpingC {
    * @param nl1P
    * @return
    */
-  private int[] computeErrorLengths(int n1, float nl1P) {
-    int nl1 = n1-(int)(n1*_scale);
-    int nlS = (int)(nl1*nl1P);
-    int ppN1Max = n1-nl1-nlS+2;
-    nlS = (nlS-1)*_fr+1;
-    System.out.println("ppN1Max="+ppN1Max+", nl1="+nl1+", nlS="+nlS);
-    _shifts1 = new Sampling(nl1,1.0,0.0);
-    _shiftsS = new Sampling(nlS,1.0/_fr,0.0);
-    return new int[]{ppN1Max,nl1,nlS};
-  }
+//  private int[] computeErrorLengths(int n1, float nl1P, float scale) {
+//    int nl1 = n1-(int)(n1*scale);
+//    int nlS = (int)(nl1*nl1P);
+//    int ppN1Max = n1-nl1-nlS+2;
+//     TODO don't set these here
+//    _ss1 = new Sampling(nl1,1.0,0.0);
+//    _shiftsS = new Sampling(nlS,1.0,0.0);
+//    return new int[]{ppN1Max,nl1,nlS};
+//  }
   
   /**
    * Computes alignment errors for {@code f} and {@code g}. Note
@@ -1294,11 +1332,20 @@ public class DynamicWarpingC {
    * @param e
    */
   private void computeErrors(float[] f, float[] g, float[][] e) {
-    int n1max = e.length;
-    int nl1 = e[0].length;
-    for (int i1=0; i1<n1max; ++i1) {
-      for (int il1=0,j1=i1*_fr; il1<nl1; ++il1,++j1) {
-        e[i1][il1] += error(f[i1],g[j1]);
+//    int nl1 = e[0].length;
+//    for (int i1=0; i1<n1Max; ++i1) {
+//      for (int il1=0,j1=i1; il1<nl1; ++il1,++j1) {
+//        e[i1][il1] += error(f[i1],g[j1]);
+//      }
+//    }
+    int n1Max = e.length;
+    int nl = e[0].length;
+    int ng = g.length;
+    float[] gi = new float[n1Max];
+    for (int il=0; il<nl; il++) {
+      _si.interpolate(ng,1.0,0.0,g,n1Max,1.0,_sl1.getValue(il),gi);
+      for (int i1=0; i1<n1Max; i1++) {
+        e[i1][il] += error(f[i1],gi[i1]);
       }
     }
   }
@@ -1332,7 +1379,7 @@ public class DynamicWarpingC {
     for (int i1=0; i1<n1max; ++i1) {
       for (int il1=0,j1=i1; il1<nl1; ++il1,++j1) {
         float e1 = error(pp[i1],ps1[j1]);
-        for (int ilS=0,jS=j1*_fr; ilS<nlS; ++ilS,++jS) {
+        for (int ilS=0,jS=j1; ilS<nlS; ++ilS,++jS) {
           float e2 = error(pp [i1],ps2[jS]);
           float e3 = error(ps1[j1],ps2[jS]);
           e[i1][il1][ilS] = e1+e2+e3;
