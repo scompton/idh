@@ -1308,55 +1308,6 @@ public class DynamicWarpingC {
 //  }
   
   /**
-   * Compute the error array lengths [n1][nl]. n1 is scaled by the
-   * vpvs ratio set in the constructor and nl is difference between
-   * the given n1 and the scaled n1. In this way, we do not compute
-   * errors outside of the possible bounds determined by the average
-   * vpvs scalar. In other words, the scalar determines the maximum
-   * possible shift. Alternatively a maxShift parameter can be set
-   * directly if maxShift > 0.
-   * @param npp
-   * @param maxShift
-   * @return
-   */
-  private int[] computeErrorLengths(
-      int npp, int nps, int maxShift, float scale) 
-  {
-    int nppMax = (int)(nps*scale);
-    int nl = nps-nppMax;
-    if (maxShift!=0) {
-      nl = maxShift;
-      nppMax = nps-nl;
-    }
-    nppMax = (nppMax>npp)?npp:nppMax;
-    return new int[]{nppMax,nl};
-  }
-  
-  /**
-   * Compute the error array lengths [n1][nl1][nlS]. nl1 is the
-   * difference between the given n1 and the scaled n1, where the
-   * scalar is determined by the vpvs ratio set in the constructor.
-   * nlS is set as a percentage of nl1 by the nl1P parameter. n1 is
-   * then the difference the given n1 and nl1 and nlS.
-   * <p>
-   * In this way, we do not compute errors outside of the possible 
-   * bounds determined by the average vpvs scalar. In other words,
-   * the scalar determines the maximum possible shift.
-   * @param n1
-   * @param nl1P
-   * @return
-   */
-//  private int[] computeErrorLengths(int n1, float nl1P, float scale) {
-//    int nl1 = n1-(int)(n1*scale);
-//    int nlS = (int)(nl1*nl1P);
-//    int ppN1Max = n1-nl1-nlS+2;
-//     TODO don't set these here
-//    _ss1 = new Sampling(nl1,1.0,0.0);
-//    _shiftsS = new Sampling(nlS,1.0,0.0);
-//    return new int[]{ppN1Max,nl1,nlS};
-//  }
-  
-  /**
    * Computes alignment errors for {@code f} and {@code g}. Note
    * that values of the {@code e} array are not replaced, but
    * added to. 
@@ -1444,20 +1395,6 @@ public class DynamicWarpingC {
       }
     }
     return es;
-  }
-  
-  private float[][][] smoothErrors1W(final float[][] pp, final float[][] ps,
-      final float r1min, final float r1max, final int[] g1, final int w)
-  {
-    final int n2 = pp.length;
-    final int ng1 = g1.length;
-    final float[][][] es1 = new float[n2][ng1][_nl];
-    Parallel.loop(n2,new Parallel.LoopInt() {
-    public void compute(int i2) {
-      float[][] e = computeErrorsNear(pp,ps,i2,w);
-      es1[i2] = smoothErrors(e,r1min,r1max,g1);
-    }});
-    return es1;
   }
   
   /**
@@ -2025,4 +1962,5 @@ public class DynamicWarpingC {
   private static void print(String s) {
     System.out.println(s);
   }
+
 }
