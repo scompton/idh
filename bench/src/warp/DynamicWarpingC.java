@@ -44,7 +44,7 @@ public class DynamicWarpingC {
     _r3Min = -1.0;
     _r3Max =  1.0;
     _si = new SincInterp();
-    _si.setExtrapolation(Extrapolation.CONSTANT);
+    _si.setExtrapolation(Extrapolation.ZERO);
   }
   
   /**
