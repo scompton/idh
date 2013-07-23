@@ -1,5 +1,9 @@
 package warp;
 
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.dsp.SincInterp;
 import edu.mines.jtk.dsp.SincInterp.Extrapolation;
@@ -91,7 +95,16 @@ public class DynamicWarpingC {
     _r2Min = r2Min; _r2Max = r2Max;
     _r3Min = r3Min; _r3Max = r3Max;
   }
-  
+
+  /**
+   * Set the {@link WarperWorkTracker} implementation that can report and
+   * monitor progress for completed task.
+   * @param wwt
+   */
+  public void setWorkTracker(WarperWorkTracker wwt) {
+    _wwt = wwt;
+  }
+
   /**
    * Returns the number of lags.
    * @return the number of lags.
@@ -99,7 +112,7 @@ public class DynamicWarpingC {
   public int getNumberOfLags() {
     return _nl;
   }
-  
+
   /**
    * Find shifts for 1D traces. For the input trace {@code f[n1]}, shifts 
    * {@code u} are computed on a subsampled grid such that the computed shifts 
@@ -151,50 +164,74 @@ public class DynamicWarpingC {
    * @param interp1 interpolation method for the i1 (fast) dimension.
    * @param interp2 interpolation method for the i2 (slow) dimension.
    * @return shifts for 2D images.
+   * @throws CancellationException if a {@link WarperWorkTracker} instance is
+   *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
+   *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
    */
   public float[][] findShifts(
       float[][] f, float[][] g, final float[][] g1, final int[] g2,
-      Interp interp1, Interp interp2)
+      Interp interp1, Interp interp2) throws CancellationException
   {
     int n2 = f.length;
     int n1 = f[0].length;
-    Check.argument(n2==g1.length,"_n2==g1.length");
+    int ng2 = g2.length;
     int ng1 = g1[0].length;
+    Check.argument(n2==g1.length,"n2==g1.length");
+    printInfo(n1,n2,1,ng1,ng2,1);
+
+    // Round to integer indices, use float values for interpolation only.
     final int[][] g1i = new int[n2][ng1];
     for (int i2=0; i2<n2; i2++) {
       for (int i1=0; i1<ng1; i1++) {
         g1i[i2][i1] = (int)(g1[i2][i1]+0.5f);
       }
     }
+
+    // Initialize ProgressTracker: smooth1=n2 units, smooth2=ng1 units, 
+    //   find shifts=ng2 units, interpolation=1 unit.
+    int totalWorkUnits = n2+ng1+ng2+1;
+    final ProgressTracker pt = new ProgressTracker(totalWorkUnits);
+    startProgressThread(pt);
+
+    // Smooth1
     Stopwatch s = new Stopwatch();
     s.start();
     print("Smoothing 1st dimension...");
-    final float[][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i);
+    final float[][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i,pt);
     print("Finished 1st dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es1);
-    
+
+    // Smooth2
     s.restart();
     print("Smoothing 2nd dimension...");
-    final float[][][] es = smoothErrors2(es1,_r2Min,_r2Max,g2);
+    final float[][][] es = smoothErrors2(es1,_r2Min,_r2Max,g2,pt);
     print("Finished 2nd dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es);
-    
-    final int ng2 = es.length;
+
+    // Find shifts on coarse grid
     final float[][] u = new float[ng2][];
     Parallel.loop(ng2,new Parallel.LoopInt() {
     public void compute(int i2) {
       float[][][] dm = accumulateForward(es[i2],g1i[g2[i2]],_r1Min,_r1Max);
       u[i2] = backtrackReverse(dm[0],dm[1]);
+      pt.worked();
     }});
+
+    // Check slopes
     for (int i2=0; i2<ng2; i2++) {
-      for (int i1=1; i1<g1[0].length; i1++) {
+      for (int i1=1; i1<ng1; i1++) {
         float n = u[i2][i1] - u[i2][i1-1];
         float d = g1i[g2[i2]][i1] - g1i[g2[i2]][i1-1];
         float r = n/d;
         assert r>=_r1Min && r<=_r1Max:"n="+n+", d="+d+", r="+r;
       }
     }
-    return interpolate(n1,n2,g1,g2,u,interp1,interp2);
+
+    // Interpolate shifts to original grid.
+    float[][] ui = interpolate(n1,n2,g1,g2,u,interp1,interp2);
+    pt.worked();
+    assert pt.getPercentComplete()==100.0f;
+    return ui;
   }
 
   /**
@@ -220,18 +257,26 @@ public class DynamicWarpingC {
    * @param interp23 interpolation method for the i2 (middle) and i3
    *  (slow) dimensions.
    * @return shifts for 3D images.
+   * @throws CancellationException if a {@link WarperWorkTracker} instance is
+   *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
+   *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
    */
   public float[][][] findShifts(
       float[][][] f, float[][][] g, 
       final float[][][] g1, final int[] g2, final int[] g3,
-      Interp interp1, Interp interp23)
+      Interp interp1, Interp interp23) throws CancellationException
   {
     int n3 = f.length;
     int n2 = f[0].length;
     int n1 = f[0][0].length;
-    Check.argument(n3==g1.length,"_n3==g1.length");
-    Check.argument(n2==g1[0].length,"_n2==g1[0].length");
-    int ng1 = g1[0][0].length;
+    final int ng3 = g3.length;
+    final int ng2 = g2.length;
+    final int ng1 = g1[0][0].length;
+    Check.argument(n3==g1.length,"n3==g1.length");
+    Check.argument(n2==g1[0].length,"n2==g1[0].length");
+    printInfo(n1,n2,n3,ng1,ng2,ng3);
+
+    // Round to integer indices, use float values for interpolation only.    
     final int[][][] g1i = new int[n3][n2][ng1];
     for (int i3=0; i3<n3; i3++) {
       for (int i2=0; i2<n2; i2++) {
@@ -240,36 +285,49 @@ public class DynamicWarpingC {
         }
       }
     }
+
+    // Initialize ProgressTracker: smooth1=n2*n3 units, smooth2=n3*ng1 units, 
+    //   smooth3=ng1*ng2 units, find shifts=ng2*ng3 units, interpolation=1 unit.
+    int totalWorkUnits = (n2*n3)+(n3*ng1)+(ng1*ng2)+(ng2*ng3)+1;
+    final ProgressTracker pt = new ProgressTracker(totalWorkUnits);
+    startProgressThread(pt);
+
+    // Smooth1
     Stopwatch s = new Stopwatch();
     s.start();
     print("Smoothing 1st dimension...");
-    final float[][][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i);
+    final float[][][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i,pt);
     print("Finished 1st dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es1);
 
+    // Smooth2
     s.restart();
     print("Smoothing 2nd dimension...");
-    final float[][][][] es12 = smoothErrors2(es1,_r2Min,_r2Max,g2);
+    final float[][][][] es12 = smoothErrors2(es1,_r2Min,_r2Max,g2,pt);
     print("Finished 2nd dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es12);
-    
+
+    // Smooth3
     s.restart();
     print("Smoothing 3rd dimension...");
-    final float[][][][] es = smoothErrors3(es12,_r3Min,_r3Max,g3);
+    final float[][][][] es = smoothErrors3(es12,_r3Min,_r3Max,g3,pt);
     normalizeErrors(es);
     print("Finished 3rd dimension smoothing in "+s.time()+" seconds");
-    
-    final int ng2 = es[0].length;
-    final int ng3 = es.length;
+
+    // Find shifts on coarse grid
     final float[][][] u = new float[ng3][ng2][];
-    Parallel.loop(ng3,new Parallel.LoopInt() {
-    public void compute(int i3) {
-      for (int i2=0; i2<ng2; i2++) {
-        float[][][] dm = 
-            accumulateForward(es[i3][i2],g1i[g3[i3]][g2[i2]],_r1Min,_r1Max);
-        u[i3][i2] = backtrackReverse(dm[0],dm[1]);  
-      }
+    int ng23 = ng3*ng2;
+    Parallel.loop(ng23,new Parallel.LoopInt() {
+    public void compute(int i23) {
+      int i2 = i23%ng2;
+      int i3 = i23/ng2;
+      float[][][] dm = accumulateForward(
+          es[i3][i2],g1i[g3[i3]][g2[i2]],_r1Min,_r1Max);
+      u[i3][i2] = backtrackReverse(dm[0],dm[1]);
+      pt.worked();
     }});
+
+    // Check slopes
     for (int i3=0; i3<ng3; i3++) {
       for (int i2=0; i2<ng2; i2++) {
         for (int i1=1; i1<ng1; i1++) {
@@ -280,7 +338,12 @@ public class DynamicWarpingC {
         }
       }
     }
-    return interpolate(n1,n2,n3,g1,g2,g3,u,interp1,interp23);
+
+    // Interpolate
+    float[][][] ui = interpolate(n1,n2,n3,g1,g2,g3,u,interp1,interp23);
+    pt.worked();
+    assert pt.getPercentComplete()==100.0f;
+    return ui;
   }
 
   /**
@@ -1043,6 +1106,9 @@ public class DynamicWarpingC {
   private Sampling _shiftsS; // sampling of ps1 to ps2 shift values
   private float _epow = 2; // exponent used for alignment errors |f-g|^e
   private SincInterp _si; // for warping with non-integer shifts
+  private WarperWorkTracker _wwt;
+  
+  private static final float BYTES_TO_MB = 1.0f/1000000.0f;
   
   /**
    * Computes scale to apply to PS traces. n1PP = scale*n1PS
@@ -1053,8 +1119,54 @@ public class DynamicWarpingC {
     Check.argument(vpvsAvg>=1,"vpvsAvg>=1");
     return 2.0f/(vpvsAvg+1.0f);
   }
+
+  private void printInfo(
+      int n1, int n2, int n3, int ng1, int ng2, int ng3)
+  {
+    float e1Mem = (float)ng1*n2*n3*_nl*4.0f*BYTES_TO_MB;
+    float e2Mem = (float)ng1*ng2*n3*_nl*4.0f*BYTES_TO_MB;
+    float e3Mem = (float)ng1*ng2*ng3*_nl*4.0f*BYTES_TO_MB;
+    print("DynamicWarpingC info:");
+    print("  Input data samples (n1,n2,n3): ("+n1+","+n2+","+n3+")");
+    print("  Coarse grid samples: (ng1,ng2,ng3): ("+ng1+","+ng2+","+ng3+")");
+    print("  Number of lags: "+_nl);
+    print("  Alignment error smooth 1 memory: "+e1Mem+" MB");
+    print("  Alignment error smooth 2 memory: "+e2Mem+" MB");
+    print("  Alignment error smooth 3 memory: "+((n3>1)?(e3Mem+" MB"):"NA"));
+  }
   
-  
+  /**
+   * Starts a thread to monitor progress if a {@link #_wwt} instance was set
+   * from the {@link #setWorkTracker(WarperWorkTracker)} method.
+   * @param pt the {@link ProgressTracker} instance that reports completed work.
+   */
+  private void startProgressThread(final ProgressTracker pt) {
+    if (_wwt!=null) {
+      Thread thread = new Thread(new Runnable() {
+        @Override
+        public void run() {
+          _wwt.setTotalWorkUnits(pt._totalWorkUnits);
+          int wus = pt.getCompletedWorkUnits();
+          while (pt.getPercentComplete()!=100.0f) {
+            try {
+              if (_wwt.isCanceled()) {
+                pt.setCanceled(true);
+                break;
+              }
+              int wu = pt.getCompletedWorkUnits();
+              _wwt.worked(wu-wus);
+              wus = wu;
+              Thread.sleep(50);
+            } catch (InterruptedException e) {
+              Thread.currentThread().interrupt();
+            }
+          }
+        }
+      });
+      thread.start();
+    }
+  }
+
   /**
    * Interpolates subsampled shifts u[ng1] to uniformly sampled shifts
    * ui[_ne1].
@@ -1410,20 +1522,28 @@ public class DynamicWarpingC {
    *  for all _n2 (size[_n2][])
    * @return smoothed alignment errors with size 
    *  [_n2][g1.length][_nel].
+   * @throws CancellationException if a {@link WarperWorkTracker} instance is
+   *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
+   *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
    */
   private float[][][] smoothErrors1(
       final float[][] pp, final float[][] ps,
-      final double r1min, final double r1max, final int[][] g1)
+      final double r1min, final double r1max, final int[][] g1,
+      final ProgressTracker pt) throws CancellationException
   {
     final int n2 = pp.length;
     final int n1 = pp[0].length;
-    final int ng1 = g1.length;
+    final int ng1 = g1[0].length;
     final float[][][] es1 = new float[n2][ng1][_nl];
+    final Parallel.Unsafe<float[][]> eu = new Parallel.Unsafe<>();
     Parallel.loop(n2,new Parallel.LoopInt() {
     public void compute(int i2) {
-      float[][] e = new float[n1][_nl];
+      float[][] e = eu.get();
+      if (e==null) eu.set(e=new float[n1][_nl]);
       computeErrors(pp[i2],ps[i2],e);
       es1[i2] = smoothErrors(e,r1min,r1max,g1[i2]);
+      if (pt.getCanceled()) throw new CancellationException();
+      pt.worked();
     }});
     return es1;
   }
@@ -1439,25 +1559,34 @@ public class DynamicWarpingC {
    * @param r1max maximum slope in the first dimension.
    * @param g1 first dimension sparse grid indices specified
    *  for all _n3 and _n2 (size[_n3][_n2][]).
-   * @return smoothed alignment errors with size 
+   * @return smoothed alignment errors with size
    *  [_n3][_n2][g1.length][_nel].
+   * @throws CancellationException if a {@link WarperWorkTracker} instance is
+   *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
+   *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
    */
   private float[][][][] smoothErrors1(
       final float[][][] pp, final float[][][] ps,
-      final double r1min, final double r1max, final int[][][] g1)
+      final double r1min, final double r1max, final int[][][] g1,
+      final ProgressTracker pt) throws CancellationException
   {
     final int n3 = pp.length;
     final int n2 = pp[0].length;
     final int n1 = pp[0][0].length;
-    final int ng1 = g1.length;
+    final int ng1 = g1[0][0].length;
     final float[][][][] es1 = new float[n3][n2][ng1][_nl];
-    Parallel.loop(n3,new Parallel.LoopInt() {
-    public void compute(int i3) {
-      for (int i2=0; i2<n2; i2++) {
-        float[][] e = new float[n1][_nl];
-        computeErrors(pp[i3][i2],ps[i3][i2],e);
-        es1[i3][i2] = smoothErrors(e,r1min,r1max,g1[i3][i2]);  
-      }
+    final Parallel.Unsafe<float[][]> eu = new Parallel.Unsafe<>();
+    int n23 = n2*n3;
+    Parallel.loop(n23,new Parallel.LoopInt() {
+    public void compute(int i23) {
+      int i2 = i23%n2;
+      int i3 = i23/n2;
+      float[][] e = eu.get();
+      if (e==null) eu.set(e=new float[n1][_nl]);
+      computeErrors(pp[i3][i2],ps[i3][i2],e);
+      es1[i3][i2] = smoothErrors(e,r1min,r1max,g1[i3][i2]);
+      if (pt.getCanceled()) throw new CancellationException();
+      pt.worked();
     }});
     return es1;
   }
@@ -1472,10 +1601,14 @@ public class DynamicWarpingC {
    * @param g2 second dimension sparse grid indices.
    * @return smoothed alignment errors with size 
    *  [g2.length][e[0].length][e[0][0].length].
+   * @throws CancellationException if a {@link WarperWorkTracker} instance is
+   *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
+   *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
    */
   private static float[][][] smoothErrors2(
       final float[][][] e, 
-      final double r2min, final double r2max, final int[] g2)
+      final double r2min, final double r2max, final int[] g2,
+      final ProgressTracker pt) throws CancellationException
   {
     final int nl = e[0][0].length;
     final int n1 = e[0].length;
@@ -1490,6 +1623,8 @@ public class DynamicWarpingC {
       float[][] es2 = smoothErrors(e2,r2min,r2max,g2);
       for (int i2=0; i2<ng2; i2++)
         es[i2][i1] = es2[i2];
+      if (pt.getCanceled()) throw new CancellationException();
+      pt.worked();
     }});
     return es;
   }
@@ -1504,15 +1639,19 @@ public class DynamicWarpingC {
    * @param g2 second dimension sparse grid indices.
    * @return smoothed alignment errors with size 
    *  [e.length][g2.length][e[0][0].length][e[0][0][0].length].
+   * @throws CancellationException if a {@link WarperWorkTracker} instance is
+   *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
+   *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
    */
   private static float[][][][] smoothErrors2(
       final float[][][][] e, 
-      final double r2Min, final double r2Max, final int[] g2)
+      final double r2Min, final double r2Max, final int[] g2, 
+      final ProgressTracker pt) throws CancellationException
   {
     final int n3 = e.length;
     final float[][][][] es = new float[n3][][][]; // smoothed errors
     for (int i3=0; i3<n3; i3++)
-      es[i3] = smoothErrors2(e[i3],r2Min,r2Max,g2);
+      es[i3] = smoothErrors2(e[i3],r2Min,r2Max,g2,pt);
     return es;
   }
 
@@ -1526,10 +1665,14 @@ public class DynamicWarpingC {
    * @param g3 third dimension sparse grid indices.
    * @return smoothed alignment errors with size 
    *  [g3.length][e[0].length][e[0][0].length][e[0][0][0].length].
+   * @throws CancellationException if a {@link WarperWorkTracker} instance is
+   *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
+   *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
    */
   private static float[][][][] smoothErrors3(
       final float[][][][] e, 
-      final double r3Min, final double r3Max, final int[] g3)
+      final double r3Min, final double r3Max, final int[] g3, 
+      final ProgressTracker pt) throws CancellationException
   {
     final int nl = e[0][0][0].length;
     final int n1 = e[0][0].length;
@@ -1546,6 +1689,8 @@ public class DynamicWarpingC {
         float[][] es3 = smoothErrors(e3,r3Min,r3Max,g3);
         for (int i3=0; i3<ng3; i3++)
           es[i3][i2][i1] = es3[i3];
+        if (pt.getCanceled()) throw new CancellationException();
+        pt.worked();
       }
     }});
     return es;
@@ -1961,6 +2106,67 @@ public class DynamicWarpingC {
 
   private static void print(String s) {
     System.out.println(s);
+  }
+
+  /**
+   * Class for tracking progress using atomic fields so that progress can be
+   * updated from parallel threads. 
+   */
+  private static class ProgressTracker {
+
+    /**
+     * Constructor that sets the total number of units to be completed.
+     * @param totalWorkUnits
+     */
+    private ProgressTracker(int totalWorkUnits) {
+      _totalWorkUnits = totalWorkUnits;
+      _completedWorkUnits = new AtomicInteger(0);
+    }
+
+    /**
+     * Increments the completed number of work units by one.
+     */
+    private void worked() {
+      _completedWorkUnits.incrementAndGet();
+    }
+
+    /**
+     * Get the number of completed work units.
+     * @return the number of completed work units.
+     */
+    private int getCompletedWorkUnits() {
+      return _completedWorkUnits.get();
+    }
+
+    /**
+     * Get the percentage complete.
+     * @return the percentage complete.
+     */
+    private float getPercentComplete() {
+      return (float)_completedWorkUnits.get()/_totalWorkUnits*100.0f;
+    }
+
+    /**
+     * Set the value of an AtomicBoolean to indicate whether or not this 
+     * instance should be canceled.
+     * @param cancel
+     */
+    private void setCanceled(boolean cancel) {
+      _canceled.set(cancel);
+    }
+
+    /**
+     * Get the canceled state of this instance.
+     * @return the canceled state of this instance.
+     */
+    private boolean getCanceled() {
+      return _canceled.get();
+    }
+
+    private AtomicBoolean _canceled = new AtomicBoolean(false);
+    private int _totalWorkUnits;
+    private AtomicInteger _completedWorkUnits;
+
   }
 
 }
