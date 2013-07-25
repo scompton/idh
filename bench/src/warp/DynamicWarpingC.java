@@ -472,7 +472,7 @@ public class DynamicWarpingC {
    */
   public static int computeMaxLength(int n1PP, int n1PS, float vpvsAvg) {
     float scale = getScale(vpvsAvg);
-    int n1PPMax = (int)(n1PS*scale);
+    int n1PPMax = (int)ceil(n1PS*scale);
     return (n1PPMax>n1PP)?n1PP:n1PPMax;
   }
 
@@ -492,8 +492,8 @@ public class DynamicWarpingC {
    */
   public static int computeMaxLag(int n1PS, float vpvsAvg) {
     float scale = getScale(vpvsAvg);
-    int n1PPMax = (int)(n1PS*scale);
-    int lMax = n1PS-n1PPMax-1;
+    int n1PPMax = (int)ceil(n1PS*scale);
+    int lMax = n1PS-n1PPMax;
     Check.argument(lMax>0,"lMax>0");
     return lMax;
   }
