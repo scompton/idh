@@ -95,26 +95,10 @@ public class DynamicWarpingC {
     _r2Min = r2Min; _r2Max = r2Max;
     _r3Min = r3Min; _r3Max = r3Max;
   }
-  
-  public void setStrainLimits(double r1Min, double[] r1Max) {
-    setStrainLimits(r1Min,r1Max,-1.0,1.0);
-  }
 
-  public void setStrainLimits(
-      double r1Min, double[] r1Max,
-      double r2Min, double r2Max)
-  {
-    setStrainLimits(r1Min,r1Max,r2Min,r2Max,-1.0,1.0);
-  }
-
-  public void setStrainLimits(
-      double r1Min, double[] r1Max,
-      double r2Min, double r2Max,
-      double r3Min, double r3Max)
-  {
-    _r1Min = r1Min; _r1MaxArray = r1Max;
-    _r2Min = r2Min; _r2Max = r2Max;
-    _r3Min = r3Min; _r3Max = r3Max;
+  public void setStrainLimits(double[] r1Min, double[] r1Max) {
+    _r1MinA = r1Min;
+    _r1MaxA = r1Max;
   }
 
   /**
@@ -161,10 +145,7 @@ public class DynamicWarpingC {
     }
     float[][] e = computeErrors(f,g);
     float[][][] dm;
-    if (_r1MaxArray==null)
-      dm = accumulateForwardSparse(e,_r1Min,_r1Max,g1i);
-    else
-      dm = accumulateForwardSparse(e,_r1Min,_r1MaxArray,g1i);
+    dm = accumulateForwardSparse(e,getR1Min(n1),getR1Max(n1),g1i);
     float[] u = backtrackReverse(dm[0],dm[1]);
     return interpolate(n1,g1,u,interp1);
   }
@@ -211,6 +192,10 @@ public class DynamicWarpingC {
         g1i[i2][i1] = (int)(g1[i2][i1]+0.5f);
       }
     }
+    final double[] r1Min = getR1Min(n1);
+    final double[] r1Max = getR1Max(n1);
+    final double[] r2Min = getR2Min(n2);
+    final double[] r2Max = getR2Max(n2);
 
     // Initialize ProgressTracker: smooth1=n2 units, smooth2=ng1 units, 
     //   find shifts=ng2 units, interpolation=1 unit.
@@ -222,14 +207,14 @@ public class DynamicWarpingC {
     Stopwatch s = new Stopwatch();
     s.start();
     print("Smoothing 1st dimension...");
-    final float[][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i,pt);
+    final float[][][] es1 = smoothErrors1(f,g,r1Min,r1Max,g1i,pt);
     print("Finished 1st dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es1);
 
     // Smooth2
     s.restart();
     print("Smoothing 2nd dimension...");
-    final float[][][] es = smoothErrors2(es1,_r2Min,_r2Max,g2,pt);
+    final float[][][] es = smoothErrors2(es1,r2Min,r2Max,g2,pt);
     print("Finished 2nd dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es);
 
@@ -237,18 +222,20 @@ public class DynamicWarpingC {
     final float[][] u = new float[ng2][];
     Parallel.loop(ng2,new Parallel.LoopInt() {
     public void compute(int i2) {
-      float[][][] dm = accumulateForward(es[i2],g1i[g2[i2]],_r1Min,_r1Max);
+      float[][][] dm = accumulateForward(es[i2],g1i[g2[i2]],r1Min,r1Max);
       u[i2] = backtrackReverse(dm[0],dm[1]);
       pt.worked();
     }});
 
     // Check slopes
-    for (int i2=0; i2<ng2; i2++) {
-      for (int i1=1; i1<ng1; i1++) {
-        float n = u[i2][i1] - u[i2][i1-1];
-        float d = g1i[g2[i2]][i1] - g1i[g2[i2]][i1-1];
+    for (int ig2=0; ig2<ng2; ig2++) {
+      for (int ig1=1; ig1<ng1; ig1++) {
+        int i1 = g1i[g2[ig2]][ig1];
+        int i1m1 = g1i[g2[ig2]][ig1-1];
+        float n = u[ig2][ig1] - u[ig2][ig1-1];
+        float d = i1-i1m1;
         float r = n/d;
-        assert r>=_r1Min && r<=_r1Max:"n="+n+", d="+d+", r="+r;
+        assert r>=r1Min[i1] && r<=r1Max[i1]:"n="+n+", d="+d+", r="+r;
       }
     }
 
@@ -310,6 +297,12 @@ public class DynamicWarpingC {
         }
       }
     }
+    final double[] r1Min = getR1Min(n1);
+    final double[] r1Max = getR1Max(n1);
+    final double[] r2Min = getR2Min(n2);
+    final double[] r2Max = getR2Max(n2);
+    final double[] r3Min = getR3Min(n3);
+    final double[] r3Max = getR3Max(n3);
 
     // Initialize ProgressTracker: smooth1=n2*n3 units, smooth2=n3*ng1 units, 
     //   smooth3=ng1*ng2 units, find shifts=ng2*ng3 units, interpolation=1 unit.
@@ -321,21 +314,21 @@ public class DynamicWarpingC {
     Stopwatch s = new Stopwatch();
     s.start();
     print("Smoothing 1st dimension...");
-    final float[][][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i,pt);
+    final float[][][][] es1 = smoothErrors1(f,g,r1Min,r1Max,g1i,pt);
     print("Finished 1st dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es1);
 
     // Smooth2
     s.restart();
     print("Smoothing 2nd dimension...");
-    final float[][][][] es12 = smoothErrors2(es1,_r2Min,_r2Max,g2,pt);
+    final float[][][][] es12 = smoothErrors2(es1,r2Min,r2Max,g2,pt);
     print("Finished 2nd dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es12);
 
     // Smooth3
     s.restart();
     print("Smoothing 3rd dimension...");
-    final float[][][][] es = smoothErrors3(es12,_r3Min,_r3Max,g3,pt);
+    final float[][][][] es = smoothErrors3(es12,r3Min,r3Max,g3,pt);
     normalizeErrors(es);
     print("Finished 3rd dimension smoothing in "+s.time()+" seconds");
 
@@ -347,19 +340,21 @@ public class DynamicWarpingC {
       int i2 = i23%ng2;
       int i3 = i23/ng2;
       float[][][] dm = accumulateForward(
-          es[i3][i2],g1i[g3[i3]][g2[i2]],_r1Min,_r1Max);
+          es[i3][i2],g1i[g3[i3]][g2[i2]],r1Min,r1Max);
       u[i3][i2] = backtrackReverse(dm[0],dm[1]);
       pt.worked();
     }});
 
     // Check slopes
-    for (int i3=0; i3<ng3; i3++) {
-      for (int i2=0; i2<ng2; i2++) {
-        for (int i1=1; i1<ng1; i1++) {
-          float n = u[i3][i2][i1] - u[i3][i2][i1-1];
-          float d = g1i[g3[i3]][g2[i2]][i1] - g1i[g3[i3]][g2[i2]][i1-1];
+    for (int ig3=0; ig3<ng3; ig3++) {
+      for (int ig2=0; ig2<ng2; ig2++) {
+        for (int ig1=1; ig1<ng1; ig1++) {
+          int i1 = g1i[g3[ig3]][g2[ig2]][ig1];
+          int i1m1 = g1i[g3[ig3]][g2[ig2]][ig1-1];
+          float n = u[ig3][ig2][ig1] - u[ig3][ig2][ig1-1];
+          float d = i1-i1m1;
           float r = n/d;
-          assert r>=_r1Min && r<=_r1Max:"n="+n+", d="+d+", r="+r;
+          assert r>=r1Min[i1] && r<=r1Max[i1]:"n="+n+", d="+d+", r="+r;
         }
       }
     }
@@ -731,13 +726,19 @@ public class DynamicWarpingC {
    */
   public float[] findShifts2(float[][] f, float[][] g, int[] g1) {
     final float[][] e = computeErrorsSum2(f,g);
-    final float[][][] dm = accumulateForwardSparse(e,_r1Min,_r1Max,g1);
+    int n1 = f[0].length;
+    double[] r1Min = getR1Min(n1);
+    double[] r1Max = getR1Max(n1);
+    float[][][] dm = accumulateForwardSparse(e,r1Min,r1Max,g1);
     return backtrackReverse(dm[0],dm[1]);
   }
 
   public float[] findShifts3(float[][][] f, float[][][] g, int[] g1) {
     float[][] e3Avg = computeErrorsSum3(f,g);
-    final float[][][] dm = accumulateForwardSparse(e3Avg,_r1Min,_r1Max,g1);
+    int n1 = f[0][0].length;
+    double[] r1Min = getR1Min(n1);
+    double[] r1Max = getR1Max(n1);
+    float[][][] dm = accumulateForwardSparse(e3Avg,r1Min,r1Max,g1);
     return backtrackReverse(dm[0],dm[1]);
   }
 
@@ -868,7 +869,7 @@ public class DynamicWarpingC {
   }
 
   public float[][][] accumulateForward(
-      float[][] e, int[] g, double rMin, double rMax)
+      float[][] e, int[] g, double[] rMin, double[] rMax)
   {
     float[][] d = new float[e.length][e[0].length];
     float[][] m = new float[e.length][e[0].length];
@@ -877,18 +878,7 @@ public class DynamicWarpingC {
   }
 
   public static float[][][] accumulateForwardSparse(
-      float[][] e, double rmin, double rmax, int[] g)
-  {
-    int nl = e[0].length;
-    int ng = g.length;
-    float[][] d = new float[ng][nl];
-    float[][] m = new float[ng][nl];
-    accumulateSparse(1,rmin,rmax,g,e,d,m);
-    return new float[][][]{d,m};
-  }
-  
-  public static float[][][] accumulateForwardSparse(
-      float[][] e, double rmin, double[] rmax, int[] g)
+      float[][] e, double[] rmin, double[] rmax, int[] g)
   {
     int nl = e[0].length;
     int ng = g.length;
@@ -899,7 +889,7 @@ public class DynamicWarpingC {
   }
   
   public static float[][][] accumulateReverseSparse(
-      float[][] e, float rmin, float rmax, int[] g)
+      float[][] e, double[] rmin, double[] rmax, int[] g)
   {
     int nl = e[0].length;
     int ng = g.length;
@@ -1134,7 +1124,7 @@ public class DynamicWarpingC {
   private double _r1Min, _r1Max;
   private double _r2Min, _r2Max;
   private double _r3Min, _r3Max;
-  private double[] _r1MaxArray;
+  private double[] _r1MinA, _r1MaxA;
   private int _nl; // number of lags
   private Sampling _sl1; // sampling of pp to ps1 lags
   private Sampling _shiftsS; // sampling of ps1 to ps2 shift values
@@ -1168,7 +1158,41 @@ public class DynamicWarpingC {
     print("  Alignment error smooth 2 memory: "+e2Mem+" MB");
     print("  Alignment error smooth 3 memory: "+((n3>1)?(e3Mem+" MB"):"NA"));
   }
-  
+
+  private double[] getR1Min(int n1) {
+    double[] r1Min;
+    if (_r1MinA==null)
+      r1Min = filldouble(_r1Min,n1);
+    else
+      r1Min = _r1MinA;
+    return r1Min;
+  }
+
+  private double[] getR1Max(int n1) {
+    double[] r1Max;
+    if (_r1MaxA==null)
+      r1Max = filldouble(_r1Max,n1);
+    else
+      r1Max = _r1MaxA;
+    return r1Max;
+  }
+
+  private double[] getR2Min(int n2) {
+    return filldouble(_r2Min,n2);
+  }
+
+  private double[] getR2Max(int n2) {
+    return filldouble(_r2Max,n2);
+  }
+
+  private double[] getR3Min(int n3) {
+    return filldouble(_r3Min,n3);
+  }
+
+  private double[] getR3Max(int n3) {
+    return filldouble(_r3Max,n3);
+  }
+
   /**
    * Starts a thread to monitor progress if a {@link #_wwt} instance was set
    * from the {@link #setWorkTracker(WarperWorkTracker)} method.
@@ -1525,7 +1549,7 @@ public class DynamicWarpingC {
    *  [g.length][e[0].length].
    */
   public static float[][] smoothErrors(
-      float[][] e, double rmin, double rmax, int[] g)      
+      float[][] e, double[] rmin, double[] rmax, int[] g)
   {
     int ng = g.length;
     int nel = e[0].length;
@@ -1562,7 +1586,7 @@ public class DynamicWarpingC {
    */
   private float[][][] smoothErrors1(
       final float[][] pp, final float[][] ps,
-      final double r1min, final double r1max, final int[][] g1,
+      final double[] r1min, final double[] r1max, final int[][] g1,
       final ProgressTracker pt) throws CancellationException
   {
     final int n2 = pp.length;
@@ -1601,7 +1625,7 @@ public class DynamicWarpingC {
    */
   private float[][][][] smoothErrors1(
       final float[][][] pp, final float[][][] ps,
-      final double r1min, final double r1max, final int[][][] g1,
+      final double[] r1min, final double[] r1max, final int[][][] g1,
       final ProgressTracker pt) throws CancellationException
   {
     final int n3 = pp.length;
@@ -1640,8 +1664,8 @@ public class DynamicWarpingC {
    *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
    */
   private static float[][][] smoothErrors2(
-      final float[][][] e, 
-      final double r2min, final double r2max, final int[] g2,
+      final float[][][] e,
+      final double[] r2min, final double[] r2max, final int[] g2,
       final ProgressTracker pt) throws CancellationException
   {
     final int nl = e[0][0].length;
@@ -1678,8 +1702,8 @@ public class DynamicWarpingC {
    *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
    */
   private static float[][][][] smoothErrors2(
-      final float[][][][] e, 
-      final double r2Min, final double r2Max, final int[] g2, 
+      final float[][][][] e,
+      final double[] r2Min, final double[] r2Max, final int[] g2,
       final ProgressTracker pt) throws CancellationException
   {
     final int n3 = e.length;
@@ -1704,8 +1728,8 @@ public class DynamicWarpingC {
    *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
    */
   private static float[][][][] smoothErrors3(
-      final float[][][][] e, 
-      final double r3Min, final double r3Max, final int[] g3, 
+      final float[][][][] e,
+      final double[] r3Min, final double[] r3Max, final int[] g3,
       final ProgressTracker pt) throws CancellationException
   {
     final int nl = e[0][0][0].length;
@@ -1781,77 +1805,77 @@ public class DynamicWarpingC {
     }
   }
   
-  private static void accumulateSparse(
-      int dir, double rMin, double rMax, int[] g,
-      float[][] e, float[][] d, float[][] m)
-  {
-    int nl   = e[0].length;
-    int ng   = g.length;
-    int ngm1 = ng-1;
-    int ibg = (dir>0)?0:ngm1; // beginning index
-    int ieg = (dir>0)?ng:-1;  // end index
-    int is = (dir>0)?1:-1;   // stride
-    int isp = ibg; // sparse grid index
-    int ie = g[isp]; // error index
-    
-    // Initialize accumulation values
-    for (int il=0; il<nl; ++il)
-      d[isp][il] = e[ie][il];
-    isp += is;
-    // Loop over all sparse grid points.
-    for (; isp!=ieg; isp+=is) {
-      int ispm1 = isp-is; // previous sparse grid index
-      ie = g[isp]; // new error index
-      int je = g[ispm1]; // min error index for interpolation.
-      int dg = ie-je; // sparse grid delta
-      int kmin, kmax;
-      if (dg>0) {
-        kmin = (int) ceil(-rMax*dg);
-        kmax = (int)floor(-rMin*dg);
-      } else {
-        kmin = (int) ceil(-rMin*dg);
-        kmax = (int)floor(-rMax*dg);
-      }
-      assert kmin<=kmax : "kmin="+kmin+", kmax="+kmax;
-      float[] dm = new float[nl];
-      fill(Float.MAX_VALUE,d[isp]);
-      // loop over all slope indices
-      for (int k=kmin; k<=kmax; k++) {
-        int ils = max(0,-k);
-        int ile = min(nl,nl-k);
-        for (int il=ils; il<ile; il++)
-          dm[il] = d[ispm1][il+k] + e[ie][il];
-        float r = (float)k/(float)dg; // slope
-        if (r==0) { // zero slope, no interpolation necessary
-          for (int x=je+is; x!=ie; x+=is)
-            for (int il=ils; il<ile; il++)
-              dm[il] += e[x][il]; 
-        } else { // linearly interpolate
-          for (int x=je+is; x!=ie; x+=is) {
-            float ky = r*(ie-x);
-            int k1 = (int)ky;
-            if (ky<0.0f) --k1;
-            int k2 = k1+1;
-            float w1 = k2-ky;
-            float w2 = 1.0f-w1;
-            for (int il=ils; il<ile; il++)
-              dm[il] += w1*e[x][k1+il]+w2*e[x][k2+il];
-          }  
-        }
-        // update previous errors and record moves.
-        for (int il=ils; il<ile; il++) {
-          if (dm[il]<d[isp][il]) {
-            d[isp][il] = dm[il];
-            if (m!=null)
-              m[ispm1][il] = k;
-          }
-        }
-      }
-    }
-  }
+//  private static void accumulateSparse(
+//      int dir, double rMin, double rMax, int[] g,
+//      float[][] e, float[][] d, float[][] m)
+//  {
+//    int nl   = e[0].length;
+//    int ng   = g.length;
+//    int ngm1 = ng-1;
+//    int ibg = (dir>0)?0:ngm1; // beginning index
+//    int ieg = (dir>0)?ng:-1;  // end index
+//    int is = (dir>0)?1:-1;   // stride
+//    int isp = ibg; // sparse grid index
+//    int ie = g[isp]; // error index
+//    
+//    // Initialize accumulation values
+//    for (int il=0; il<nl; ++il)
+//      d[isp][il] = e[ie][il];
+//    isp += is;
+//    // Loop over all sparse grid points.
+//    for (; isp!=ieg; isp+=is) {
+//      int ispm1 = isp-is; // previous sparse grid index
+//      ie = g[isp]; // new error index
+//      int je = g[ispm1]; // min error index for interpolation.
+//      int dg = ie-je; // sparse grid delta
+//      int kmin, kmax;
+//      if (dg>0) {
+//        kmin = (int) ceil(-rMax*dg);
+//        kmax = (int)floor(-rMin*dg);
+//      } else {
+//        kmin = (int) ceil(-rMin*dg);
+//        kmax = (int)floor(-rMax*dg);
+//      }
+//      assert kmin<=kmax : "kmin="+kmin+", kmax="+kmax;
+//      float[] dm = new float[nl];
+//      fill(Float.MAX_VALUE,d[isp]);
+//      // loop over all slope indices
+//      for (int k=kmin; k<=kmax; k++) {
+//        int ils = max(0,-k);
+//        int ile = min(nl,nl-k);
+//        for (int il=ils; il<ile; il++)
+//          dm[il] = d[ispm1][il+k] + e[ie][il];
+//        float r = (float)k/(float)dg; // slope
+//        if (r==0) { // zero slope, no interpolation necessary
+//          for (int x=je+is; x!=ie; x+=is)
+//            for (int il=ils; il<ile; il++)
+//              dm[il] += e[x][il]; 
+//        } else { // linearly interpolate
+//          for (int x=je+is; x!=ie; x+=is) {
+//            float ky = r*(ie-x);
+//            int k1 = (int)ky;
+//            if (ky<0.0f) --k1;
+//            int k2 = k1+1;
+//            float w1 = k2-ky;
+//            float w2 = 1.0f-w1;
+//            for (int il=ils; il<ile; il++)
+//              dm[il] += w1*e[x][k1+il]+w2*e[x][k2+il];
+//          }  
+//        }
+//        // update previous errors and record moves.
+//        for (int il=ils; il<ile; il++) {
+//          if (dm[il]<d[isp][il]) {
+//            d[isp][il] = dm[il];
+//            if (m!=null)
+//              m[ispm1][il] = k;
+//          }
+//        }
+//      }
+//    }
+//  }
   
   private static void accumulateSparse(
-      int dir, double rMin, double[] rMax, int[] g,
+      int dir, double[] rMin, double[] rMax, int[] g,
       float[][] e, float[][] d, float[][] m)
   {
     int nl   = e[0].length;
@@ -1862,7 +1886,7 @@ public class DynamicWarpingC {
     int is = (dir>0)?1:-1;   // stride
     int isp = ibg; // sparse grid index
     int ie = g[isp]; // error index
-    
+
     // Initialize accumulation values
     for (int il=0; il<nl; ++il)
       d[isp][il] = e[ie][il];
@@ -1876,9 +1900,9 @@ public class DynamicWarpingC {
       int kmin, kmax;
       if (dg>0) { // forward
         kmin = (int) ceil(-rMax[ie]*dg);
-        kmax = (int)floor(-rMin*dg);
+        kmax = (int)floor(-rMin[ie]*dg);
       } else { // reverse
-        kmin = (int) ceil(-rMin*dg);
+        kmin = (int) ceil(-rMin[ie]*dg);
         kmax = (int)floor(-rMax[ie]*dg);
       }
       kmin = kmin>kmax ? kmax : kmin;
@@ -1894,7 +1918,7 @@ public class DynamicWarpingC {
         if (r==0) { // zero slope, no interpolation necessary
           for (int x=je+is; x!=ie; x+=is)
             for (int il=ils; il<ile; il++)
-              dm[il] += e[x][il]; 
+              dm[il] += e[x][il];
         } else { // linearly interpolate
           for (int x=je+is; x!=ie; x+=is) {
             float ky = r*(ie-x);
@@ -1905,7 +1929,7 @@ public class DynamicWarpingC {
             float w2 = 1.0f-w1;
             for (int il=ils; il<ile; il++)
               dm[il] += w1*e[x][k1+il]+w2*e[x][k2+il];
-          }  
+          }
         }
         // update previous errors and record moves.
         for (int il=ils; il<ile; il++) {
@@ -1931,7 +1955,7 @@ public class DynamicWarpingC {
    */
   private static void accumulateFromSparse(
       int dir, float[][] e, float[][] d, float[][] m, int[] g,
-      double rMin, double rMax)
+      double[] rMin, double[] rMax)
   {
     int nl = e[0].length;
     int nlm1 = nl-1;
@@ -1951,8 +1975,8 @@ public class DynamicWarpingC {
       int iemax = g[ii];
       int iemin = g[ji];
       int dg = abs(iemax-iemin); // sparse grid delta
-      int kmin = (int)ceil( rMin*dg);
-      int kmax = (int)floor(rMax*dg);
+      int kmin = (int)ceil( rMin[iemax]*dg);
+      int kmax = (int)floor(rMax[iemax]*dg);
       for (int il=0; il<nl; ++il) {
         float dm = dmax;
         int mi = 0;

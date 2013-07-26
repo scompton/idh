@@ -20,8 +20,8 @@ public class JTestDynamicWarpingC extends TestCase {
     int n1 = 100;
     float[][] e = new float[n1][nl];
     fill(1.0f,e);
-    float rmin = 0.0f;
-    float rmax = 0.0f;
+    double[] rmin = new double[n1];
+    double[] rmax = new double[n1];
     // Test Forward - After normalization, errors should equal 0,
     // at the zero index, and 1 at the last index. Errors should always
     // be increasing from left to right.
