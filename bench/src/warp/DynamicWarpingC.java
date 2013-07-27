@@ -132,13 +132,43 @@ public class DynamicWarpingC {
    * @return shifts for 1D traces.
    */
   public float[] findShifts(float[] f, float[] g, float[] g1, Interp interp1) {
+    return findShifts(f,g,g1,interp1,null,null);
+  }
+
+  /**
+   * Find shifts for 1D traces. For the input trace {@code f[n1]}, shifts 
+   * {@code u} are computed on a subsampled grid such that the computed shifts 
+   * are {@code u[ng1]}. This length matches the length of array {@code g1} 
+   * and the indices of the subsampled shifts are specified by contents of 
+   * this array. The contents of the {@code g1} array are rounded to the 
+   * nearest integer.
+   * </p>
+   * The sparsely computed shifts are interpolated back to the fine grid such
+   * that the returned shifts match the size of the input trace, that is 
+   * {@code ui[n1]}.
+   * @param f the PP trace.
+   * @param g the PS trace.
+   * @param g1 array of size [ng1] specifying first dimension sparse grid
+   *  locations.
+   * @param interp1 interpolation method for the i1 (fast) dimension.
+   * @param xl coordinate array of lag values. These values along with the
+   *  {@code x1} coordinate array set a hard constraint in the the error 
+   *  function. Can be {@code null}.
+   * @param x1 coordinate array of i1 values. These values along with the
+   *  {@code xl} coordinate array set a hard constraint in the the error 
+   *  function. Can be {@code null}.
+   * @return shifts for 1D traces.
+   */
+  public float[] findShifts(
+      float[] f, float[] g, float[] g1, Interp interp1, int[] xl, int[] x1) 
+  {
     int n1 = f.length;
     int ng1 = g1.length;
     final int[] g1i = new int[ng1];
-    for (int ig1=0; ig1<ng1; ig1++) {
+    for (int ig1=0; ig1<ng1; ig1++)
       g1i[ig1] = (int)(g1[ig1]+0.5f);
-    }
     float[][] e = computeErrors(f,g);
+    fixShifts(e,xl,x1);
     float[][][] dm = accumulateForwardSparse(e,_r1Min,_r1Max,g1i);
     float[] u = backtrackReverse(dm[0],dm[1]);
     return interpolate(n1,g1,u,interp1);
@@ -172,6 +202,38 @@ public class DynamicWarpingC {
       float[][] f, float[][] g, final float[][] g1, final int[] g2,
       Interp interp1, Interp interp2) throws CancellationException
   {
+    return findShifts(f,g,g1,g2,interp1,interp2,null,null,null);
+  }
+  
+  /**
+   * Find shifts for 2D images. For the input image {@code f[n2][n1]}, shifts 
+   * {@code u} are computed on a subsampled grid such that the computed shifts 
+   * are {@code u[ng2][ng1]}. These lengths match the length of arrays 
+   * {@code g1,g2} and the indices of the subsampled shifts are specified by 
+   * contents of these arrays. The contents of the {@code g1} array are rounded
+   * to the nearest integer.
+   * </p>
+   * The sparsely computed shifts are interpolated back to the fine grid such
+   * that the returned shifts match the size of the input image, that is 
+   * {@code ui[n2][n1]}.
+   * @param f the PP traces.
+   * @param g the PS traces.
+   * @param g1 array of size [n2][ng1] specifying first dimension sparse grid
+   *  locations for all n2.
+   * @param g2 array of size [ng2] specifying second dimension sparse grid 
+   *  locations.
+   * @param interp1 interpolation method for the i1 (fast) dimension.
+   * @param interp2 interpolation method for the i2 (slow) dimension.
+   * @return shifts for 2D images.
+   * @throws CancellationException if a {@link WarperWorkTracker} instance is
+   *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
+   *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
+   */
+  public float[][] findShifts(
+      float[][] f, float[][] g, final float[][] g1, final int[] g2,
+      Interp interp1, Interp interp2, int[] xl, int[] x1, int[] x2) 
+      throws CancellationException
+  {
     int n2 = f.length;
     int n1 = f[0].length;
     int ng2 = g2.length;
@@ -197,7 +259,7 @@ public class DynamicWarpingC {
     Stopwatch s = new Stopwatch();
     s.start();
     print("Smoothing 1st dimension...");
-    final float[][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i,pt);
+    final float[][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i,xl,x1,x2,pt);
     print("Finished 1st dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es1);
 
@@ -842,6 +904,27 @@ public class DynamicWarpingC {
     return e;
   }
 
+  public void fixShifts(float[][] e, int[] xl, int[] x1) {
+    if (x1==null || xl==null) return;
+    int n1 = e.length;
+    int nl = e[0].length;
+    int nx = x1.length;
+    int ob = 0; // out of bounds
+    Check.argument(nx==xl.length,"x1.length==xl.length");
+    for (int ix=0; ix<nx; ix++) {
+      int i1 = x1[ix];
+      int lag = _sl1.indexOf(xl[ix]);
+      if (i1<0 || i1>=n1 || lag<0 || lag>=nl) {
+        ob++;
+        continue;
+      }
+      for (int il=0; il<nl; il++)
+        e[i1][il] = Float.MAX_VALUE;
+      e[i1][lag] = 0.0f;
+    }
+    print("Fixed shifts complete: nx="+nx+", out of bounds count="+ob);
+  }
+  
   public float[][][] accumulateForward(
       float[][] e, int[] g, double rMin, double rMax)
   {
@@ -859,6 +942,8 @@ public class DynamicWarpingC {
     float[][] d = new float[ng][nl];
     float[][] m = new float[ng][nl];
     accumulateSparse(1,rmin,rmax,g,e,d,m);
+//    float scale = 1.0f/e.length;
+//    return new float[][][]{mul(scale,d),m};
     return new float[][][]{d,m};
   }
   
@@ -906,15 +991,25 @@ public class DynamicWarpingC {
    * @param e input/output array.
    */
   public static void normalizeErrors(float[][] e) {
+    normalizeErrors(e,Float.MAX_VALUE,Float.MAX_VALUE);
+  }
+
+  /**
+   * Normalizes values to be in range [0,1].
+   * @param e input/output array.
+   */
+  public static void normalizeErrors(
+      float[][] e, float ignoreMin, float ignoreMax) 
+  {
     int nl = e[0].length;
     int n1 = e.length;
-    float emin = e[0][0];
-    float emax = e[0][0];
+    float emin =  Float.MAX_VALUE;
+    float emax = -Float.MAX_VALUE;
     for (int i1=0; i1<n1; ++i1) {
       for (int il=0; il<nl; ++il) {
         float ei = e[i1][il];
-        if (ei<emin) emin = ei;
-        if (ei>emax) emax = ei;
+        if (ei<emin && ei!=ignoreMin) emin = ei;
+        if (ei>emax && ei!=ignoreMax) emax = ei;
       }
     }
     shiftAndScale(emin,emax,e);
@@ -925,6 +1020,12 @@ public class DynamicWarpingC {
    * @param e input/output array of alignment errors.
    */
   public static void normalizeErrors(float[][][] e) {
+    normalizeErrors(e,-Float.MAX_VALUE,Float.MAX_VALUE);
+  }
+  
+  public static void normalizeErrors(
+      float[][][] e, final float ignoreMin, final float ignoreMax) 
+  {
     final int nl = e[0][0].length;
     final int n1 = e[0].length;
     final int n2 = e.length;
@@ -936,8 +1037,8 @@ public class DynamicWarpingC {
       for (int i1=0; i1<n1; ++i1) {
         for (int il=0; il<nl; ++il) {
           float ei = ef[i2][i1][il];
-          if (ei<emin) emin = ei;
-          if (ei>emax) emax = ei;
+          if (ei<emin && ei!=ignoreMin) emin = ei;
+          if (ei>emax && ei!=ignoreMax) emax = ei;
         }
       }
       return new MinMax(emin,emax);
@@ -953,6 +1054,12 @@ public class DynamicWarpingC {
    * @param e input/output array of alignment errors.
    */
   public static void normalizeErrors(float[][][][] e) {
+    normalizeErrors(e,-Float.MAX_VALUE,Float.MAX_VALUE);
+  }
+
+  public static void normalizeErrors(
+      float[][][][] e, final float ignoreMin, final float ignoreMax) 
+  {
     final int nl = e[0][0][0].length;
     final int n1 = e[0][0].length;
     final int n2 = e[0].length;
@@ -966,8 +1073,8 @@ public class DynamicWarpingC {
           for (int i1=0; i1<n1; ++i1) {
             for (int il=0; il<nl; ++il) {
               float ei = ef[i3][i2][i1][il];
-              if (ei<emin) emin = ei;
-              if (ei>emax) emax = ei;
+              if (ei<emin && ei!=ignoreMin) emin = ei;
+              if (ei>emax && ei!=ignoreMax) emax = ei;
             }
           }  
         }
@@ -1176,7 +1283,7 @@ public class DynamicWarpingC {
    *  {@code false} for cubic.
    * @return the interpolated shifts.
    */
-  private float[] interpolate(int n1, float[] g1, float[] u, Interp interp1) {
+  public float[] interpolate(int n1, float[] g1, float[] u, Interp interp1) {
     int ng1 = g1.length;
     float[] ui = new float[n1];
     CubicInterpolator.Method m1;
@@ -1529,18 +1636,24 @@ public class DynamicWarpingC {
   private float[][][] smoothErrors1(
       final float[][] pp, final float[][] ps,
       final double r1min, final double r1max, final int[][] g1,
-      final ProgressTracker pt) throws CancellationException
+      final int[] xl, final int[] x1, final int[] x2, final ProgressTracker pt)
+      throws CancellationException
   {
     final int n2 = pp.length;
     final int n1 = pp[0].length;
     final int ng1 = g1[0].length;
     final float[][][] es1 = new float[n2][ng1][_nl];
+    final Parallel.Unsafe<int[]> x2u = new Parallel.Unsafe<>();
     final Parallel.Unsafe<float[][]> eu = new Parallel.Unsafe<>();
     Parallel.loop(n2,new Parallel.LoopInt() {
     public void compute(int i2) {
       float[][] e = eu.get();
       if (e==null) eu.set(e=new float[n1][_nl]);
+      int[] x2p = x2u.get();
+      if (x2p==null) x2u.set(x2p=copy(x2));
       computeErrors(pp[i2],ps[i2],e);
+      if (binarySearch(x2p,i2)>0)
+        fixShifts(e,xl,x1);
       es1[i2] = smoothErrors(e,r1min,r1max,g1[i2]);
       if (pt.getCanceled()) throw new CancellationException();
       pt.worked();
