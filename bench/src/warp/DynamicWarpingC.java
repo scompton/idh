@@ -1,5 +1,7 @@
 package warp;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -202,7 +204,7 @@ public class DynamicWarpingC {
       float[][] f, float[][] g, final float[][] g1, final int[] g2,
       Interp interp1, Interp interp2) throws CancellationException
   {
-    return findShifts(f,g,g1,g2,interp1,interp2,null,null,null);
+    return findShifts(f,g,g1,g2,interp1,interp2,new HashMap<Integer,int[]>());
   }
   
   /**
@@ -231,7 +233,7 @@ public class DynamicWarpingC {
    */
   public float[][] findShifts(
       float[][] f, float[][] g, final float[][] g1, final int[] g2,
-      Interp interp1, Interp interp2, int[] xl, int[] x1, int[] x2) 
+      Interp interp1, Interp interp2, Map<Integer,int[]> l1Map)
       throws CancellationException
   {
     int n2 = f.length;
@@ -259,7 +261,7 @@ public class DynamicWarpingC {
     Stopwatch s = new Stopwatch();
     s.start();
     print("Smoothing 1st dimension...");
-    final float[][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i,xl,x1,x2,pt);
+    final float[][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i,l1Map,pt);
     print("Finished 1st dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es1);
 
@@ -328,6 +330,15 @@ public class DynamicWarpingC {
       final float[][][] g1, final int[] g2, final int[] g3,
       Interp interp1, Interp interp23) throws CancellationException
   {
+    return findShifts(f,g,g1,g2,g3,interp1,interp23,new HashMap<Integer,int[]>());
+  }
+
+  public float[][][] findShifts(
+      float[][][] f, float[][][] g, 
+      final float[][][] g1, final int[] g2, final int[] g3,
+      Interp interp1, Interp interp23, Map<Integer,int[]> l1Map)
+      throws CancellationException
+  {
     int n3 = f.length;
     int n2 = f[0].length;
     int n1 = f[0][0].length;
@@ -358,7 +369,7 @@ public class DynamicWarpingC {
     Stopwatch s = new Stopwatch();
     s.start();
     print("Smoothing 1st dimension...");
-    final float[][][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i,pt);
+    final float[][][][] es1 = smoothErrors1(f,g,_r1Min,_r1Max,g1i,l1Map,pt);
     print("Finished 1st dimension smoothing in "+s.time()+" seconds");
     normalizeErrors(es1);
 
@@ -924,7 +935,27 @@ public class DynamicWarpingC {
     }
     print("Fixed shifts complete: nx="+nx+", out of bounds count="+ob);
   }
-  
+
+  public void fixShifts(float[][] e, int[] l1) {
+    if (l1==null) return;
+    int n1 = e.length;
+    int nl = e[0].length;
+    int nc = l1.length/2;
+    int ob = 0; // out of bounds
+    for (int i=0; i<nc; i++) {
+      int lag = _sl1.indexOf(l1[i]);
+      int i1 = l1[i+1];
+      if (i1<0 || i1>=n1 || lag<0 || lag>=nl) {
+        ob++;
+        continue;
+      }
+      for (int il=0; il<nl; il++)
+        e[i1][il] = Float.MAX_VALUE;
+      e[i1][lag] = 0.0f;
+    }
+    print("Fixed shifts complete: nx="+nc+", out of bounds count="+ob);
+  }
+
   public float[][][] accumulateForward(
       float[][] e, int[] g, double rMin, double rMax)
   {
@@ -1598,7 +1629,7 @@ public class DynamicWarpingC {
    *  [g.length][e[0].length].
    */
   public static float[][] smoothErrors(
-      float[][] e, double rmin, double rmax, int[] g)      
+      float[][] e, double rmin, double rmax, int[] g)
   {
     int ng = g.length;
     int nel = e[0].length;
@@ -1636,24 +1667,20 @@ public class DynamicWarpingC {
   private float[][][] smoothErrors1(
       final float[][] pp, final float[][] ps,
       final double r1min, final double r1max, final int[][] g1,
-      final int[] xl, final int[] x1, final int[] x2, final ProgressTracker pt)
+      final Map<Integer,int[]> l1Map, final ProgressTracker pt)
       throws CancellationException
   {
     final int n2 = pp.length;
     final int n1 = pp[0].length;
     final int ng1 = g1[0].length;
     final float[][][] es1 = new float[n2][ng1][_nl];
-    final Parallel.Unsafe<int[]> x2u = new Parallel.Unsafe<>();
     final Parallel.Unsafe<float[][]> eu = new Parallel.Unsafe<>();
     Parallel.loop(n2,new Parallel.LoopInt() {
     public void compute(int i2) {
       float[][] e = eu.get();
       if (e==null) eu.set(e=new float[n1][_nl]);
-      int[] x2p = x2u.get();
-      if (x2p==null) x2u.set(x2p=copy(x2));
       computeErrors(pp[i2],ps[i2],e);
-      if (binarySearch(x2p,i2)>0)
-        fixShifts(e,xl,x1);
+      fixShifts(e,l1Map.get(i2));
       es1[i2] = smoothErrors(e,r1min,r1max,g1[i2]);
       if (pt.getCanceled()) throw new CancellationException();
       pt.worked();
@@ -1681,7 +1708,8 @@ public class DynamicWarpingC {
   private float[][][][] smoothErrors1(
       final float[][][] pp, final float[][][] ps,
       final double r1min, final double r1max, final int[][][] g1,
-      final ProgressTracker pt) throws CancellationException
+      final Map<Integer,int[]> ilMap, final ProgressTracker pt) 
+      throws CancellationException
   {
     final int n3 = pp.length;
     final int n2 = pp[0].length;
@@ -1697,6 +1725,7 @@ public class DynamicWarpingC {
       float[][] e = eu.get();
       if (e==null) eu.set(e=new float[n1][_nl]);
       computeErrors(pp[i3][i2],ps[i3][i2],e);
+      fixShifts(e,ilMap.get(i23));
       es1[i3][i2] = smoothErrors(e,r1min,r1max,g1[i3][i2]);
       if (pt.getCanceled()) throw new CancellationException();
       pt.worked();
