@@ -12,24 +12,24 @@ public class ErrorMapUtil {
 
   /**
    * 
-   * @param sl
+   * @param su
    * @param s1
    * @param s2
    */
-  public ErrorMapUtil(Sampling sl, Sampling s1, Sampling s2) {
-    this(sl,s1,s2,null);
+  public ErrorMapUtil(Sampling su, Sampling s1, Sampling s2) {
+    this(su,s1,s2,null);
   }
 
   /**
    * 
-   * @param sl
+   * @param su
    * @param s1
    * @param s2
    * @param s3
    */
-  public ErrorMapUtil(Sampling sl, Sampling s1, Sampling s2, Sampling s3) {
+  public ErrorMapUtil(Sampling su, Sampling s1, Sampling s2, Sampling s3) {
     _errorMap = new HashMap<>();
-    _sl = sl;
+    _su = su;
     _s1 = s1;
     _s2 = s2;
     _s3 = s3;
@@ -37,31 +37,32 @@ public class ErrorMapUtil {
 
   /**
    * 
-   * @param xl
+   * @param xu
    * @param x1
    * @param x2
    */
-  public void add(double xl, double x1, double x2) {
-    int il = _sl.indexOfNearest(xl);
+  public void add(double xu, double x1, double x2) {
+    int iu = _su.indexOfNearest(xu);
     int i1 = _s1.indexOfNearest(x1);
     int i2 = _s2.indexOfNearest(x2);
+//    System.out.println("ErrorMapUtil.add: iu="+iu+", i1="+i1+", i2="+i2);
     List<Integer> list = _errorMap.get(i2);
     if (list==null)
       list = new LinkedList<>();
-    list.add(il);
+    list.add(iu);
     list.add(i1);
     _errorMap.put(i2,list);
   }
 
   /**
    * 
-   * @param xl
+   * @param xu
    * @param x1
    * @param x2
    * @param x3
    */
-  public void add(double xl, double x1, double x2, double x3) {
-    int il = _sl.indexOfNearest(xl);
+  public void add(double xu, double x1, double x2, double x3) {
+    int iu = _su.indexOfNearest(xu);
     int i1 = _s1.indexOfNearest(x1);
     int i2 = _s2.indexOfNearest(x2);
     int i3 = _s3.indexOfNearest(x3);
@@ -69,7 +70,7 @@ public class ErrorMapUtil {
     List<Integer> list = _errorMap.get(i23);
     if (list==null)
       list = new LinkedList<>();
-    list.add(il);
+    list.add(iu);
     list.add(i1);
     _errorMap.put(i23,list);
   }
@@ -99,14 +100,13 @@ public class ErrorMapUtil {
     double dt = 2.0;
     double dx = 22.5;
     double dy = 12.5;
-    Sampling sl = new Sampling(nl,dt,-200.0);
+    Sampling su = new Sampling(nl,dt,-200.0);
     Sampling s1 = new Sampling(n1,dt,0.0);
     Sampling s2 = new Sampling(n2,dx,1001);
     Sampling s3 = new Sampling(n3,dy,566);
 
     // 2D
-    System.out.println("2D");
-    ErrorMapUtil emu = new ErrorMapUtil(sl,s1,s2);
+    ErrorMapUtil emu = new ErrorMapUtil(su,s1,s2);
     emu.add(-100.0,5.0,1200.0);
     emu.add(-75.0,12.0,1200.0);
     emu.add(-150.0,300.0,1200.0);
@@ -118,13 +118,12 @@ public class ErrorMapUtil {
       ArrayMath.dump(l1);
     }
     
-    // 3D
-    System.out.println("3D");
-    emu = new ErrorMapUtil(sl,s1,s2,s3);
-    emu.add(-100.0,5.0,1200.0,566.0);
-    emu.add(-75.0,12.0,1200.0,650.0);
-    emu.add(-150.0,300.0,1200.0,650.0);
-    emu.add(0.0,0.0,1800.0,800.0);
+    //3
+    emu = new ErrorMapUtil(su,s1,s2,s3);
+    emu.add(-100.0,5.0,1200.0);
+    emu.add(-75.0,12.0,1200.0);
+    emu.add(-150.0,300.0,1200.0);
+    emu.add(0.0,0.0,1800.0);
     map = emu.getMap();
     for (Integer integer : map.keySet()) {
       int[] l1 = map.get(integer);
@@ -134,5 +133,5 @@ public class ErrorMapUtil {
   }
 
   private Map<Integer,List<Integer>> _errorMap;
-  private Sampling _sl, _s1, _s2, _s3;
+  private Sampling _su, _s1, _s2, _s3;
 }
