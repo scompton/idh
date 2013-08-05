@@ -1028,7 +1028,7 @@ public class DynamicWarpingC {
    * @param e input/output array.
    */
   public static void normalizeErrors(float[][] e) {
-    normalizeErrors(e,Float.MAX_VALUE,Float.MAX_VALUE);
+    normalizeErrors(e,-Float.MAX_VALUE,Float.MAX_VALUE);
   }
 
   /**
@@ -1045,8 +1045,8 @@ public class DynamicWarpingC {
     for (int i1=0; i1<n1; ++i1) {
       for (int il=0; il<nl; ++il) {
         float ei = e[i1][il];
-        if (ei<emin && ei!=ignoreMin) emin = ei;
-        if (ei>emax && ei!=ignoreMax) emax = ei;
+        if (ei<emin && ei>ignoreMin) emin = ei;
+        if (ei>emax && ei<ignoreMax) emax = ei;
       }
     }
     shiftAndScale(emin,emax,e);
@@ -1074,8 +1074,8 @@ public class DynamicWarpingC {
       for (int i1=0; i1<n1; ++i1) {
         for (int il=0; il<nl; ++il) {
           float ei = ef[i2][i1][il];
-          if (ei<emin && ei!=ignoreMin) emin = ei;
-          if (ei>emax && ei!=ignoreMax) emax = ei;
+          if (ei<emin && ei>ignoreMin) emin = ei;
+          if (ei>emax && ei<ignoreMax) emax = ei;
         }
       }
       return new MinMax(emin,emax);
@@ -1110,8 +1110,8 @@ public class DynamicWarpingC {
           for (int i1=0; i1<n1; ++i1) {
             for (int il=0; il<nl; ++il) {
               float ei = ef[i3][i2][i1][il];
-              if (ei<emin && ei!=ignoreMin) emin = ei;
-              if (ei>emax && ei!=ignoreMax) emax = ei;
+              if (ei<emin && ei>ignoreMin) emin = ei;
+              if (ei>emax && ei<ignoreMax) emax = ei;
             }
           }  
         }
@@ -1654,45 +1654,25 @@ public class DynamicWarpingC {
     return es;
   }
 
-//  public static void smoothErrorsPlot(
-//      float[][] e, double rmin, double rmax, int[] g)
-//  {
-//    int ng = g.length;
-//    int nel = e[0].length;
-//    float[][] ef = new float[ng][nel];
-//    float[][] er = new float[ng][nel];
-//    float[][] es = new float[ng][nel];
-//    accumulateSparse( 1,rmin,rmax,g,e,ef,null);
-//    accumulateSparse(-1,rmin,rmax,g,e,er,null);
-//    float scale = 1.0f/e.length;
-//    for (int i1=0; i1<ng; i1++) {
-//      for (int il=0; il<nel; il++) {
-//        float v = scale*(ef[i1][il]+er[i1][il]-e[g[i1]][il]);
-//        es[i1][il] = Float.isInfinite(v) ? Float.MAX_VALUE : v;
-//      }
-//    }
-//    Viewer2D vef = new Viewer2D(Orientation.X1RIGHT_X2UP);
-//    float[][] eft = transposeLag(ef);
-//    normalizeErrors(eft);
-//    PixelsView pvef = vef.addPixels(eft,"eft");
-//    pvef.setClips(0.0f,1.0f);
-//    vef.setTitle("ef");
-//    vef.show();
-//    Viewer2D ver = new Viewer2D(Orientation.X1RIGHT_X2UP);
-//    float[][] ert = transposeLag(er);
-//    normalizeErrors(ert);
-//    PixelsView pver = ver.addPixels(ert,"ert");
-//    pver.setClips(0.0f,1.0f);
-//    ver.setTitle("er");
-//    ver.show();
-//    Viewer2D ves = new Viewer2D(Orientation.X1RIGHT_X2UP);
-//    float[][] est = transposeLag(es);
-//    normalizeErrors(est);
-//    PixelsView pves = ves.addPixels(est,"est");
-//    pves.setClips(0.0f,1.0f);
-//    ves.setTitle("es");
-//    ves.show();
-//  }
+  public static float[][][] getSmoothErrors(
+      float[][] e, double rmin, double rmax, int[] g)
+  {
+    int ng = g.length;
+    int nel = e[0].length;
+    float[][] ef = new float[ng][nel];
+    float[][] er = new float[ng][nel];
+    float[][] es = new float[ng][nel];
+    accumulateSparse( 1,rmin,rmax,g,e,ef,null);
+    accumulateSparse(-1,rmin,rmax,g,e,er,null);
+    float scale = 1.0f/e.length;
+    for (int i1=0; i1<ng; i1++) {
+      for (int il=0; il<nel; il++) {
+        float v = scale*(ef[i1][il]+er[i1][il]-e[g[i1]][il]);
+        es[i1][il] = Float.isInfinite(v) ? Float.MAX_VALUE : v;
+      }
+    }
+    return new float[][][] {ef,er,es};
+  }
 
   /**
    * Returns alignment errors smoothed in the first dimension.
