@@ -206,7 +206,7 @@ public class Viewer2D {
    */
   public PointsView addPoints(float[][] x2, String label) {
     Check.argument(_s1.getCount()==x2[0].length,
-        "x2.length is not consistend with sampling");
+        "x2.length is not consistent with sampling");
     PointsView pt = _pp.addPoints(_s1,x2[_i3]);
     _ptMap.put(pt,x2);
     updatePoints();
