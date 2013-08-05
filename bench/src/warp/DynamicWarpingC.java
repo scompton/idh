@@ -99,8 +99,24 @@ public class DynamicWarpingC {
   }
 
   public void setStrainLimits(double[] r1Min, double[] r1Max) {
-    _r1MinA = r1Min;
-    _r1MaxA = r1Max;
+    setStrainLimits(r1Min,r1Max,-1.0,1.0,-1.0,1.0);
+  }
+
+  public void setStrainLimits(
+      double[] r1Min, double[] r1Max,
+      double r2Min, double r2Max)
+  {
+    setStrainLimits(r1Min,r1Max,r2Min,r2Max,-1.0,1.0);
+  }
+
+  public void setStrainLimits(
+      double[] r1Min, double[] r1Max,
+      double r2Min, double r2Max,
+      double r3Min, double r3Max)
+  {
+    _r1MinA = r1Min; _r1MaxA = r1Max;
+    _r2Min  = r2Min; _r2Max  = r2Max;
+    _r3Min  = r3Min; _r3Max  = r3Max;
   }
 
   /**
@@ -174,10 +190,27 @@ public class DynamicWarpingC {
     final int[] g1i = new int[ng1];
     for (int ig1=0; ig1<ng1; ig1++)
       g1i[ig1] = (int)(g1[ig1]+0.5f);
+
+    double[] r1Min = getR1Min(n1);
+    double[] r1Max = getR1Max(n1);
+
     float[][] e = computeErrors(f,g);
     fixShifts(e,xl,x1);
-    float[][][] dm = accumulateForwardSparse(e,getR1Min(n1),getR1Max(n1),g1i);
+    float[][][] dm = accumulateForwardSparse(e,r1Min,r1Max,g1i);
     float[] u = backtrackReverse(dm[0],dm[1]);
+
+    // Check slopes
+    float lastLag = (float)_sl1.getLast();
+    for (int ig1=1; ig1<ng1; ig1++) {
+      int i1 = g1i[ig1];
+      int i1m1 = g1i[ig1-1];
+      float n = u[ig1] - u[ig1-1];
+      float d = i1-i1m1;
+      float r = n/d;
+      assert (r>=r1Min[i1] && r<=r1Max[i1]) || u[ig1]==lastLag :
+        "n="+n+", d="+d+", r="+r;
+    }
+
     return interpolate(n1,g1,u,interp1);
   }
 
@@ -291,6 +324,7 @@ public class DynamicWarpingC {
     }});
 
     // Check slopes
+    float lastLag = (float)_sl1.getLast();
     for (int ig2=0; ig2<ng2; ig2++) {
       for (int ig1=1; ig1<ng1; ig1++) {
         int i1 = g1i[g2[ig2]][ig1];
@@ -298,7 +332,8 @@ public class DynamicWarpingC {
         float n = u[ig2][ig1] - u[ig2][ig1-1];
         float d = i1-i1m1;
         float r = n/d;
-        assert r>=r1Min[i1] && r<=r1Max[i1]:"n="+n+", d="+d+", r="+r;
+        assert (r>=r1Min[i1] && r<=r1Max[i1]) || u[ig2][ig1]==lastLag :
+          "n="+n+", d="+d+", r="+r;
       }
     }
 
@@ -418,6 +453,7 @@ public class DynamicWarpingC {
     }});
 
     // Check slopes
+    float lastLag = (float)_sl1.getLast();
     for (int ig3=0; ig3<ng3; ig3++) {
       for (int ig2=0; ig2<ng2; ig2++) {
         for (int ig1=1; ig1<ng1; ig1++) {
@@ -426,7 +462,8 @@ public class DynamicWarpingC {
           float n = u[ig3][ig2][ig1] - u[ig3][ig2][ig1-1];
           float d = i1-i1m1;
           float r = n/d;
-          assert r>=r1Min[i1] && r<=r1Max[i1]:"n="+n+", d="+d+", r="+r;
+          assert (r>=r1Min[i1] && r<=r1Max[i1]) || u[ig3][ig2][ig1]==lastLag :
+            "n="+n+", d="+d+", r="+r;
         }
       }
     }
@@ -1053,7 +1090,18 @@ public class DynamicWarpingC {
    * @param e input/output array.
    */
   public static void normalizeErrors(float[][] e) {
-    normalizeErrors(e,-Float.MAX_VALUE,Float.MAX_VALUE);
+    int nl = e[0].length;
+    int n1 = e.length;
+    float emin =  Float.MAX_VALUE;
+    float emax = -Float.MAX_VALUE;
+    for (int i1=0; i1<n1; ++i1) {
+      for (int il=0; il<nl; ++il) {
+        float ei = e[i1][il];
+        if (ei<emin) emin = ei;
+        if (ei>emax) emax = ei;
+      }
+    }
+    shiftAndScale(emin,emax,e);
   }
 
   /**
@@ -1082,7 +1130,27 @@ public class DynamicWarpingC {
    * @param e input/output array of alignment errors.
    */
   public static void normalizeErrors(float[][][] e) {
-    normalizeErrors(e,-Float.MAX_VALUE,Float.MAX_VALUE);
+    final int nl = e[0][0].length;
+    final int n1 = e[0].length;
+    final int n2 = e.length;
+    final float[][][] ef = e;
+    MinMax mm = Parallel.reduce(n2,new Parallel.ReduceInt<MinMax>() {
+    public MinMax compute(int i2) {
+      float emin =  Float.MAX_VALUE;
+      float emax = -Float.MAX_VALUE;
+      for (int i1=0; i1<n1; ++i1) {
+        for (int il=0; il<nl; ++il) {
+          float ei = ef[i2][i1][il];
+          if (ei<emin) emin = ei;
+          if (ei>emax) emax = ei;
+        }
+      }
+      return new MinMax(emin,emax);
+    }
+    public MinMax combine(MinMax mm1, MinMax mm2) {
+      return new MinMax(min(mm1.emin,mm2.emin),max(mm1.emax,mm2.emax));
+    }});
+    shiftAndScale(mm.emin,mm.emax,e);
   }
 
   public static void normalizeErrors(
@@ -1116,7 +1184,30 @@ public class DynamicWarpingC {
    * @param e input/output array of alignment errors.
    */
   public static void normalizeErrors(float[][][][] e) {
-    normalizeErrors(e,-Float.MAX_VALUE,Float.MAX_VALUE);
+    final int nl = e[0][0][0].length;
+    final int n1 = e[0][0].length;
+    final int n2 = e[0].length;
+    final int n3 = e.length;
+    final float[][][][] ef = e;
+    MinMax mm = Parallel.reduce(n3,new Parallel.ReduceInt<MinMax>() {
+      public MinMax compute(int i3) {
+        float emin =  Float.MAX_VALUE;
+        float emax = -Float.MAX_VALUE;
+        for (int i2=0; i2<n2; ++i2) {
+          for (int i1=0; i1<n1; ++i1) {
+            for (int il=0; il<nl; ++il) {
+              float ei = ef[i3][i2][i1][il];
+              if (ei<emin) emin = ei;
+              if (ei>emax) emax = ei;
+            }
+          }
+        }
+        return new MinMax(emin,emax);
+      }
+      public MinMax combine(MinMax mm1, MinMax mm2) {
+        return new MinMax(min(mm1.emin,mm2.emin),max(mm1.emax,mm2.emax));
+      }});
+    shiftAndScale(mm.emin,mm.emax,e);
   }
 
   public static void normalizeErrors(
@@ -1711,16 +1802,16 @@ public class DynamicWarpingC {
     return es;
   }
 
-  public static float[][][] getSmoothErrors(
-      float[][] e, double[] rmin, double[] rmax, int[] g)
-  {
+  public float[][][] getSmoothErrors(float[][] e, int[] g, int n1) {
     int ng = g.length;
     int nel = e[0].length;
     float[][] ef = new float[ng][nel];
     float[][] er = new float[ng][nel];
     float[][] es = new float[ng][nel];
-    accumulateSparse( 1,rmin,rmax,g,e,ef,null);
-    accumulateSparse(-1,rmin,rmax,g,e,er,null);
+    double[] r1Min = getR1Min(n1);
+    double[] r1Max = getR1Max(n1);
+    accumulateSparse( 1,r1Min,r1Max,g,e,ef,null);
+    accumulateSparse(-1,r1Min,r1Max,g,e,er,null);
     float scale = 1.0f/e.length;
     for (int i1=0; i1<ng; i1++) {
       for (int il=0; il<nel; il++) {
@@ -2133,7 +2224,6 @@ public class DynamicWarpingC {
     int ie = (dir>0)?ni:-1;  // end index
     int is = (dir>0)?1:-1;   // stride
     int ic = (dir>0)?-1:1;   // contraint dir, forward=-lag, reverse=+lag
-    float dmax = ni;
     int ii=ib;
     for (int il=0; il<nl; ++il)
       d[ii][il] = e[ii][il];
@@ -2146,7 +2236,7 @@ public class DynamicWarpingC {
       int kmin = (int)ceil( rMin[iemax]*dg);
       int kmax = (int)floor(rMax[iemax]*dg);
       for (int il=0; il<nl; ++il) {
-        float dm = dmax;
+        float dmin = Float.MAX_VALUE;
         int mi = 0;
         for (int k=kmin; k<=kmax; k++) {
           int rk = k*ic;
@@ -2154,13 +2244,13 @@ public class DynamicWarpingC {
           if (ik<0 || ik>nlm1)
             continue;
           float dc = d[ji][ik];
-          if (dc<dm) {
-            dm = dc;
+          if (dc<dmin) {
+            dmin = dc;
             mi = rk;
           }
         }
         m[ji][il] = mi;
-        d[ii][il] = dm+e[ii][il];
+        d[ii][il] = dmin+e[ii][il];
       }
     }
   }
