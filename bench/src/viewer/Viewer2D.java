@@ -2,15 +2,20 @@ package viewer;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.swing.DefaultBoundedRangeModel;
 import javax.swing.JMenuItem;
+import javax.swing.JPanel;
 import javax.swing.JSlider;
+import javax.swing.JTextArea;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
@@ -18,11 +23,15 @@ import edu.mines.jtk.dsp.EigenTensors2;
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.io.ArrayInputStream;
 import edu.mines.jtk.mosaic.ColorBar;
+import edu.mines.jtk.mosaic.DRectangle;
+import edu.mines.jtk.mosaic.Mosaic;
 import edu.mines.jtk.mosaic.PixelsView;
+import edu.mines.jtk.mosaic.Projector;
 import edu.mines.jtk.mosaic.TensorsView;
 import edu.mines.jtk.mosaic.PlotPanel;
 import edu.mines.jtk.mosaic.PlotPanel.Orientation;
 import edu.mines.jtk.mosaic.PointsView;
+import edu.mines.jtk.mosaic.Tile;
 import edu.mines.jtk.util.Check;
 import edu.mines.jtk.util.Clips;
 
@@ -85,25 +94,25 @@ public class Viewer2D {
   public double getVMax() {
     return _vMax;
   }
-  
+
   public PixelsView addPixels(double[][] f, String label) {
     Sampling s1 = new Sampling(f[0].length);
     Sampling s2 = new Sampling(f.length);
     return addPixels(s1,s2,f,label);
   }
-  
+
   public PixelsView addPixels(
       Sampling s1, Sampling s2, double[][] f, String label) 
   {
     return addPixels(s1,s2,convertToFloat(f),label);
   }
-  
+
   public PixelsView addPixels(float[][] f, String label) {
     Sampling s1 = new Sampling(f[0].length);
     Sampling s2 = new Sampling(f.length);
     return addPixels(s1,s2,f,label);
   }
-  
+
   public PixelsView addPixels(
       Sampling s1, Sampling s2, float[][] f, String label) 
   {
@@ -127,18 +136,19 @@ public class Viewer2D {
       Check.argument(f[0].length==_s1.getCount(),
           "f[0].length is not consistent with sampling");
     }
+    _f2 = f;
     PixelsView pv = _pp.addPixels(_s1,_s2,f);
     _vf.addOptions(new PixelsView[]{pv},label);
     return pv;
   }
-  
+
   public PixelsView addPixels(float[][][] f, String label) {
     Sampling s1 = new Sampling(f[0][0].length);
     Sampling s2 = new Sampling(f[0].length);
     Sampling s3 = new Sampling(f.length);
     return addPixels(s1,s2,s3,f,label);
   }
-  
+
   public PixelsView addPixels(
       Sampling s1, Sampling s2, Sampling s3, float[][][] f, String label) 
   {
@@ -165,12 +175,13 @@ public class Viewer2D {
       Check.argument(f[0][0].length==_s1.getCount(),
           "f[0][0].length is not consistent with sampling");  
     }
-    
+
     //al panel, displaying the middle frame.
     int n3 = _s3.getCount();
     _i3 = n3/2;
 //    _title = String.valueOf(_i3);
 //    _pp.setTitle(_title);
+    _f3 = f;
     PixelsView pv = _pp.addPixels(_s1,_s2,f[_i3]);
     Clips clips = new Clips(f);
     pv.setClips(clips.getClipMin(),clips.getClipMax());
@@ -180,7 +191,7 @@ public class Viewer2D {
     updatePixels();
     return pv;
   }
-  
+
   /**
    * Adds a view of points (x1,x2) for a sampled function x2(x1).
    * @param x2 array of x2 coordinates.
@@ -195,7 +206,7 @@ public class Viewer2D {
     _vf.addOptions(pt,label);
     return pt;
   }
-  
+
   /**
    * Adds a view of points (x1,x2) for a sampled function x2(x1),
    * for all x3.
@@ -213,19 +224,25 @@ public class Viewer2D {
     _vf.addOptions(pt,label);
     return pt;
   }
-  
+
   public PointsView addPoints(float[] x1, float[] x2, String label) {
     PointsView pt = _pp.addPoints(x1,x2);
     _vf.addOptions(pt,label);
     return pt;
   }
-  
+
+  /**
+   * Adds a view of arrays of (x1,x2) coordinates for multiple plot segments.
+   * The lengths of the specified arrays x1 and x2 must be equal.
+   * @param x1 array of arrays of x1 coordinates.
+   * @param x2 array of arrays of x2 coordinates.
+   */
   public PointsView addPoints2(float[][] x1, float[][] x2, String label) {
     PointsView pt = _pp.addPoints(x1,x2);
     _vf.addOptions(pt,label);
     return pt;
   }
-  
+
   public PointsView addPoints3(float[][][] x1, float[][][] x2, String label) {
     PointsView pt = _pp.addPoints(x1[_i3],x2[_i3]);
     _pt123Map.put(pt,new float[][][][]{x1,x2});
@@ -233,7 +250,7 @@ public class Viewer2D {
     _vf.addOptions(pt,label);
     return pt;
   }
-  
+
   public PointsView addPoints(float[][] x1, float[][] x2, String label) {
     PointsView pt = _pp.addPoints(x1[_i3],x2[_i3]);
     _pt122Map.put(pt,new float[][][]{x1,x2});
@@ -245,7 +262,7 @@ public class Viewer2D {
   public void addTensors(EigenTensors2 et2) {
     addTensors(et2,_s2.getCount()/10,Color.YELLOW,1.0f);
   }
-  
+
   public void addTensors(EigenTensors2 et2, int ne, Color color, float width) {
     TensorsView tensorView = new TensorsView(_s1,_s2,et2);
     TensorsView.Orientation orientation;
@@ -263,7 +280,7 @@ public class Viewer2D {
     tensorView.setScale(1);
     _pp.addTiledView(tensorView);
   }
-  
+
   public void setTitle(String title) {
     _title = title;
     if (_i3!=Integer.MIN_VALUE)
@@ -275,31 +292,31 @@ public class Viewer2D {
   public void setHLabel(String label) {
     _pp.setHLabel(label);
   }
-  
+
   public void setVLabel(String label) {
     _pp.setVLabel(label);
   }
-  
+
   public void setHLimits(double hmin, double hmax) {
     _hMin = hmin;
     _hMax = hmax;
     _pp.setHLimits(hmin,hmax);
   }
-  
+
   public void setVLimits(double vmin, double vmax) {
     _vMin = vmin;
     _vMax = vmax;
     _pp.setVLimits(vmin,vmax);
   }
-  
+
   public void setVFormat(String format) {
     _pp.setVFormat(format);
   }
-  
+
   public void setHFormat(String format) {
     _pp.setHFormat(format);
   }
-  
+
   public void setHInterval(double interval) {
     _pp.setHInterval(interval);
   }
@@ -307,31 +324,31 @@ public class Viewer2D {
   public void setVInterval(double interval) {
     _pp.setVInterval(interval);
   }
-  
+
   public ColorBar addColorBar(String label) {
     return _pp.addColorBar(label);
   }
-  
+
   public void setColorBarWidthMinimum(int widthMinimum) {
     _pp.setColorBarWidthMinimum(widthMinimum);
   }
-  
+
   public void setSize(int width, int height) {
     _vf.setSize(width,height);
   }
-  
+
   public void setFontSizeForPrint(double fontSize, double plotWidth) {
     _vf.setFontSizeForPrint(fontSize,plotWidth);
   }
-  
+
   public void setFontSizeForSlide(double fracWidth, double fracHeight) {
     _vf.setFontSizeForSlide(fracWidth, fracHeight);
   }
-  
+
   public void paintToPng(double dpi, double win, String fileName) {
     _vf.paintToPng(dpi,win,fileName);
   }
-  
+
   public void show() {
     // Add LimitsFrame2D dialog to the options menu.
     JMenuItem changeLimits = new JMenuItem("Change Limits");
@@ -343,7 +360,8 @@ public class Viewer2D {
       }
     });
     _vf.addToMenu(changeLimits);
-    
+    JPanel bottom = new JPanel();
+    bottom.setLayout(new BorderLayout());
     if (_pv3Map.size()>0) {
       int n3 = _s3.getCount();
       int r3 = (int)_s3.getValue(_i3);
@@ -356,11 +374,14 @@ public class Viewer2D {
       slider.setPaintLabels(true);
       slider.setPaintTicks(true);
       slider.addChangeListener(sl);
-      _vf.add(slider,BorderLayout.SOUTH);  
+      bottom.add(slider,BorderLayout.NORTH);
     }
+    JTextArea text = addMouseTracker();
+    bottom.add(text,BorderLayout.SOUTH);
+    _vf.add(bottom,BorderLayout.SOUTH);  
     _vf.setVisible(true);
   }
-  
+
   public static void main(String[] args) throws IOException {
     if (args.length != 4) {
       System.out.println("usage: java Viewer datasetPath n1 n2 n3");
@@ -380,9 +401,11 @@ public class Viewer2D {
 
   ////////////////////////////////////////////////////////////////////////////
   // Private
-  
+
   private ViewerFrame _vf;
   private PlotPanel _pp;
+  private float[][] _f2;
+  private float[][][] _f3;
   private Map<PixelsView,float[][][]> _pv3Map = 
       new HashMap<PixelsView,float[][][]>();
   private Map<PointsView,float[][]> _ptMap = 
@@ -405,7 +428,55 @@ public class Viewer2D {
   private double _vMax;
   private String _title = "";
   private int _i3 = Integer.MIN_VALUE;
-  
+
+  /**
+   * Adds a panel in the bottom of the ViewerFrame that
+   * tracks the mouse location and displays the world
+   * coordinates.
+   */
+  private JTextArea addMouseTracker() {
+    final JTextArea text = new JTextArea("World coordinates:");
+    Mosaic mosaic = _pp.getMosaic();
+    int nrows = mosaic.countRows();
+    int ncols = mosaic.countColumns();
+    for (int irow=0; irow<nrows; irow++) {
+      for (int icol=0; icol<ncols; icol++) {
+        final Tile tile = mosaic.getTile(irow,icol);
+        tile.addMouseMotionListener(new MouseMotionAdapter() {
+          @Override
+          public void mouseMoved(MouseEvent e) {
+            Dimension d = tile.getSize();
+            Projector hp = tile.getHorizontalProjector();
+            Projector vp = tile.getVerticalProjector();
+            DRectangle vr = tile.getViewRectangle();
+            int x = e.getX();
+            int y = e.getY();
+            double wx = hp.v(vr.width *((double)x/d.width)+vr.x);
+            double wy = vp.v(vr.height*((double)y/d.height)+vr.y);
+            int i1, i2;
+            if (_orientation==Orientation.X1DOWN_X2RIGHT) {
+              i1 = _s1.indexOfNearest(wy);
+              i2 = _s2.indexOfNearest(wx);
+            } else {
+              i1 = _s1.indexOfNearest(wx);
+              i2 = _s2.indexOfNearest(wy);
+            }
+            float v;
+            if (_f2!=null) {
+              v = _f2[i2][i1];
+            } else {
+              v = _f3[_i3][i2][i1];
+            }
+            text.setText(String.format(
+                "World coordinates: x=%6.3f, y=%6.3f, value=%6.8f",wx,wy,v));
+            super.mouseMoved(e);
+          }
+        });
+      }
+    }
+    return text;
+  }
+
   private void updatePixels() {
     _pvs = _pv3Map.keySet().toArray(new PixelsView[0]);
   }
@@ -434,7 +505,7 @@ public class Viewer2D {
     }
     return b;
   }
-  
+
   private class SliderListener implements ChangeListener {
     @Override
     public void stateChanged(ChangeEvent e) {
@@ -458,5 +529,5 @@ public class Viewer2D {
       _vf.repaint();
     }
   }
-  
+
 }

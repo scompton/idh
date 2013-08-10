@@ -16,6 +16,7 @@ import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 
 import edu.mines.jtk.awt.ColorMap;
@@ -70,12 +71,11 @@ public class ViewerFrame extends PlotFrame {
     addColorOptions(pv,null);
     addSaveOption(this);
     menuBar.add(_options);
-    
     setJMenuBar(menuBar);
     addMouseListener(_ml);
     setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
   }
-  
+
   /**
    * Adds a Component {@code c} to the options menu
    * of this frame.
@@ -84,7 +84,7 @@ public class ViewerFrame extends PlotFrame {
   public void addToMenu(Component c) {
     _options.add(c);
   }
-  
+
   /**
    * Adds setting for the {@link PixelsView} array to the
    * options menu with the {@code label}.
@@ -100,7 +100,7 @@ public class ViewerFrame extends PlotFrame {
     if (_pvCount>1)
       addAlphaOptions(pv,label);
   }
-  
+
   /**
    * Adds settings for the {@link PointsView} to the 
    * options menu with the {@code label}.
@@ -112,15 +112,32 @@ public class ViewerFrame extends PlotFrame {
     _ptCount++;
     addRemoveOptions(ptv,label,Integer.toString(_ptCount));
   }
-  
+
   ////////////////////////////////////////////////////////////////////////
   // Private
-  
+  private static final long serialVersionUID = 1L;
+
   private int _pvCount = 0;
   private int _ptCount = 0;
   private JMenu _options;
   private PlotPanel _panel = super.getPlotPanel();
-  private static final long serialVersionUID = 1L;
+
+  private MouseListener _ml = new MouseAdapter() {
+    public void mousePressed(MouseEvent e) {
+      if (e.isControlDown() && e.isAltDown()) {
+        ColorBar cbar = null;
+        for (Component c : _panel.getComponents()) {
+          if (c instanceof ColorBar)
+            cbar = (ColorBar)c;
+        }
+        if (cbar!=null) {
+          int cbw = cbar.getWidth();
+          System.out.println("ColorBar width = "+cbw);
+        }
+      }
+    }
+    public void mouseReleased(MouseEvent e) {} // Do nothing.
+  };
   
   private void addInterpolationOption(final PixelsView[] pv, String label) {
     String name = (label==null)?"Change Interpolation":
@@ -275,21 +292,4 @@ public class ViewerFrame extends PlotFrame {
     private PixelsView[] _pv;
   }
 
-  private MouseListener _ml = new MouseAdapter() {
-    public void mousePressed(MouseEvent e) {
-      if (e.isControlDown() && e.isAltDown()) {
-        ColorBar cbar = null;
-        for (Component c : _panel.getComponents()) {
-          if (c instanceof ColorBar)
-            cbar = (ColorBar)c;
-        }
-        if (cbar!=null) {
-          int cbw = cbar.getWidth();
-          System.out.println("ColorBar width = "+cbw);
-        }
-      }
-    }
-    public void mouseReleased(MouseEvent e) {} // Do nothing.
-  };
-  
 }
