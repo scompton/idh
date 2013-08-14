@@ -1,13 +1,36 @@
 package fault;
 
-import java.util.ArrayList;
-import edu.mines.jtk.dsp.*;
 import static edu.mines.jtk.util.ArrayMath.*;
 
 /**
  * Utilities.
  */
 public class Util {
+
+  public static class QuadInsideCone implements FaultSurfer3.QuadFilter {
+    public QuadInsideCone(
+      double x1, double x2, double x3, double h, double r)
+    {
+      _x1 = x1;
+      _x2 = x2;
+      _x3 = x3;
+      _xh = x1+h;
+      _roh = r/h;
+    }
+    public boolean good(FaultSurfer3.Quad quad) {
+      double c1 = quad.c1;
+      boolean good = false;
+      if (_x1<=c1 && c1<=_xh) {
+        double d2 = quad.c2-_x2;
+        double d3 = quad.c3-_x3;
+        double rc = (c1-_x1)*_roh;
+        if (d2*d2+d3*d3<=rc*rc)
+          good = true;
+      }
+      return good;
+    }
+    private double _x1,_x2,_x3,_xh,_roh;
+  }
 
   public static float[][][][] fakeSpheresFpt(int n1, int n2, int n3) {
     float ra=1.8f*n2, sa=0.0f, c1a= 0.0f*n1, c2a=-0.7f*n2, c3a=-0.7f*n3;
@@ -94,8 +117,6 @@ public class Util {
     for (int i3=0; i3<n3; ++i3) {
       for (int i2=0; i2<n2; ++i2) {
         for (int i1=0; i1<n1; ++i1) {
-          float fai = fa[i3][i2][i1];
-          float fbi = fb[i3][i2][i1];
           if (fa[i3][i2][i1]>=fb[i3][i2][i1]) {
             fc[i3][i2][i1] = fa[i3][i2][i1];
             pc[i3][i2][i1] = pa[i3][i2][i1];
@@ -124,9 +145,7 @@ public class Util {
     for (int i3=0; i3<n3; ++i3) {
       for (int i2=0; i2<n2; ++i2) {
         for (int i1=0; i1<n1; ++i1) {
-          float fai = fa[i3][i2][i1];
-          float fbi = fb[i3][i2][i1];
-          if (fai>fbi) {
+          if (fa[i3][i2][i1]>=fb[i3][i2][i1]) {
             fc[i3][i2][i1] = fa[i3][i2][i1];
             pc[i3][i2][i1] = pa[i3][i2][i1];
             tc[i3][i2][i1] = ta[i3][i2][i1];

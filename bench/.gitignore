@@ -1,9 +1,15 @@
+/.cache
 /.classpath
 /.project
 /.pydevproject
 /.idea
+/.gradle
 
 build/
+*png*/
+*.iml
+*.png
 *.swp
+*.zip
 *.class
 *.DS_Store

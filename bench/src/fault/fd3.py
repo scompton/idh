@@ -26,9 +26,20 @@ from fault import *
 #############################################################################
 
 def main(args):
-  goS1()
+  goSA()
+  #goS1()
   #goS1A()
   #goS1B()
+def goSA():
+  samplingSA()
+  #goSlopes()
+  #goAlign()
+  #goSemblance()
+  #goScan()
+  #goThin()
+  #goSmooth()
+  #goSurfing()
+  #goPartsAB()
 def goS1():
   samplingS1()
   #goSurfingFake()
@@ -90,30 +101,6 @@ def goUnfault():
   h = readImage("h")
   plot3(g,h=h)
 
-def goSurfingFake():
-  #n1,n2,n3 = 101,102,103
-  n1,n2,n3 = 51,52,53
-  #n1,n2,n3 = 41,42,43
-  #n1,n2,n3 = 11,12,13
-  #g = sub(randfloat(n1,n2,n3),0.5)
-  g = zerofloat(n1,n2,n3)
-  f,p,t = Util.fakeSpheresFpt(n1,n2,n3)
-  print "f max =",max(f)
-  fs = FaultSurfer3([f,p,t])
-  fs.setThreshold(0.5)
-  quads = fs.findQuads()
-  quads = fs.linkQuads(quads)
-  surfs = fs.findSurfs(quads)
-  surfs = fs.getSurfsWithSize(surfs,100)
-  #xyz = fs.sampleFaultDip(surfs[0])
-  #s = fs.findShifts(surfs)
-  #plot3(g,s,surfs=surfs)
-  plot3(g,f,0,1,surfs=surfs)
-  #sp = SimplePlot()
-  #pv = sp.addPixels(fs.slice1(n1/2,s))
-  #pv.setColorModel(ColorMap.JET)
-  #pv.setInterpolation(PixelsView.Interpolation.NEAREST)
-
 def goSmooth():
   doSmooth = False
   if doSmooth:
@@ -122,17 +109,17 @@ def goSmooth():
     p2 = readImage("p2")
     p3 = readImage("p3")
     #gs = FaultScanner3.smooth(16.0,p2,p3,fl,g)
-    #gs = FaultScanner3.smooth(8.0,p2,p3,fl,g)
-    gs = FaultScanner3.smooth(4.0,p2,p3,fl,g)
+    gs = FaultScanner3.smooth(8.0,p2,p3,fl,g)
+    #gs = FaultScanner3.smooth(4.0,p2,p3,fl,g)
     writeImage(gs,"gs8")
   g = readImage("g")#; g = slog(g)
   gs = readImage("gs8")#; gs = slog(gs)
   #plot3(g)
   #plot3(gs)
   sf = SimpleFrame()
-  for image in [gs]:
+  for image in [g,gs]:
     ipg = sf.addImagePanels(image)
-    ipg.setClips(-5,5)
+    ipg.setClips(-1,1)
 
 def goThin():
   doThin = False
@@ -151,13 +138,13 @@ def goThin():
     writeImage(f,"flt")
     writeImage(p,"fpt")
     writeImage(t,"ftt")
-  g = readImage("g"); g = slog(g)
+  g = readImage("gs8"); g = slog(g)
   f = readImage("flt")
-  p = readImage("fpt")
-  t = readImage("ftt")
-  plot3(g,f,0,1)
-  plot3(g,p,-90,90)
-  plot3(g,t,-15,15)
+  #p = readImage("fpt")
+  #t = readImage("ftt")
+  plot3(g,f,0,1,gmap=jetRamp())
+  #plot3(g,p,-90,90)
+  #plot3(g,t,-15,15)
 
 def goScan():
   doScan = False
@@ -234,8 +221,8 @@ def goSlopes():
   plot3(g)
   fse = FaultSemblance()
   p2,p3 = fse.slopes(g)
-  p2 = clip(-1,1,p2)
-  p3 = clip(-1,1,p3)
+  p2 = clip(-5,5,p2)
+  p3 = clip(-5,5,p3)
   plot3(g,p2)
   plot3(g,p3)
   writeImage(p2,"p2")
@@ -261,6 +248,30 @@ def goBenchmarkSmoothers():
     sw.stop()
     print "  time =",sw.time(),", f min =",min(f)," max =",max(f)
     plot3(g,f,0,1)
+
+def goSurfingFake():
+  #n1,n2,n3 = 101,102,103
+  n1,n2,n3 = 51,52,53
+  #n1,n2,n3 = 41,42,43
+  #n1,n2,n3 = 11,12,13
+  #g = sub(randfloat(n1,n2,n3),0.5)
+  g = zerofloat(n1,n2,n3)
+  f,p,t = Util.fakeSpheresFpt(n1,n2,n3)
+  print "f max =",max(f)
+  fs = FaultSurfer3([f,p,t])
+  fs.setThreshold(0.5)
+  quads = fs.findQuads()
+  quads = fs.linkQuads(quads)
+  surfs = fs.findSurfs(quads)
+  surfs = fs.getSurfsWithSize(surfs,100)
+  #xyz = fs.sampleFaultDip(surfs[0])
+  #s = fs.findShifts(surfs)
+  #plot3(g,s,surfs=surfs)
+  plot3(g,f,0,1,surfs=surfs)
+  #sp = SimplePlot()
+  #pv = sp.addPixels(fs.slice1(n1/2,s))
+  #pv.setColorModel(ColorMap.JET)
+  #pv.setInterpolation(PixelsView.Interpolation.NEAREST)
 
 def goPartsAB():
   samplingS1A()
@@ -379,17 +390,6 @@ def makeConeSlices(i2,i3,nd,na,g):
         h[ja][jd][j1] = si.interpolate(s1,s2,s3,g,x1,x2,x3)
   return s1,sd,sa,h
 
-def samplingS1():
-  global n1,n2,n3
-  global s1,s2,s3
-  global dataDir,dataSub
-  dataDir = "/data/seis/f3d/faults/"
-  dataSub = "s1/"
-  n1,n2,n3 = 222,221,220
-  d1,d2,d3 = 0.004,0.025,0.025
-  f1,f2,f3 = 0.964,1.250,2.500
-  s1,s2,s3 = samplings(n1,d1,f1,n2,d2,f2,n3,d3,f3)
-
 def spow(p,f):
   return mul(sgn(f),pow(abs(f),p))
 
@@ -414,12 +414,22 @@ def writeImage(f,fileName):
   aos = ArrayOutputStream(dataDir+dataSub+fileName+".dat")
   aos.writeFloats(f)
   aos.close()
+def samplingSA():
+  global n1,n2,n3
+  global s1,s2,s3
+  global dataDir,dataSub
+  dataDir = "/data/seis/f3d/"
+  dataSub = "seta/"
+  n1,n2,n3 = 462,951,651
+  d1,d2,d3 = 0.004,0.025,0.025
+  f1,f2,f3 = 0.000,0.000,0.000
+  s1,s2,s3 = samplings(n1,d1,f1,n2,d2,f2,n3,d3,f3)
 def samplingS1():
   global n1,n2,n3
   global s1,s2,s3
   global dataDir,dataSub
-  dataDir = "/data/seis/f3d/faults/"
-  dataSub = "s1/"
+  dataDir = "/data/seis/f3d/"
+  dataSub = "set1/"
   n1,n2,n3 = 222,221,220
   d1,d2,d3 = 0.004,0.025,0.025
   f1,f2,f3 = 0.964,1.250,2.500
@@ -428,8 +438,8 @@ def samplingS1A():
   global n1,n2,n3
   global s1,s2,s3
   global dataDir,dataSub
-  dataDir = "/data/seis/f3d/faults/"
-  dataSub = "s1a/"
+  dataDir = "/data/seis/f3d/"
+  dataSub = "set1a/"
   n1,n2,n3 = 90,221,220
   d1,d2,d3 = 0.004,0.025,0.025
   f1,f2,f3 = 1.484,1.250,2.500
@@ -438,8 +448,8 @@ def samplingS1B():
   global n1,n2,n3
   global s1,s2,s3
   global dataDir,dataSub
-  dataDir = "/data/seis/f3d/faults/"
-  dataSub = "s1b/"
+  dataDir = "/data/seis/f3d/"
+  dataSub = "set1b/"
   n1,n2,n3 = 90,221,220
   d1,d2,d3 = 0.004,0.025,0.025
   f1,f2,f3 = 1.024,1.250,2.500
@@ -458,8 +468,8 @@ def jetFill(alpha):
   return ColorMap.setAlpha(ColorMap.JET,alpha)
 def bwrFill(alpha):
   return ColorMap.setAlpha(ColorMap.RED_WHITE_BLUE,alpha)
-def jetRamp(alpha):
-  return ColorMap.setAlpha(ColorMap.JET,fillfloat(0.0,1.0/256,256))
+def jetRamp():
+  return ColorMap.setAlpha(ColorMap.JET,rampfloat(0.0,1.0/256,256))
 def bwrNotch(alpha):
   a = zerofloat(256)
   for i in range(len(a)):
