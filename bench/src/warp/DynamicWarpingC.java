@@ -155,7 +155,7 @@ public class DynamicWarpingC {
    * @return shifts for 1D traces.
    */
   public float[] findShifts(float[] f, float[] g, float[] g1, Interp interp1) {
-    return findShifts(f,g,g1,interp1,null,null);
+    return findShifts(f,g,g1,interp1,null);
   }
 
   /**
@@ -183,11 +183,11 @@ public class DynamicWarpingC {
    * @return shifts for 1D traces.
    */
   public float[] findShifts(
-      float[] f, float[] g, float[] g1, Interp interp1, int[] xl, int[] x1) 
+      float[] f, float[] g, float[] g1, Interp interp1, int[] l1)
   {
     int n1 = f.length;
     int ng1 = g1.length;
-    final int[] g1i = new int[ng1];
+    int[] g1i = new int[ng1];
     for (int ig1=0; ig1<ng1; ig1++)
       g1i[ig1] = (int)(g1[ig1]+0.5f);
 
@@ -195,8 +195,11 @@ public class DynamicWarpingC {
     double[] r1Max = getR1Max(n1);
 
     float[][] e = computeErrors(f,g);
-    fixShifts(e,xl,x1);
-    float[][][] dm = accumulateForwardSparse(e,r1Min,r1Max,g1i);
+    fixShifts(e,l1);
+    g1i = KnownShiftUtil.getG1(g1i,l1,r1Min,r1Max);
+//    float[][][] dm = accumulateForwardSparse(e,r1Min,r1Max,g1i);
+    float[][] es = smoothErrors(e,r1Min,r1Max,g1i);
+    float[][][] dm = accumulateForward(es,r1Min,r1Max,g1i);
     float[] u = backtrackReverse(dm[0],dm[1]);
 
     // Check slopes
@@ -376,7 +379,8 @@ public class DynamicWarpingC {
       final float[][][] g1, final int[] g2, final int[] g3,
       Interp interp1, Interp interp23) throws CancellationException
   {
-    return findShifts(f,g,g1,g2,g3,interp1,interp23,new HashMap<Integer,int[]>());
+    return findShifts(f,g,g1,g2,g3,interp1,interp23,
+        new HashMap<Integer,int[]>());
   }
 
   public float[][][] findShifts(
@@ -894,7 +898,6 @@ public class DynamicWarpingC {
     int n1 = f.length;
     float[][] e = new float[n1][_nl];
     computeErrors(f,g,e);
-    normalizeErrors(e);
     return e;
   }
 
@@ -913,26 +916,27 @@ public class DynamicWarpingC {
     return e;
   }
 
-  /**
-   * Returns alignment errors for 2D images. Alignment errors
-   * at every trace are the sum of 2*w nearby traces. 
-   * @param w the width to extend left and right from each
-   *  trace 
-   * @return Alignment errors for 2D image with Alignment errors
-   *  at every trace are the sum of 2*w nearby traces.
-   */
-  public float[][][] computeErrors2Near(
-      final float[][] f, final float[][] g, final int w) 
-  {
-    int n2 = f.length;
-    int n1 = f[0].length;
-    final float[][][] e = new float[n2][n1][_nl];
-    Parallel.loop(n2,new Parallel.LoopInt() {
-    public void compute(int i2) {
-      e[i2] = computeErrorsNear(f,g,i2,w);
-    }});
-    return e;
-  }
+  // FIXME or DELETEME
+//  /**
+//   * Returns alignment errors for 2D images. Alignment errors
+//   * at every trace are the sum of 2*w nearby traces. 
+//   * @param w the width to extend left and right from each
+//   *  trace 
+//   * @return Alignment errors for 2D image with Alignment errors
+//   *  at every trace are the sum of 2*w nearby traces.
+//   */
+//  public float[][][] computeErrors2Near(
+//      final float[][] f, final float[][] g, final int w) 
+//  {
+//    int n2 = f.length;
+//    int n1 = f[0].length;
+//    final float[][][] e = new float[n2][n1][_nl];
+//    Parallel.loop(n2,new Parallel.LoopInt() {
+//    public void compute(int i2) {
+//      e[i2] = computeErrorsNear(f,g,i2,w);
+//    }});
+//    return e;
+//  }
 
   /**
    * Compute summed alignment errors for 2D images.
@@ -979,51 +983,27 @@ public class DynamicWarpingC {
 
   public void fixShifts(float[][][] e, Map<Integer,int[]> l1Map) {
     for (Integer i : l1Map.keySet()) {
-      int[] l1 = l1Map.get(i);
-      fixShifts(e[i],l1);
+      fixShifts(e[i],l1Map.get(i));
     }
-  }
-
-  public void fixShifts(float[][] e, int[] xl, int[] x1) {
-    if (x1==null || xl==null) return;
-    int n1 = e.length;
-    int nl = e[0].length;
-    int nx = x1.length;
-    int ob = 0; // out of bounds
-    Check.argument(nx==xl.length,"x1.length==xl.length");
-    for (int ix=0; ix<nx; ix++) {
-      int lag = xl[ix];
-      int i1  = x1[ix];
-      if (i1<0 || i1>=n1 || lag<0 || lag>=nl) {
-        ob++;
-        continue;
-      }
-      for (int il=0; il<nl; il++)
-        e[i1][il] = Float.MAX_VALUE;
-      e[i1][lag] = 0.0f;
-    }
-    print("Fixed shifts complete: nx="+nx+", out of bounds count="+ob);
   }
 
   public void fixShifts(float[][] e, int[] l1) {
     if (l1==null) return;
     int n1 = e.length;
     int nl = e[0].length;
-    int nc = l1.length/2;
-    int ob = 0; // out of bounds
-    for (int i=0; i<nc; i++) {
-      int index = i*2;
-      int lag = l1[index  ];
-      int  i1 = l1[index+1];
+//    int ob = 0; // out of bounds
+    for (int i=0; i<l1.length; i+=2) {
+      int lag = l1[i  ];
+      int  i1 = l1[i+1];
       if (i1<0 || i1>=n1 || lag<0 || lag>=nl) {
-        ob++;
+//        ob++;
         continue;
       }
       for (int il=0; il<nl; il++)
         e[i1][il] = Float.MAX_VALUE;
       e[i1][lag] = 0.0f;
     }
-    print("Fixed shifts complete: nx="+nc+", out of bounds count="+ob);
+//    print("Fixed shifts complete: nx="+nc+", out of bounds count="+ob);
   }
 
   public float[][][] accumulateForward(
@@ -1712,9 +1692,7 @@ public class DynamicWarpingC {
 //  }
 
   /**
-   * Computes alignment errors for {@code f} and {@code g}. Note
-   * that values of the {@code e} array are not replaced, but
-   * added to. 
+   * Computes alignment errors for {@code f} and {@code g}.
    * @param f
    * @param g
    * @param e
@@ -1727,30 +1705,34 @@ public class DynamicWarpingC {
     for (int il=0; il<nl; il++) {
       _si.interpolate(ng,1.0,0.0,g,n1Max,1.0,_sl1.getValue(il),gi);
       for (int i1=0; i1<n1Max; i1++) {
-        e[i1][il] += error(f[i1],gi[i1]);
+        e[i1][il] = error(f[i1],gi[i1]);
       }
     }
   }
 
-  /**
-   * Returns alignment errors at index i2, from a sum of alignment
-   * errors at nearby traces.
-   * @param i2 the center index used for summing nearby alignment
-   *  errors.
-   * @param w the width to extend left and right from i2. 
-   * @return summed alignment errors for index i2.
-   */
-  private float[][] computeErrorsNear(float[][] f, float[][] g, int i2, int w) {
-    int n2 = f.length;
-    int n1 = f[0].length;
-    final float[][] e = new float[n1][_nl];
-    final int n2m1 = n2-1;
-    int i2min = max(0,i2-w);
-    int i2max = min(n2m1,i2+w);
-    for (int j=i2min; j<=i2max; j++)
-      computeErrors(f[j],g[j],e);
-    return e;
-  }
+  // FIXME or 
+  // This is broken because of a change to computeErrors, which no longer sums
+  // into the given alignment errors. This should be an easy fix, but this is
+  // not an important method.
+//  /**
+//   * Returns alignment errors at index i2, from a sum of alignment
+//   * errors at nearby traces.
+//   * @param i2 the center index used for summing nearby alignment
+//   *  errors.
+//   * @param w the width to extend left and right from i2. 
+//   * @return summed alignment errors for index i2.
+//   */
+//  private float[][] computeErrorsNear(float[][] f, float[][] g, int i2, int w) {
+//    int n2 = f.length;
+//    int n1 = f[0].length;
+//    final float[][] e = new float[n1][_nl];
+//    final int n2m1 = n2-1;
+//    int i2min = max(0,i2-w);
+//    int i2max = min(n2m1,i2+w);
+//    for (int j=i2min; j<=i2max; j++)
+//      computeErrors(f[j],g[j],e);
+//    return e;
+//  }
 
   private void computeErrors(
       float[] pp, float[] ps1, float[] ps2, float[][][] e)
@@ -1855,8 +1837,10 @@ public class DynamicWarpingC {
       float[][] e = eu.get();
       if (e==null) eu.set(e=new float[n1][_nl]);
       computeErrors(pp[i2],ps[i2],e);
-      fixShifts(e,l1Map.get(i2));
-      es1[i2] = smoothErrors(e,r1min,r1max,g1[i2]);
+      int[] l1 = l1Map.get(i2);
+      fixShifts(e,l1);
+      int[] g1ks = KnownShiftUtil.getG1(g1[i2],l1,r1min,r1max);
+      es1[i2] = smoothErrors(e,r1min,r1max,g1ks);
       if (pt.getCanceled()) throw new CancellationException();
       pt.worked();
     }});
@@ -1900,8 +1884,10 @@ public class DynamicWarpingC {
       float[][] e = eu.get();
       if (e==null) eu.set(e=new float[n1][_nl]);
       computeErrors(pp[i3][i2],ps[i3][i2],e);
-      fixShifts(e,ilMap.get(i23));
-      es1[i3][i2] = smoothErrors(e,r1min,r1max,g1[i3][i2]);
+      int[] l1 = ilMap.get(i23);
+      fixShifts(e,l1);
+      int[] g1ks = KnownShiftUtil.getG1(g1[i3][i2],l1,r1min,r1max);
+      es1[i3][i2] = smoothErrors(e,r1min,r1max,g1ks);
       if (pt.getCanceled()) throw new CancellationException();
       pt.worked();
     }});
