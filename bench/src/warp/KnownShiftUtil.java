@@ -18,7 +18,16 @@ public class KnownShiftUtil {
    * @param s1
    */
   public KnownShiftUtil(Sampling su, Sampling s1) {
-    this(su,s1,null,null);
+    this(su,s1,null,null,filldouble(0.0,s1.getCount()));
+  }
+
+  /**
+   * 
+   * @param su
+   * @param s1
+   */
+  public KnownShiftUtil(Sampling su, Sampling s1, double[] r1Min) {
+    this(su,s1,null,null,r1Min);
   }
 
   /**
@@ -28,7 +37,17 @@ public class KnownShiftUtil {
    * @param s2
    */
   public KnownShiftUtil(Sampling su, Sampling s1, Sampling s2) {
-    this(su,s1,s2,null);
+    this(su,s1,s2,null,filldouble(0.0,s1.getCount()));
+  }
+
+  /**
+   * 
+   * @param su
+   * @param s1
+   * @param s2
+   */
+  public KnownShiftUtil(Sampling su, Sampling s1, Sampling s2, double[] r1Min) {
+    this(su,s1,s2,null,r1Min);
   }
 
   /**
@@ -38,29 +57,27 @@ public class KnownShiftUtil {
    * @param s2
    * @param s3
    */
-  public KnownShiftUtil(Sampling su, Sampling s1, Sampling s2, Sampling s3) {
+  public KnownShiftUtil(
+      Sampling su, Sampling s1, Sampling s2, Sampling s3) 
+  {
+    this(su,s1,s2,s3,filldouble(0.0,s1.getCount()));
+  }
+
+  /**
+   * 
+   * @param su
+   * @param s1
+   * @param s2
+   * @param s3
+   */
+  public KnownShiftUtil(
+      Sampling su, Sampling s1, Sampling s2, Sampling s3, double[] r1Min) 
+  {
     _errorMap = new HashMap<>();
     _su = su;
     _s1 = s1;
     _s2 = s2;
     _s3 = s3;
-  }
-
-  /**
-   * 
-   * @param r1Min
-   * @param r1Max
-   */
-  public void setStrainMin(double r1Min) {
-    setStrainMin(filldouble(r1Min,_s1.getCount()));
-  }
-
-  /**
-   * 
-   * @param r1Min
-   * @param r1Max
-   */
-  public void setStrainMin(double[] r1Min) {
     _r1Min = r1Min;
   }
 
@@ -68,13 +85,14 @@ public class KnownShiftUtil {
    * 
    * @param xu
    * @param x1
-   * @throws IllegalArgumentException
+   * @throws UnphysicalShiftException
    */
-  public void add(double xu, double x1) throws IllegalArgumentException {
+  public void add(double xu, double x1) throws UnphysicalShiftException {
     int iu = _su.indexOfNearest(xu);
     int i1 = _s1.indexOfNearest(x1);
-    if (!checkShift(iu,i1)) 
-      throw new IllegalArgumentException("Shift violates minimum strain.");
+    double[] mps = new double[1];
+    if (!checkShift(iu,i1,mps))
+      throw new UnphysicalShiftException(xu,x1,iu,i1,mps[0]);
     List<Integer> list = _errorMap.get(-1);
     if (list==null)
       list = new LinkedList<>();
@@ -88,15 +106,16 @@ public class KnownShiftUtil {
    * @param xu
    * @param x1
    * @param x2
-   * @throws IllegalArgumentException
+   * @throws UnphysicalShiftException 
    */
-  public void add(double xu, double x1, double x2) 
-      throws IllegalArgumentException 
+  public void add(double xu, double x1, double x2) throws 
+      UnphysicalShiftException
   {
     int iu = _su.indexOfNearest(xu);
     int i1 = _s1.indexOfNearest(x1);
-    if (!checkShift(iu,i1)) 
-      throw new IllegalArgumentException("Shift violates minimum strain.");
+    double[] mps = new double[1];
+    if (!checkShift(iu,i1,mps))
+      throw new UnphysicalShiftException(xu,x1,iu,i1,mps[0]);
     int i2 = _s2.indexOfNearest(x2);
 //    System.out.println("ErrorMapUtil.add: iu="+iu+", i1="+i1+", i2="+i2);
     List<Integer> list = _errorMap.get(i2);
@@ -113,15 +132,16 @@ public class KnownShiftUtil {
    * @param x1
    * @param x2
    * @param x3
-   * @throws IllegalArgumentException
+   * @throws UnphysicalShiftException 
    */
-  public void add(double xu, double x1, double x2, double x3) 
-      throws IllegalArgumentException 
+  public void add(double xu, double x1, double x2, double x3) throws 
+  UnphysicalShiftException 
   {
     int iu = _su.indexOfNearest(xu);
     int i1 = _s1.indexOfNearest(x1);
-    if (!checkShift(iu,i1)) 
-      throw new IllegalArgumentException("Shift violates minimum strain.");
+    double[] mps = new double[1];
+    if (!checkShift(iu,i1,mps))
+      throw new UnphysicalShiftException(xu,x1,iu,i1,mps[0]);
     int i2 = _s2.indexOfNearest(x2);
     int i3 = _s3.indexOfNearest(x3);
     int n2 = _s2.getCount();
@@ -452,10 +472,14 @@ public class KnownShiftUtil {
 
     // 2D
     KnownShiftUtil emu = new KnownShiftUtil(su,s1,s2);
-    emu.add(-100.0,5.0,1200.0);
-    emu.add(-75.0,12.0,1200.0);
-    emu.add(-150.0,300.0,1200.0);
-    emu.add(0.0,0.0,1800.0);
+    try {
+      emu.add(-100.0,5.0,1200.0);
+      emu.add(-75.0,12.0,1200.0);
+      emu.add(-150.0,300.0,1200.0);
+      emu.add(0.0,0.0,1800.0);
+    } catch (UnphysicalShiftException e) {
+      e.printStackTrace();
+    }
     Map<Integer,int[]> map = emu.getMap();
     for (Integer integer : map.keySet()) {
       int[] l1 = map.get(integer);
@@ -465,10 +489,14 @@ public class KnownShiftUtil {
 
     //3
     emu = new KnownShiftUtil(su,s1,s2,s3);
-    emu.add(-100.0,5.0,1200.0);
-    emu.add(-75.0,12.0,1200.0);
-    emu.add(-150.0,300.0,1200.0);
-    emu.add(0.0,0.0,1800.0);
+    try {
+      emu.add(-100.0,5.0,1200.0);
+      emu.add(-75.0,12.0,1200.0);
+      emu.add(-150.0,300.0,1200.0);
+      emu.add(0.0,0.0,1800.0);
+    } catch (UnphysicalShiftException e) {
+      e.printStackTrace();
+    }
     map = emu.getMap();
     for (Integer integer : map.keySet()) {
       int[] l1 = map.get(integer);
@@ -479,16 +507,15 @@ public class KnownShiftUtil {
 
   ///////////////////////////////////////////////////////////////////////////
   // Private
-  private Map<Integer,List<Integer>> _errorMap;
-  private Sampling _su, _s1, _s2, _s3;
-  private double[] _r1Min;
+  private final Map<Integer,List<Integer>> _errorMap;
+  private final Sampling _su, _s1, _s2, _s3;
+  private final double[] _r1Min;
 
-  private boolean checkShift(int iu, int i1) {
-    if (_r1Min==null) return true;
-    double sum = 0.0;
+  private boolean checkShift(int iu, int i1, double[] mps) {
+    mps[0] = 0.0;
     for (int i=0; i<i1; i++)
-      sum += _r1Min[i];
-    if (iu<=sum) return false;
+      mps[0] += _r1Min[i];
+    if (iu<=mps[0]) return false;
     return true;
   }
 
@@ -525,5 +552,31 @@ public class KnownShiftUtil {
 //    
 //    private final float _x1, _x2;
 //  }
+
+  public class UnphysicalShiftException extends Throwable {
+
+    public UnphysicalShiftException(
+        double xu, double x1, int iu, int i1, double mps) 
+    {
+      super("Sample: "+x1+", Sample index: "+i1+
+            ", Shift: "+xu+", Shift index: "+iu+
+            ", Max physical shift index: "+mps);
+      _xu = xu;
+      _x1 = x1;
+      _iu = iu;
+      _i1 = i1;
+      _mps = mps;
+    }
+
+    public double getShift() { return _xu; }
+    public int getShiftIndex() { return _iu; }
+    public double getSample() { return _x1; }
+    public int getSampleIndex() { return _i1; }
+    public double getMaxPhysicalShift() { return _mps; }
+
+    private static final long serialVersionUID = 1L;
+    private final double _xu, _x1, _mps;
+    private final int _iu, _i1;
+  }
 
 }
