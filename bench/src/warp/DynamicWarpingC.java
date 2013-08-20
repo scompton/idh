@@ -1834,6 +1834,10 @@ public class DynamicWarpingC {
     final Parallel.Unsafe<float[][]> eu = new Parallel.Unsafe<>();
     Parallel.loop(n2,new Parallel.LoopInt() {
     public void compute(int i2) {
+      if (pt.getCanceled()) {
+        Thread.currentThread().interrupt();
+        throw new CancellationException();
+      }
       float[][] e = eu.get();
       if (e==null) eu.set(e=new float[n1][_nl]);
       computeErrors(pp[i2],ps[i2],e);
@@ -1841,7 +1845,6 @@ public class DynamicWarpingC {
       fixShifts(e,l1);
       int[] g1ks = KnownShiftUtil.getG1(g1[i2],l1,r1min,r1max);
       es1[i2] = smoothErrors(e,r1min,r1max,g1ks);
-      if (pt.getCanceled()) throw new CancellationException();
       pt.worked();
     }});
     return es1;
@@ -1879,6 +1882,10 @@ public class DynamicWarpingC {
     int n23 = n2*n3;
     Parallel.loop(n23,new Parallel.LoopInt() {
     public void compute(int i23) {
+      if (pt.getCanceled()) {
+        Thread.currentThread().interrupt();
+        throw new CancellationException();
+      }
       int i2 = i23%n2;
       int i3 = i23/n2;
       float[][] e = eu.get();
@@ -1888,7 +1895,6 @@ public class DynamicWarpingC {
       fixShifts(e,l1);
       int[] g1ks = KnownShiftUtil.getG1(g1[i3][i2],l1,r1min,r1max);
       es1[i3][i2] = smoothErrors(e,r1min,r1max,g1ks);
-      if (pt.getCanceled()) throw new CancellationException();
       pt.worked();
     }});
     return es1;
@@ -1920,13 +1926,16 @@ public class DynamicWarpingC {
     final float[][][] es = new float[ng2][n1][nl]; // smoothed errors
     Parallel.loop(n1,new Parallel.LoopInt() {
     public void compute(int i1) {
+      if (pt.getCanceled()) {
+        Thread.currentThread().interrupt();
+        throw new CancellationException();
+      }
       float[][]  e2 = new float[n2][nl]; // errors at index i1
       for (int i2=0; i2<n2; ++i2)
         e2[i2] = e[i2][i1];
       float[][] es2 = smoothErrors(e2,r2min,r2max,g2);
       for (int i2=0; i2<ng2; i2++)
         es[i2][i1] = es2[i2];
-      if (pt.getCanceled()) throw new CancellationException();
       pt.worked();
     }});
     return es;
@@ -1986,13 +1995,16 @@ public class DynamicWarpingC {
     Parallel.loop(n1,new Parallel.LoopInt() {
     public void compute(int i1) {
       for (int i2=0; i2<n2; i2++) {
+        if (pt.getCanceled()) {
+          Thread.currentThread().interrupt();
+          throw new CancellationException();
+        }
         float[][]  e3 = new float[n3][nl]; // smooth errors at index i1,i2
         for (int i3=0; i3<n3; i3++)
           e3[i3] = e[i3][i2][i1];
         float[][] es3 = smoothErrors(e3,r3Min,r3Max,g3);
         for (int i3=0; i3<ng3; i3++)
           es[i3][i2][i1] = es3[i3];
-        if (pt.getCanceled()) throw new CancellationException();
         pt.worked();
       }
     }});
