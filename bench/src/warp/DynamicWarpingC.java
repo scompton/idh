@@ -31,8 +31,8 @@ public class DynamicWarpingC {
 
   /**
    * Constructor for smooth dynamic warping of converted wave images. Required
-   * parameters are minimum and maximum lag. The number of lags is nl = 
-   * {@code lMax}-{@code lMin}+1. For warping PS to PP images the typical 
+   * parameters are minimum and maximum lag. The number of lags is nl =
+   * {@code lMax}-{@code lMin}+1. For warping PS to PP images the typical
    * minimum lag is 0, but negative values may need to be allowed due to statics
    * corrections applied to the data. The maximum lag can be computed from the
    * {@link #computeMaxLag(int, float)} method.
@@ -137,15 +137,15 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Find shifts for 1D traces. For the input trace {@code f[n1]}, shifts 
-   * {@code u} are computed on a subsampled grid such that the computed shifts 
-   * are {@code u[ng1]}. This length matches the length of array {@code g1} 
-   * and the indices of the subsampled shifts are specified by contents of 
-   * this array. The contents of the {@code g1} array are rounded to the 
+   * Find shifts for 1D traces. For the input trace {@code f[n1]}, shifts
+   * {@code u} are computed on a subsampled grid such that the computed shifts
+   * are {@code u[ng1]}. This length matches the length of array {@code g1}
+   * and the indices of the subsampled shifts are specified by contents of
+   * this array. The contents of the {@code g1} array are rounded to the
    * nearest integer.
    * </p>
    * The sparsely computed shifts are interpolated back to the fine grid such
-   * that the returned shifts match the size of the input trace, that is 
+   * that the returned shifts match the size of the input trace, that is
    * {@code ui[n1]}.
    * @param f the PP trace.
    * @param g the PS trace.
@@ -159,15 +159,15 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Find shifts for 1D traces. For the input trace {@code f[n1]}, shifts 
-   * {@code u} are computed on a subsampled grid such that the computed shifts 
-   * are {@code u[ng1]}. This length matches the length of array {@code g1} 
-   * and the indices of the subsampled shifts are specified by contents of 
-   * this array. The contents of the {@code g1} array are rounded to the 
+   * Find shifts for 1D traces. For the input trace {@code f[n1]}, shifts
+   * {@code u} are computed on a subsampled grid such that the computed shifts
+   * are {@code u[ng1]}. This length matches the length of array {@code g1}
+   * and the indices of the subsampled shifts are specified by contents of
+   * this array. The contents of the {@code g1} array are rounded to the
    * nearest integer.
    * </p>
    * The sparsely computed shifts are interpolated back to the fine grid such
-   * that the returned shifts match the size of the input trace, that is 
+   * that the returned shifts match the size of the input trace, that is
    * {@code ui[n1]}.
    * @param f the PP trace.
    * @param g the PS trace.
@@ -175,10 +175,10 @@ public class DynamicWarpingC {
    *  locations.
    * @param interp1 interpolation method for the i1 (fast) dimension.
    * @param xl coordinate array of lag values. These values along with the
-   *  {@code x1} coordinate array set a hard constraint in the the error 
+   *  {@code x1} coordinate array set a hard constraint in the the error
    *  function. Can be {@code null}.
    * @param x1 coordinate array of i1 values. These values along with the
-   *  {@code xl} coordinate array set a hard constraint in the the error 
+   *  {@code xl} coordinate array set a hard constraint in the the error
    *  function. Can be {@code null}.
    * @return shifts for 1D traces.
    */
@@ -218,21 +218,21 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Find shifts for 2D images. For the input image {@code f[n2][n1]}, shifts 
-   * {@code u} are computed on a subsampled grid such that the computed shifts 
-   * are {@code u[ng2][ng1]}. These lengths match the length of arrays 
-   * {@code g1,g2} and the indices of the subsampled shifts are specified by 
+   * Find shifts for 2D images. For the input image {@code f[n2][n1]}, shifts
+   * {@code u} are computed on a subsampled grid such that the computed shifts
+   * are {@code u[ng2][ng1]}. These lengths match the length of arrays
+   * {@code g1,g2} and the indices of the subsampled shifts are specified by
    * contents of these arrays. The contents of the {@code g1} array are rounded
    * to the nearest integer.
    * </p>
    * The sparsely computed shifts are interpolated back to the fine grid such
-   * that the returned shifts match the size of the input image, that is 
+   * that the returned shifts match the size of the input image, that is
    * {@code ui[n2][n1]}.
    * @param f the PP traces.
    * @param g the PS traces.
    * @param g1 array of size [n2][ng1] specifying first dimension sparse grid
    *  locations for all n2.
-   * @param g2 array of size [ng2] specifying second dimension sparse grid 
+   * @param g2 array of size [ng2] specifying second dimension sparse grid
    *  locations.
    * @param interp1 interpolation method for the i1 (fast) dimension.
    * @param interp2 interpolation method for the i2 (slow) dimension.
@@ -247,23 +247,23 @@ public class DynamicWarpingC {
   {
     return findShifts(f,g,g1,g2,interp1,interp2,new HashMap<Integer,int[]>());
   }
-  
+
   /**
-   * Find shifts for 2D images. For the input image {@code f[n2][n1]}, shifts 
-   * {@code u} are computed on a subsampled grid such that the computed shifts 
-   * are {@code u[ng2][ng1]}. These lengths match the length of arrays 
-   * {@code g1,g2} and the indices of the subsampled shifts are specified by 
+   * Find shifts for 2D images. For the input image {@code f[n2][n1]}, shifts
+   * {@code u} are computed on a subsampled grid such that the computed shifts
+   * are {@code u[ng2][ng1]}. These lengths match the length of arrays
+   * {@code g1,g2} and the indices of the subsampled shifts are specified by
    * contents of these arrays. The contents of the {@code g1} array are rounded
    * to the nearest integer.
    * </p>
    * The sparsely computed shifts are interpolated back to the fine grid such
-   * that the returned shifts match the size of the input image, that is 
+   * that the returned shifts match the size of the input image, that is
    * {@code ui[n2][n1]}.
    * @param f the PP traces.
    * @param g the PS traces.
    * @param g1 array of size [n2][ng1] specifying first dimension sparse grid
    *  locations for all n2.
-   * @param g2 array of size [ng2] specifying second dimension sparse grid 
+   * @param g2 array of size [ng2] specifying second dimension sparse grid
    *  locations.
    * @param interp1 interpolation method for the i1 (fast) dimension.
    * @param interp2 interpolation method for the i2 (slow) dimension.
@@ -296,7 +296,7 @@ public class DynamicWarpingC {
     final double[] r2Min = getR2Min(n2);
     final double[] r2Max = getR2Max(n2);
 
-    // Initialize ProgressTracker: smooth1=n2 units, smooth2=ng1 units, 
+    // Initialize ProgressTracker: smooth1=n2 units, smooth2=ng1 units,
     //   find shifts=ng2 units, interpolation=1 unit.
     int totalWorkUnits = n2+ng1+ng2+1;
     final ProgressTracker pt = new ProgressTracker(totalWorkUnits);
@@ -351,20 +351,20 @@ public class DynamicWarpingC {
    * Find shifts for 3D images. For the input image {@code f[n3][n2][n1]},
    * shifts {@code u} are computed on a subsampled grid such that the computed
    * shifts are {@code u[ng3][ng2][ng1]}. These lengths match the length of
-   * arrays {@code g1,g2,g3} and the indices of the subsampled shifts are 
-   * specified by contents of these arrays. The contents of the {@code g1} 
+   * arrays {@code g1,g2,g3} and the indices of the subsampled shifts are
+   * specified by contents of these arrays. The contents of the {@code g1}
    * array are rounded to the nearest integer.
    * </p>
    * The sparsely computed shifts are interpolated back to the fine grid such
-   * that the returned shifts match the size of the input image, that is 
+   * that the returned shifts match the size of the input image, that is
    * {@code ui[n3][n2][ne1]}.
    * @param f the PP traces.
    * @param g the PS traces.
    * @param g1 array of size [n2][ng1] specifying first dimension sparse grid
    *  locations for all n2.
-   * @param g2 array of size [ng2] specifying second dimension sparse grid 
+   * @param g2 array of size [ng2] specifying second dimension sparse grid
    *  locations.
-   * @param g3 array of size [ng3] specifying third dimension sparse grid 
+   * @param g3 array of size [ng3] specifying third dimension sparse grid
    *  locations.
    * @param interp1 interpolation method for the i1 (fast) dimension.
    * @param interp23 interpolation method for the i2 (middle) and i3
@@ -375,7 +375,7 @@ public class DynamicWarpingC {
    *  the {@link WarperWorkTracker#isCanceled()} method returns {@code true}.
    */
   public float[][][] findShifts(
-      float[][][] f, float[][][] g, 
+      float[][][] f, float[][][] g,
       final float[][][] g1, final int[] g2, final int[] g3,
       Interp interp1, Interp interp23) throws CancellationException
   {
@@ -384,7 +384,7 @@ public class DynamicWarpingC {
   }
 
   public float[][][] findShifts(
-      float[][][] f, float[][][] g, 
+      float[][][] f, float[][][] g,
       final float[][][] g1, final int[] g2, final int[] g3,
       Interp interp1, Interp interp23, Map<Integer,int[]> l1Map)
       throws CancellationException
@@ -399,7 +399,7 @@ public class DynamicWarpingC {
     Check.argument(n2==g1[0].length,"n2==g1[0].length");
     printInfo(n1,n2,n3,ng1,ng2,ng3);
 
-    // Round to integer indices, use float values for interpolation only.    
+    // Round to integer indices, use float values for interpolation only.
     final int[][][] g1i = new int[n3][n2][ng1];
     for (int i3=0; i3<n3; i3++) {
       for (int i2=0; i2<n2; i2++) {
@@ -415,7 +415,7 @@ public class DynamicWarpingC {
     final double[] r3Min = getR3Min(n3);
     final double[] r3Max = getR3Max(n3);
 
-    // Initialize ProgressTracker: smooth1=n2*n3 units, smooth2=n3*ng1 units, 
+    // Initialize ProgressTracker: smooth1=n2*n3 units, smooth2=n3*ng1 units,
     //   smooth3=ng1*ng2 units, find shifts=ng2*ng3 units, interpolation=1 unit.
     int totalWorkUnits = (n2*n3)+(n3*ng1)+(ng1*ng2)+(ng2*ng3)+1;
     final ProgressTracker pt = new ProgressTracker(totalWorkUnits);
@@ -481,7 +481,7 @@ public class DynamicWarpingC {
 
   /**
    * Applies the shifts {@code u} to the PS trace {@code g}.
-   * @param n1f the length of PP trace. This is the length of the returned 
+   * @param n1f the length of PP trace. This is the length of the returned
    *  warped trace.
    * @param g the PS trace to be warped.
    * @param u the shifts that warp the PS trace to the PP trace.
@@ -503,14 +503,14 @@ public class DynamicWarpingC {
   
   /**
    * Applies the shifts {@code u} to the PS image {@code g}.
-   * @param n1f the length of PP traces. This is the length of the returned 
+   * @param n1f the length of PP traces. This is the length of the returned
    *  warped traces.
    * @param g the PS trace to be warped.
    * @param u the shifts that warp the PS image to the PP image.
    * @return the warped PS image.
    */
   public float[][] applyShifts(
-      final int n1f, final float[][] g, final float[][] u) 
+      final int n1f, final float[][] g, final float[][] u)
   {
     final int n2 = g.length;
     final int n1g = g[0].length;
@@ -528,17 +528,17 @@ public class DynamicWarpingC {
     }});
     return hf;
   }
-  
+
   /**
    * Applies the shifts {@code u} to the PS image {@code g}.
-   * @param n1f the length of PP traces. This is the length of the returned 
+   * @param n1f the length of PP traces. This is the length of the returned
    *  warped traces.
    * @param g the PS trace to be warped.
    * @param u the shifts that warp the PS image to the PP image.
    * @return the warped PS image.
    */
   public float[][][] applyShifts(
-      final int n1f, final float[][][] g, final float[][][] u) 
+      final int n1f, final float[][][] g, final float[][][] u)
   {
     final int n3 = g.length;
     final int n2 = g[0].length;
@@ -556,7 +556,7 @@ public class DynamicWarpingC {
         for (int i1=n1u; i1<n1f; i1++) {
           hf[i3][i2][i1] = _si.interpolate(n1g,1.0,0.0,g[i3][i2],
               i1+u[i3][i2][n1um]);
-        }  
+        }
       }
     }});
     return hf;
@@ -564,18 +564,18 @@ public class DynamicWarpingC {
 
   /**
    * Compute the maximum length of PP traces from a guess of the average Vp/Vs
-   * ratio. This method can be used to find the maximum PP length useful for 
+   * ratio. This method can be used to find the maximum PP length useful for
    * warping. Truncating the PP data to this length will improve efficiency.
-   * This calculation uses the entire length of the PS trace {@code n1PS} and 
-   * determines the maximum sample in the PP trace that could correspond to the 
-   * final PS sample. The length is [2.0/({@code vpvsAvg}+1.0)]*{@code n1PS} or 
+   * This calculation uses the entire length of the PS trace {@code n1PS} and
+   * determines the maximum sample in the PP trace that could correspond to the
+   * final PS sample. The length is [2.0/({@code vpvsAvg}+1.0)]*{@code n1PS} or
    * {@code n1PP} if the computed value is larger than {@code n1PP}.
    * @param n1PP the length of PP traces.
    * @param n1PS the length of PS traces.
-   * @param vpvsAvg a guess of the average Vp/Vs ratio at the PP sample that 
-   *  corresponds with the maximum PS sample. Usually a value of 2.0 is a good 
+   * @param vpvsAvg a guess of the average Vp/Vs ratio at the PP sample that
+   *  corresponds with the maximum PS sample. Usually a value of 2.0 is a good
    *  starting point.
-   * @return the maximum length of PP traces useful for warping, based on the 
+   * @return the maximum length of PP traces useful for warping, based on the
    *  {@code vpvsAvg} and {@code n1PS}.
    */
   public static int computeMaxLength(int n1PP, int n1PS, float vpvsAvg) {
@@ -585,18 +585,18 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Computes the maximum lag for warping PS to PP traces from a guess of the 
-   * average Vp/Vs ratio. This value can be used to construct a 
-   * {@link DynamicWarpingC} instance. This method uses the approach described 
-   * in the {@link #computeMaxLength(int, int, float)} method. The maximum lag 
-   * is simply the difference between the computed PP trace length useful for 
+   * Computes the maximum lag for warping PS to PP traces from a guess of the
+   * average Vp/Vs ratio. This value can be used to construct a
+   * {@link DynamicWarpingC} instance. This method uses the approach described
+   * in the {@link #computeMaxLength(int, int, float)} method. The maximum lag
+   * is simply the difference between the computed PP trace length useful for
    * warping and the PS trace length.
    * @param n1PS the length of PS traces.
-   * @param vpvsAvg a guess of the average Vp/Vs ratio at the PP sample that 
-   *  corresponds with the maximum PS sample. Usually a value of 2.0 is a good 
+   * @param vpvsAvg a guess of the average Vp/Vs ratio at the PP sample that
+   *  corresponds with the maximum PS sample. Usually a value of 2.0 is a good
    *  starting point.
-   * @return the maximum lag (in samples) for warping, based on the 
-   *  {@code vpvsAvg} and {@code n1PS}. 
+   * @return the maximum lag (in samples) for warping, based on the
+   *  {@code vpvsAvg} and {@code n1PS}.
    */
   public static int computeMaxLag(int n1PS, float vpvsAvg) {
     float scale = getScale(vpvsAvg);
@@ -607,10 +607,10 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Computes the NRMS value of the warped PS trace {@code h} and the PP trace 
-   * {@code f}. The NRMS value is the RMS of the difference between {@code f} 
+   * Computes the NRMS value of the warped PS trace {@code h} and the PP trace
+   * {@code f}. The NRMS value is the RMS of the difference between {@code f}
    * and {@code h} divided by the average RMS of {@code f} and {@code h}.
-   * @param n1Max the length of {@code f} and {@code h} to use for this 
+   * @param n1Max the length of {@code f} and {@code h} to use for this
    *  computation.
    * @param f the PP trace.
    * @param h the warped PS trace.
@@ -625,7 +625,7 @@ public class DynamicWarpingC {
     float[] hs = copy(n1Max,h);
     float scale = 1.0f/n1Max;
     float[] d = sub(hs,fs);
-    float frms = sqrt(sum(mul(fs,fs))*scale);  
+    float frms = sqrt(sum(mul(fs,fs))*scale);
     float hrms = sqrt(sum(mul(hs,hs))*scale);
     float drms = sqrt(sum(mul( d, d))*scale);
     float nrms = (2.0f*drms)/(frms+hrms);
@@ -633,17 +633,17 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Computes the NRMS value of the warped PS trace {@code h} and the PP trace 
-   * {@code f}. The NRMS value is the RMS of the difference between {@code f} 
+   * Computes the NRMS value of the warped PS trace {@code h} and the PP trace
+   * {@code f}. The NRMS value is the RMS of the difference between {@code f}
    * and {@code h} divided by the average RMS of {@code f} and {@code h}.
-   * @param n1Max the length of {@code f} and {@code h} to use for this 
+   * @param n1Max the length of {@code f} and {@code h} to use for this
    *  computation.
    * @param f the PP traces.
    * @param h the warped PS traces.
    * @return the NRMS value, this measure is between 0.0 and 2.0.
    */
   public static float computeNrms(
-      final int n1Max, final float[][] f, final float[][] h) 
+      final int n1Max, final float[][] f, final float[][] h)
   {
     int n1f = f[0].length;
     int n1h = h[0].length;
@@ -682,17 +682,17 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Computes the NRMS value of the warped PS trace {@code h} and the PP trace 
-   * {@code f}. The NRMS value is the RMS of the difference between {@code f} 
+   * Computes the NRMS value of the warped PS trace {@code h} and the PP trace
+   * {@code f}. The NRMS value is the RMS of the difference between {@code f}
    * and {@code h} divided by the average RMS of {@code f} and {@code h}.
-   * @param n1Max the length of {@code f} and {@code h} to use for this 
+   * @param n1Max the length of {@code f} and {@code h} to use for this
    *  computation.
    * @param f the PP traces.
    * @param h the warped PS traces.
    * @return the NRMS value, this measure is between 0.0 and 2.0.
    */
   public static float computeNrms(
-      final int n1Max, final float[][][] f, final float[][][] h) 
+      final int n1Max, final float[][][] f, final float[][][] h)
   {
     int n1f = f[0][0].length;
     int n1h = h[0][0].length;
@@ -735,10 +735,10 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Computes an array of VpVs ratios an array of shifts u. The relationship is 
+   * Computes an array of VpVs ratios an array of shifts u. The relationship is
    * defined as vpvs(t) = 1+2*(du/dt).
    * @param u the shifts.
-   * @return computed interval Vp/Vs values. 
+   * @return computed interval Vp/Vs values.
    */
   public static float[] vpvs(float[] u) {
     int n = u.length;
@@ -752,10 +752,10 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Computes an array of VpVs ratios an array of shifts u. The relationship is 
+   * Computes an array of VpVs ratios an array of shifts u. The relationship is
    * defined as vpvs(t) = 1+2*(du/dt).
    * @param u the shifts.
-   * @return computed interval Vp/Vs values. 
+   * @return computed interval Vp/Vs values.
    */
   public static float[][] vpvs(float[][] u) {
     int n2 = u.length;
@@ -766,10 +766,10 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Computes an array of VpVs ratios an array of shifts u. The relationship is 
+   * Computes an array of VpVs ratios an array of shifts u. The relationship is
    * defined as vpvs(t) = 1+2*(du/dt).
    * @param u the shifts.
-   * @return computed interval Vp/Vs values. 
+   * @return computed interval Vp/Vs values.
    */
   public static float[][][] vpvs(float[][][] u) {
     int n3 = u.length;
@@ -834,7 +834,7 @@ public class DynamicWarpingC {
    * shifts are constant for all traces.
    * @param r1min minimum slope in first dimension.
    * @param r1max maximum slope in first dimension.
-   * @param g1 array of subsampled indices.  
+   * @param g1 array of subsampled indices.
    * @return shifts for 2D images from averaged alignment errors.
    */
   public float[] findShifts2(float[][] f, float[][] g, int[] g1) {
@@ -859,7 +859,7 @@ public class DynamicWarpingC {
       float[] u1, float[] uS, float[] ps1, float[] ps2)
   {
     int n1 = ps1.length;
-    float[] ps1w = new float[n1]; 
+    float[] ps1w = new float[n1];
     float[] ps2w = new float[n1];
     int nu = u1.length;
     int num = nu-1;
@@ -879,7 +879,7 @@ public class DynamicWarpingC {
    * using a backward difference approximation.
    * The relationship is defined as vpvs(t) = 1+2*(du/dt)
    * @param u
-   * @return computed vpvs values. 
+   * @return computed vpvs values.
    */
   public static float[] vpvsBd(float[] u) {
     int n = u.length;
@@ -911,7 +911,7 @@ public class DynamicWarpingC {
     final float[][][] e = new float[n2][n1][_nl];
     Parallel.loop(n2,new Parallel.LoopInt() {
     public void compute(int i2) {
-      computeErrors(f[i2],g[i2],e[i2]);  
+      computeErrors(f[i2],g[i2],e[i2]);
     }});
     return e;
   }
@@ -919,14 +919,14 @@ public class DynamicWarpingC {
   // FIXME or DELETEME
 //  /**
 //   * Returns alignment errors for 2D images. Alignment errors
-//   * at every trace are the sum of 2*w nearby traces. 
+//   * at every trace are the sum of 2*w nearby traces.
 //   * @param w the width to extend left and right from each
-//   *  trace 
+//   *  trace
 //   * @return Alignment errors for 2D image with Alignment errors
 //   *  at every trace are the sum of 2*w nearby traces.
 //   */
 //  public float[][][] computeErrors2Near(
-//      final float[][] f, final float[][] g, final int w) 
+//      final float[][] f, final float[][] g, final int w)
 //  {
 //    int n2 = f.length;
 //    int n1 = f[0].length;
@@ -940,7 +940,7 @@ public class DynamicWarpingC {
 
   /**
    * Compute summed alignment errors for 2D images.
-   * @return summed alignment errors for 2D images. 
+   * @return summed alignment errors for 2D images.
    */
   public float[][] computeErrorsSum2(final float[][] f, final float[][] g) {
     final int n2 = f.length;
@@ -959,10 +959,10 @@ public class DynamicWarpingC {
 
   /**
    * Compute summed alignment errors for 3D images.
-   * @return summed alignment errors for 3D images. 
+   * @return summed alignment errors for 3D images.
    */
   public float[][] computeErrorsSum3(
-      final float[][][] f, final float[][][] g) 
+      final float[][][] f, final float[][][] g)
   {
     final int n3 = f.length;
     final int n2 = f[0].length;
@@ -1089,7 +1089,7 @@ public class DynamicWarpingC {
    * @param e input/output array.
    */
   public static void normalizeErrors(
-      float[][] e, float ignoreMin, float ignoreMax) 
+      float[][] e, float ignoreMin, float ignoreMax)
   {
     int nl = e[0].length;
     int n1 = e.length;
@@ -1134,7 +1134,7 @@ public class DynamicWarpingC {
   }
 
   public static void normalizeErrors(
-      float[][][] e, final float ignoreMin, final float ignoreMax) 
+      float[][][] e, final float ignoreMin, final float ignoreMax)
   {
     final int nl = e[0][0].length;
     final int n1 = e[0].length;
@@ -1191,7 +1191,7 @@ public class DynamicWarpingC {
   }
 
   public static void normalizeErrors(
-      float[][][][] e, final float ignoreMin, final float ignoreMax) 
+      float[][][][] e, final float ignoreMin, final float ignoreMax)
   {
     final int nl = e[0][0][0].length;
     final int n1 = e[0][0].length;
@@ -1209,7 +1209,7 @@ public class DynamicWarpingC {
               if (ei<emin && ei>ignoreMin) emin = ei;
               if (ei>emax && ei<ignoreMax) emax = ei;
             }
-          }  
+          }
         }
         return new MinMax(emin,emax);
       }
@@ -1220,7 +1220,26 @@ public class DynamicWarpingC {
   }
 
   public static void normalize(
-      float[][][] f, final float nmin, final float nmax) 
+      float[][] f, final float nmin, final float nmax)
+  {
+    final int n1 = f[0].length;
+    final int n2 = f.length;
+    final float[][] ff = f;
+    final float vmin = min(f);
+    final float vmax = max(f);
+    final float range = vmax-vmin;
+    final float nrange = nmax-nmin;
+    Parallel.loop(n2,new Parallel.LoopInt() {
+    public void compute(int i2) {
+      for (int i1=0; i1<n1; ++i1) {
+	float vi = ff[i2][i1];
+	ff[i2][i1] = nrange*(vi-vmin)/range + nmin;
+      }
+    }});
+  }
+
+  public static void normalize(
+      float[][][] f, final float nmin, final float nmax)
   {
     final int n1 = f[0][0].length;
     final int n2 = f[0].length;
@@ -1323,7 +1342,7 @@ public class DynamicWarpingC {
             t[i3][i2][il][i1] = e[i3][i2][i1][il];
           }
         }
-      }  
+      }
     }
     return t;
   }
@@ -1466,17 +1485,17 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Interpolates subsampled shifts u[ng2][ng1] to uniformly sampled 
-   * shifts ui[_n2][_ne1]. The locations of the subsampled shifts u 
+   * Interpolates subsampled shifts u[ng2][ng1] to uniformly sampled
+   * shifts ui[_n2][_ne1]. The locations of the subsampled shifts u
    * are defined by the input arrays g1 and g2. The g2 array is
-   * assumed to contain integer indices consistent for all n1 locations. 
+   * assumed to contain integer indices consistent for all n1 locations.
    * That is, g2 indices are the same at every i1, for i1=0,...,n1-1.
    * </p>
    * The g1 coordinate array defines the subsampled locations of the
    * fastest dimension of shifts u, for all n2 indices.
    * </p>
    * The interpolation is done in two passes. First interpolation
-   * is done in the second dimension where subsampling must be 
+   * is done in the second dimension where subsampling must be
    * regular. The second pass does interpolation in the first
    * dimension where subsampling may be irregular.
    * @param g1 first dimension sparse grid coordinates.
@@ -1495,7 +1514,7 @@ public class DynamicWarpingC {
     float[] g2f = new float[ng2];
     for (int ig2=0; ig2<ng2; ig2++)
       g2f[ig2] = g2[ig2];
-    
+
     float[][] ui = new float[n2][n1];
     CubicInterpolator.Method m2;
     switch (interp2) {
@@ -1536,11 +1555,11 @@ public class DynamicWarpingC {
   }
 
   /**
-   * Interpolates subsampled shifts u[ng3][ng2][ng1] to uniformly sampled 
-   * shifts ui[_n3][_n2][_ne1]. The locations of the subsampled shifts u are 
-   * defined by the input arrays g1, g2, and g3. The indices in the g3 array 
-   * must be the same at every i2, for i2=0,...,n2-1 and i1, for i1=0,...n1-1. 
-   * The indices in the g2 array must be the same at every i3, for 
+   * Interpolates subsampled shifts u[ng3][ng2][ng1] to uniformly sampled
+   * shifts ui[_n3][_n2][_ne1]. The locations of the subsampled shifts u are
+   * defined by the input arrays g1, g2, and g3. The indices in the g3 array
+   * must be the same at every i2, for i2=0,...,n2-1 and i1, for i1=0,...n1-1.
+   * The indices in the g2 array must be the same at every i3, for
    * i3=0,...,n3-1, and i1, for i1=0,...,n1-1.
    * </p>
    * The g1 coordinate array defines the subsampled locations of the
@@ -1548,7 +1567,7 @@ public class DynamicWarpingC {
    * </p>
    * The interpolation is done in two passes. First interpolation
    * is done in the second and third dimension where subsampling
-   * must be regular. The second pass does interpolation in the 
+   * must be regular. The second pass does interpolation in the
    * first dimension where subsampling may be irregular.
    * @param g1 first dimension sparse grid coordinates.
    * @param g2 second dimension sparse grid indices.
@@ -1561,7 +1580,7 @@ public class DynamicWarpingC {
    */
   private float[][][] interpolate(
       int n1, int n2, int n3, float[][][] g1, int[] g2, int[] g3, float[][][] u, 
-      Interp interp1, Interp interp23) 
+      Interp interp1, Interp interp23)
   {
     int ng1 = g1[0][0].length;
     int ng2 = g2.length;
@@ -1589,13 +1608,13 @@ public class DynamicWarpingC {
     BicubicInterpolator2.Method m23 = null;
     boolean doLinear;
     switch (interp23) {
-      case LINEAR:    doLinear = true; 
+      case LINEAR:    doLinear = true;
                       break;
-      case MONOTONIC: doLinear = false; 
-                      m23 = BicubicInterpolator2.Method.MONOTONIC; 
+      case MONOTONIC: doLinear = false;
+                      m23 = BicubicInterpolator2.Method.MONOTONIC;
                       break;
-      case SPLINE:    doLinear = false; 
-                      m23 = BicubicInterpolator2.Method.SPLINE; 
+      case SPLINE:    doLinear = false;
+                      m23 = BicubicInterpolator2.Method.SPLINE;
                       break;
       default: throw new IllegalArgumentException(
           interp1.toString()+" is not a recognized interpolation method.");
@@ -1614,7 +1633,7 @@ public class DynamicWarpingC {
           for (int i2=0; i2<n2; i2++)
             ui23[i3][i2][i1] = bli.interpolate(i2,i3);
       } else {
-        BicubicInterpolator2 bci = 
+        BicubicInterpolator2 bci =
             new BicubicInterpolator2(m23,m23,g2f,g3f,u23);
         for (int i3=0; i3<n3; i3++)
           for (int i2=0; i2<n2; i2++)
@@ -1626,7 +1645,7 @@ public class DynamicWarpingC {
     // interpolate the first dimension
     for (int i3=0; i3<n3; i3++) {
       for (int i2=0; i2<n2; i2++) {
-        CubicInterpolator ci = 
+        CubicInterpolator ci =
             new CubicInterpolator(m1,g1[i3][i2],ui23[i3][i2]);
         for (int i1=0; i1<n1; i1++)
           ui[i3][i2][i1] = ci.interpolate(i1);
@@ -1647,7 +1666,7 @@ public class DynamicWarpingC {
 //
 //    // Notes for indexing:
 //    // 0 <= il1 < _nl1, where il1 is index for lag between pp and ps1
-//    // 0 <= ilS < _nlS, where ilS is index for lag between ps1 and ps2    
+//    // 0 <= ilS < _nlS, where ilS is index for lag between ps1 and ps2
 //    // 0 <= i1 < n1, where i1 is index for sequence pp
 //    // 0 <= j1 < n1, where j1 is index for sequence ps1
 //    // 0 <= jS < n1, where jS is index for sequence ps2
@@ -1710,7 +1729,7 @@ public class DynamicWarpingC {
     }
   }
 
-  // FIXME or 
+  // FIXME or
   // This is broken because of a change to computeErrors, which no longer sums
   // into the given alignment errors. This should be an easy fix, but this is
   // not an important method.
@@ -1719,7 +1738,7 @@ public class DynamicWarpingC {
 //   * errors at nearby traces.
 //   * @param i2 the center index used for summing nearby alignment
 //   *  errors.
-//   * @param w the width to extend left and right from i2. 
+//   * @param w the width to extend left and right from i2.
 //   * @return summed alignment errors for index i2.
 //   */
 //  private float[][] computeErrorsNear(float[][] f, float[][] g, int i2, int w) {
@@ -1756,12 +1775,12 @@ public class DynamicWarpingC {
 
   /**
    * Returns smooth alignment errors on the sparse grid defined
-   * by the indices of g. 
+   * by the indices of g.
    * @param e 2D array of alignment errors.
    * @param rmin minimum slope.
    * @param rmax maximum slope.
    * @param g sparse grid indices.
-   * @return smoothed alignment errors with size 
+   * @return smoothed alignment errors with size
    *  [g.length][e[0].length].
    */
   public static float[][] smoothErrors(
@@ -1815,7 +1834,7 @@ public class DynamicWarpingC {
    * @param r1max maximum slope in the first dimension.
    * @param g1 first dimension sparse grid indices specified
    *  for all _n2 (size[_n2][])
-   * @return smoothed alignment errors with size 
+   * @return smoothed alignment errors with size
    *  [_n2][g1.length][_nel].
    * @throws CancellationException if a {@link WarperWorkTracker} instance is
    *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
@@ -1908,7 +1927,7 @@ public class DynamicWarpingC {
    * @param r2min minimum slope in the second dimension.
    * @param r2max maximum slope in the second dimension.
    * @param g2 second dimension sparse grid indices.
-   * @return smoothed alignment errors with size 
+   * @return smoothed alignment errors with size
    *  [g2.length][e[0].length][e[0][0].length].
    * @throws CancellationException if a {@link WarperWorkTracker} instance is
    *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
@@ -1949,7 +1968,7 @@ public class DynamicWarpingC {
    * @param r2Min minimum slope in the second dimension.
    * @param r2Max maximum slope in the second dimension.
    * @param g2 second dimension sparse grid indices.
-   * @return smoothed alignment errors with size 
+   * @return smoothed alignment errors with size
    *  [e.length][g2.length][e[0][0].length][e[0][0][0].length].
    * @throws CancellationException if a {@link WarperWorkTracker} instance is
    *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
@@ -1975,7 +1994,7 @@ public class DynamicWarpingC {
    * @param r3Min minimum slope in the third dimension.
    * @param r3Max maximum slope in the third dimension.
    * @param g3 third dimension sparse grid indices.
-   * @return smoothed alignment errors with size 
+   * @return smoothed alignment errors with size
    *  [g3.length][e[0].length][e[0][0].length][e[0][0][0].length].
    * @throws CancellationException if a {@link WarperWorkTracker} instance is
    *  set with the {@link #setWorkTracker(WarperWorkTracker)} method, and this
@@ -2074,7 +2093,7 @@ public class DynamicWarpingC {
 //    int is = (dir>0)?1:-1;   // stride
 //    int isp = ibg; // sparse grid index
 //    int ie = g[isp]; // error index
-//    
+//
 //    // Initialize accumulation values
 //    for (int il=0; il<nl; ++il)
 //      d[isp][il] = e[ie][il];
@@ -2106,7 +2125,7 @@ public class DynamicWarpingC {
 //        if (r==0) { // zero slope, no interpolation necessary
 //          for (int x=je+is; x!=ie; x+=is)
 //            for (int il=ils; il<ile; il++)
-//              dm[il] += e[x][il]; 
+//              dm[il] += e[x][il];
 //        } else { // linearly interpolate
 //          for (int x=je+is; x!=ie; x+=is) {
 //            float ky = r*(ie-x);
@@ -2117,7 +2136,7 @@ public class DynamicWarpingC {
 //            float w2 = 1.0f-w1;
 //            for (int il=ils; il<ile; il++)
 //              dm[il] += w1*e[x][k1+il]+w2*e[x][k2+il];
-//          }  
+//          }
 //        }
 //        // update previous errors and record moves.
 //        for (int il=ils; il<ile; il++) {
@@ -2254,7 +2273,7 @@ public class DynamicWarpingC {
   }
 
   private static void backtrack(
-      int dir, Sampling shifts, float[][] d, float[][] m, float[] u) 
+      int dir, Sampling shifts, float[][] d, float[][] m, float[] u)
     {
       int nl = d[0].length;
       int ni = d.length;
@@ -2265,7 +2284,7 @@ public class DynamicWarpingC {
       int is = (dir>0)?1:-1;   // stride
       int ii = ib;
       // Set initial lag for the case that all errors at ii are equal.
-      int il = (dir>0)?0:nlm1; 
+      int il = (dir>0)?0:nlm1;
       float dl = d[ii][il]; // Current accumulated error value.
 
       // Find minimum lag value(dl) and index(il) at trace index ii.
@@ -2285,7 +2304,7 @@ public class DynamicWarpingC {
 
   private static void backtrack(
       int dir, int b1, int bS, Sampling shifts1, Sampling shiftsS,
-      float[][][] d, float[][][] e, float[] u1, float[] uS) 
+      float[][][] d, float[][][] e, float[] u1, float[] uS)
   {
     float ob1 = 1.0f/b1;
     float obS = 1.0f/bS;
@@ -2318,15 +2337,15 @@ public class DynamicWarpingC {
     // Notes for backtracking:
       // ii, the trace index of the current minimum value
     // ji, the next trace index determined by the direction
-    // jb1, the next trace for shift 1 that satisfies strain limits b1 
+    // jb1, the next trace for shift 1 that satisfies strain limits b1
     // jbS, the next trace for shift S that satisfies strain limits bS
     // il1, the lag index for shift 1 of the current minimum value
     // ilc1, the lag index for shift 1 of a possible min value that
     //       satisfies the constraint ic
     // ilS, the lag index for shift S of the current minimum value
-    // ilcS, the lag index for shift S of a possible min value that 
+    // ilcS, the lag index for shift S of a possible min value that
     //       satisifies the constraint ic
-    // dc1, dcS, dc1S, di, values on the possible minimum paths 
+    // dc1, dcS, dc1S, di, values on the possible minimum paths
     while (ii!=ie) {
       int ji  = max(0,min(nim1,ii+is));
       int jb1 = max(0,min(nim1,ii+is*b1));
@@ -2459,7 +2478,7 @@ public class DynamicWarpingC {
           for (int il=0; il<nl; ++il) {
             ef[i3][i2][i1][il] = (ef[i3][i2][i1][il]-eshift)*escale;
           }
-        }  
+        }
       }
     }});
   }
@@ -2493,7 +2512,7 @@ public class DynamicWarpingC {
 
   /**
    * Class for tracking progress using atomic fields so that progress can be
-   * updated from parallel threads. 
+   * updated from parallel threads.
    */
   private static class ProgressTracker {
 
@@ -2530,7 +2549,7 @@ public class DynamicWarpingC {
     }
 
     /**
-     * Set the value of an AtomicBoolean to indicate whether or not this 
+     * Set the value of an AtomicBoolean to indicate whether or not this
      * instance should be canceled.
      * @param cancel
      */
