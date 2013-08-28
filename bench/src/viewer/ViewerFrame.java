@@ -32,7 +32,7 @@ import edu.mines.jtk.mosaic.TiledView;
 /**
  * A PlotFrame that includes interactive features such
  * as options to change the color model, pixel interpolation,
- * and clips. These options can also be changed for a pixel 
+ * and clips. These options can also be changed for a pixel
  * overlay.
  */
 public class ViewerFrame extends PlotFrame {
@@ -41,11 +41,11 @@ public class ViewerFrame extends PlotFrame {
    * Constructs a ViewerFrame for the {@code panel} with options
    * to modify settings for the {@link PixelsView} array. Changing
    * settings will effect all PixelsViews in this array. For
-   * instance, if constructing a ViewerFrame for a 
+   * instance, if constructing a ViewerFrame for a
    * {@link PlotPanelPixels3}, all three PixelsViews can be passed
    * into the {@code pv} array.
    * </p>
-   * Options for other pixels can be added with the 
+   * Options for other pixels can be added with the
    * {@link #addOptions(PixelsView[], String)} method.
    * @param orientation the {@link PlotPanel.Orientation}
    */
@@ -87,7 +87,7 @@ public class ViewerFrame extends PlotFrame {
   /**
    * Adds setting for the {@link PixelsView} array to the
    * options menu with the {@code label}.
-   * @param pv 
+   * @param pv
    * @param label the label for the added settings in
    *  the options menu or {@code null} for no label.
    */
@@ -96,12 +96,14 @@ public class ViewerFrame extends PlotFrame {
     addClipOptions(pv,label);
     addColorOptions(pv,label);
     addInterpolationOption(pv,label);
-    if (_pvCount>1)
+    if (_pvCount>1) {
       addAlphaOptions(pv,label);
+      addRemoveOptions(pv[0],label,"control "+Integer.toString(_ptCount));
+    }
   }
 
   /**
-   * Adds settings for the {@link PointsView} to the 
+   * Adds settings for the {@link PointsView} to the
    * options menu with the {@code label}.
    * @param ptv
    * @param label label the label for the added settings in
@@ -137,7 +139,7 @@ public class ViewerFrame extends PlotFrame {
     }
     public void mouseReleased(MouseEvent e) {} // Do nothing.
   };
-  
+
   private void addInterpolationOption(final PixelsView[] pv, String label) {
     String name = (label==null)?"Change Interpolation":
       "Change Interpolation("+label+")";
@@ -151,7 +153,7 @@ public class ViewerFrame extends PlotFrame {
     changeInterp.add(linear);
     _options.add(changeInterp);
   }
-  
+
   private void addAlphaOptions(final PixelsView[] pv, String label) {
     String name = (label==null)?"Change Alpha":"Change Alpha("+label+")";
     JMenuItem changeAlpha = new JMenuItem(name);
@@ -166,7 +168,7 @@ public class ViewerFrame extends PlotFrame {
     });
     _options.add(changeAlpha);
   }
-  
+
   private void addClipOptions(final PixelsView[] pv, String label) {
     String name = (label==null)?"Change Clips":"Change Clips ("+label+")";
     JMenuItem changeClips = new JMenuItem(name);
@@ -182,7 +184,7 @@ public class ViewerFrame extends PlotFrame {
     });
     _options.add(changeClips);
   }
-  
+
   private void addColorOptions(final PixelsView[] pv, String label) {
     String name = (label==null)?"Change Colormap":"Change Colormap ("+label+")";
     JMenu changeCmap = new JMenu(name);
@@ -223,7 +225,7 @@ public class ViewerFrame extends PlotFrame {
     JMenuItem saveToPng = new JMenuItem(saveToPngAction);
     _options.add(saveToPng);
   }
-  
+
   private void addRemoveOptions(
       final TiledView tv, String label, String key)
   {
@@ -233,7 +235,7 @@ public class ViewerFrame extends PlotFrame {
     addRemove.setAccelerator(KeyStroke.getKeyStroke(key));
     _options.add(addRemove);
   }
-  
+
   private class AddRemoveListener implements ActionListener {
     public AddRemoveListener(TiledView tv) {
       _tv = tv;
@@ -252,7 +254,7 @@ public class ViewerFrame extends PlotFrame {
     private TiledView _tv;
     private boolean _tvLive;
   }
-  
+
   private static class ChangeColorMapListener implements ActionListener {
     public ChangeColorMapListener(PixelsView[] pv) {_pv = pv;}
     @Override
@@ -275,7 +277,7 @@ public class ViewerFrame extends PlotFrame {
     }
     private PixelsView[] _pv;
   }
-  
+
   private static class ChangeInterpolationListener implements ActionListener {
     public ChangeInterpolationListener(PixelsView[] pv) {_pv = pv;}
     @Override
@@ -285,7 +287,7 @@ public class ViewerFrame extends PlotFrame {
         if (interp.equals("Nearest Neighbor"))
           pv.setInterpolation(Interpolation.NEAREST);
         else
-          pv.setInterpolation(Interpolation.LINEAR);  
+          pv.setInterpolation(Interpolation.LINEAR);
       }
     }
     private PixelsView[] _pv;
