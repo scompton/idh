@@ -27,20 +27,21 @@ import edu.mines.jtk.awt.ModeMenuItem;
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.io.ArrayInputStream;
 import edu.mines.jtk.mosaic.PixelsView;
-import edu.mines.jtk.mosaic.PlotPanelPixels3.Orientation;
-import edu.mines.jtk.mosaic.Tile;
+import edu.mines.jtk.mosaic.PlotPanel;
 import edu.mines.jtk.mosaic.PlotPanelPixels3;
 import edu.mines.jtk.mosaic.PlotPanelPixels3.AxesPlacement;
+import edu.mines.jtk.mosaic.PlotPanelPixels3.Orientation;
 import edu.mines.jtk.mosaic.PointsView;
+import edu.mines.jtk.mosaic.Tile;
 import static edu.mines.jtk.util.ArrayMath.*;
 import edu.mines.jtk.util.Check;
 import edu.mines.jtk.util.SimpleFloat3;
 
 /**
- * Wraps PlotPanelPixels3 with some convenient options. 
+ * Wraps PlotPanelPixels3 with some convenient options.
  */
 public class Viewer3P {
-  
+
   /**
    * Construct a 3 panel view of f, with default orientation,
    * {@link Orientation#X1DOWN_X2RIGHT} and default Samplings.
@@ -49,7 +50,7 @@ public class Viewer3P {
   public Viewer3P(float[][][] f) {
     this(f,null);
   }
-  
+
   /**
    * Construct a 3 panel view of f, with specified orientation
    * and default Samplings.
@@ -58,7 +59,7 @@ public class Viewer3P {
   public Viewer3P(float[][][] f, Orientation o) {
     this(null,null,null,f,o);
   }
-  
+
   /**
    * Construct a 3 panel view of f, with default orientation,
    * {@link Orientation#X1DOWN_X2RIGHT} and specified Samplings.
@@ -67,14 +68,14 @@ public class Viewer3P {
   public Viewer3P(Sampling s1, Sampling s2, Sampling s3, float[][][] f) {
     this(s1,s2,s3,f,null);
   }
-  
+
   /**
    * Construct a 3 panel view of f, with specified orientation
    * and Samplings.
    * @param f
    */
   public Viewer3P(
-      Sampling s1, Sampling s2, Sampling s3, float[][][] f, 
+      Sampling s1, Sampling s2, Sampling s3, float[][][] f,
       Orientation orientation)
   {
     _s1 = (s1==null)?new Sampling(f[0][0].length):s1;
@@ -116,7 +117,7 @@ public class Viewer3P {
     _vf = new ViewerFrame(_pp,_pv1);
     SliceMode sm = new SliceMode(_vf.getModeManager());
     _vf.addToMenu(new ModeMenuItem(sm));
-    
+
     // Add SliceFrame dialog to options menu.
     JMenuItem changeSlices = new JMenuItem("Change Slices");
     final SliceFrame sf = new SliceFrame(this);
@@ -127,7 +128,7 @@ public class Viewer3P {
       }
     });
     _vf.addToMenu(changeSlices);
-    
+
     // Add LimitsFrame3P dialog to the options menu.
     JMenuItem changeLimits = new JMenuItem("Change Limits");
     final LimitsFrame3P lf3p = new LimitsFrame3P(this);
@@ -139,7 +140,19 @@ public class Viewer3P {
     });
     _vf.addToMenu(changeLimits);
   }
-  
+
+  /**
+   * Get the {@link ViewerFrame}.
+   * @return the {@link ViewerFrame}.
+   */
+  public ViewerFrame getViewerFrame() {
+    return _vf;
+  }
+
+  public PlotPanelPixels3 getPlotPanelPixels3() {
+    return _pp;
+  }
+
   public Sampling getSampling1() {
     return _s1;
   }
@@ -182,25 +195,26 @@ public class Viewer3P {
     _k2 = k2;
     _k3 = k3;
   }
-  
+
   public int[] getSlices() {
     return new int[]{_k1,_k2,_k3};
   }
-  
+
   public void updateSlices(int k1, int k2, int k3) {
     _pp.setSlices(k1,k2,k3);
     setSlicesPixels(k1, k2, k3,_sf3);
     setSlicesPoints(k1,k2,k3);
+    setSlicesLines(k1,k2,k3);
     _k1 = k1;
     _k2 = k2;
     _k3 = k3;
   }
-  
+
   /**
-   * Sets the height elastic for the specified row. If extra 
-   * height is available in this mosaic, it is allocated to 
-   * the specified row of tiles in proportion to the specified 
-   * height elastic. For fixed-height rows, the height elastic 
+   * Sets the height elastic for the specified row. If extra
+   * height is available in this mosaic, it is allocated to
+   * the specified row of tiles in proportion to the specified
+   * height elastic. For fixed-height rows, the height elastic
    * should be zero. The default height elastic is 100.
    * @param irow the row index.
    * @param heightElastic the height elastic.
@@ -208,10 +222,10 @@ public class Viewer3P {
   public void setHeightElastic(int irow, int heightElastic) {
     _pp.getMosaic().setHeightElastic(irow, heightElastic);
   }
-  
+
   /**
-   * Sets the height minimum for the specified row. All tiles in the 
-   * specified row will have height not less than the specified minimum. 
+   * Sets the height minimum for the specified row. All tiles in the
+   * specified row will have height not less than the specified minimum.
    * Height minimums are used to compute the preferred height of this mosaic.
    * The default height minimum is 100.
    * @param irow the row index.
@@ -220,11 +234,11 @@ public class Viewer3P {
   public void setHeightMinimum(int irow, int heightMinimum) {
     _pp.getMosaic().setHeightMinimum(irow, heightMinimum);
   }
-  
+
   /**
-   * Sets the width elastic for the specified column. If extra width is 
-   * available in this mosaic, it is allocated to the specified column 
-   * of tiles in proportion to the specified width elastic. 
+   * Sets the width elastic for the specified column. If extra width is
+   * available in this mosaic, it is allocated to the specified column
+   * of tiles in proportion to the specified width elastic.
    * For fixed-width columns, the width elastic should be zero.
    * The default width elastic is 100.
    * @param icol the column index.
@@ -233,10 +247,10 @@ public class Viewer3P {
   public void setWidthElastic(int icol, int widthElastic) {
     _pp.getMosaic().setWidthElastic(icol, widthElastic);
   }
-  
+
   /**
-   * Sets the width minimum for the specified column. All tiles in the 
-   * specified column will have width not less than the specified minimum. 
+   * Sets the width minimum for the specified column. All tiles in the
+   * specified column will have width not less than the specified minimum.
    * Width minimums are used to compute the preferred width of this mosaic.
    * The default width minimum is 100.
    * @param icol the column index.
@@ -245,7 +259,7 @@ public class Viewer3P {
   public void setWidthMinimum(int icol, int widthMinimum) {
     _pp.getMosaic().setWidthMinimum(icol, widthMinimum);
   }
-  
+
   public void addPixels(float[][][] f) {
     Check.argument(f.length==_s3.getCount(),
         "f.length is not consistent with sampling");
@@ -254,6 +268,12 @@ public class Viewer3P {
     Check.argument(f[0][0].length==_s1.getCount(),
         "f[0][0].length is not consistent with sampling");
     _sf3 = new SimpleFloat3(f);
+    boolean addMenuItems = true;
+    if (_pv2!=null) {
+      for (PixelsView pv : _pv2)
+        _pp.remove(pv);
+      addMenuItems = false;
+    }
     PixelsView p212 = _pp.addPixels(1,0,_s1,_s2,slice12(_sf3));
     PixelsView p213 = _pp.addPixels(1,1,_s1,_s3,slice13(_sf3));
     PixelsView p223 = _pp.addPixels(0,0,_s2,_s3,slice23(_sf3));
@@ -261,18 +281,37 @@ public class Viewer3P {
     p213.setOrientation(PixelsView.Orientation.X1DOWN_X2RIGHT);
     p223.setOrientation(PixelsView.Orientation.X1RIGHT_X2UP);
     _pv2 = new PixelsView[]{p212,p213,p223};
-    _vf.addOptions(_pv2,"overlay");
+    if (addMenuItems) _vf.addOptions(_pv2,"overlay");
   }
-  
+
+  public PointsView addPoints(int irow, int icol, float[] x1, float[] x2) {
+    return _pp.addPoints(irow,icol,x1,x2);
+  }
+
+  public void addPoints00(float[][][] lines, Color color, float width) {
+    Check.argument(_n1==lines.length,"lines.length==n1");
+    _haveLines = true;
+    _i1Lines = lines;
+    if (_ptL00!=null) {
+      _pp.remove(_ptL00);
+    }
+    float[][] i1Floats = _i1Lines[_k1];
+    if (i1Floats!=null) {
+      _ptL00 = _pp.addPoints(0,0,i1Floats[1],i1Floats[0]);
+      _ptL00.setLineColor(color);
+      _ptL00.setLineWidth(width);
+    }
+  }
+
   public void addPoints(Map<Integer,float[][][]>[] maps) {
     addPoints(maps,"rO",8.0f);
   }
 
   public void addPoints(
-      Map<Integer,float[][][]>[] maps, String style, float size) 
+      Map<Integer,float[][][]>[] maps, String style, float size)
   {
     _havePoints = true;
-    PointsView pt12 = null; 
+    PointsView pt12 = null;
     PointsView pt13 = null;
     PointsView pt23 = null;
     _i1Map = maps[0];
@@ -338,7 +377,7 @@ public class Viewer3P {
       }
       i3Map.put(g3[i3],new float[][][]{x211,x212});
     }
-    
+
     for (int i2=0; i2<ng2; i2++) {
       float[][] x131 = new float[ng3][ng1];
       float[][] x132 = new float[ng3][ng1];
@@ -350,7 +389,7 @@ public class Viewer3P {
       }
       i2Map.put(g2[i2],new float[][][]{x131,x132});
     }
-    
+
     Iterator<Integer> it = i12Map.keySet().iterator();
     while (it.hasNext()) {
       int i1 = it.next();
@@ -371,7 +410,7 @@ public class Viewer3P {
     maps[2] = i3Map;
     return maps;
   }
-  
+
   /**
    * Sets the plot title.
    * @param title the title; null for no title.
@@ -388,7 +427,7 @@ public class Viewer3P {
   public void setLabel1(String label) {
     _pp.setLabel1(label);
   }
-  
+
   /**
    * Sets the label for axis 2.
    * @param label the label.
@@ -396,7 +435,7 @@ public class Viewer3P {
   public void setLabel2(String label) {
     _pp.setLabel2(label);
   }
-  
+
   /**
    * Sets the label for axis 3.
    * @param label the label.
@@ -404,7 +443,7 @@ public class Viewer3P {
   public void setLabel3(String label) {
     _pp.setLabel3(label);
   }
-  
+
   /**
    * Sets the limits for axis 1.
    * @param min the minimum value.
@@ -423,7 +462,7 @@ public class Viewer3P {
       _pp.setHLimits(0,min,max);
     }
   }
-  
+
   /**
    * Sets the limits for axis 2.
    * @param min the minimum value.
@@ -444,7 +483,7 @@ public class Viewer3P {
       _pp.setVLimits(0,min,max);
     }
   }
-  
+
   /**
    * Sets the limits for axis 3.
    * @param min the minimum value.
@@ -467,11 +506,11 @@ public class Viewer3P {
       _pp.setVLimits(1,min,max);
     }
   }
-  
+
   public void setClips1(float clipMin, float clipMax) {
     _pp.setClips(clipMin,clipMax);
   }
-  
+
   public void setClips2(float clipMin, float clipMax) {
     if (_pv2==null)
       throw new IllegalStateException(
@@ -480,60 +519,72 @@ public class Viewer3P {
       pv.setClips(clipMin,clipMax);
   }
 
+  public void setPercentiles1(float percMin, float percMax) {
+    _pp.setPercentiles(percMin,percMax);
+  }
+
+  public void setPercentiles2(float percMin, float percMax) {
+    if (_pv2==null)
+      throw new IllegalStateException(
+          "Second PixelsView has not been added to plot panel.");
+    for (PixelsView pv: _pv2)
+      pv.setPercentiles(percMin,percMax);
+  }
+
   public void setLineColor(Color color) {
     _pp.setLineColor(color);
   }
-  
+
   public void setColorModel1(IndexColorModel colorModel) {
     _pp.setColorModel(colorModel);
   }
-  
+
   public void setColorModel2(IndexColorModel colorModel) {
     for (PixelsView pv: _pv2)
       pv.setColorModel(colorModel);
   }
-  
+
   public void addColorBar(String label) {
     _pp.addColorBar(label);
 //    _pp.setColorBarWidthMinimum(100);
   }
-  
+
   public void setVFormat(int irow, String format) {
     _pp.setVFormat(irow,format);
   }
-  
+
   public void setVInterval(int irow, float interval) {
     _pp.setVInterval(irow,interval);
   }
-  
+
   public void setHInterval(int icol, float interval) {
     _pp.setHInterval(icol,interval);
   }
-  
+
   public void setColorBarWidthMinimum(int widthMinimum) {
     _pp.setColorBarWidthMinimum(widthMinimum);
   }
-  
+
   public void setSize(int width, int height) {
     _vf.setSize(width,height);
   }
-  
+
   public void setFontSizeForPrint(double fontSize, double plotWidth) {
     _vf.setFontSizeForPrint(fontSize,plotWidth);
   }
-  
+
   public void setFontSizeForSlide(double fracWidth, double fracHeight) {
     _vf.setFontSizeForSlide(fracWidth, fracHeight);
   }
-  
+
   public void paintToPng(double dpi, double win, String fileName) {
     _vf.paintToPng(dpi,win,fileName);
   }
-  
+
   public void show() {
     _vf.setVisible(true);
   }
-  
+
   public static void main(String[] args) throws IOException {
     if (args.length != 4) {
       System.out.println("usage: java Viewer datasetPath n1 n2 n3");
@@ -543,7 +594,7 @@ public class Viewer3P {
     int n1 = Integer.parseInt(args[1]);
     int n2 = Integer.parseInt(args[2]);
     int n3 = Integer.parseInt(args[3]);
-    float[][][] f = new float[n3][n2][n1]; 
+    float[][][] f = new float[n3][n2][n1];
     ais.readFloats(f);
     ais.close();
     Viewer3P v = new Viewer3P(f);
@@ -552,7 +603,7 @@ public class Viewer3P {
 
   ////////////////////////////////////////////////////////////////////////////
   // Private
-  
+
   int _n3;
   int _n2;
   int _n1;
@@ -575,13 +626,16 @@ public class Viewer3P {
   private PixelsView[] _pv1;
   private PixelsView[] _pv2;
   private PointsView[] _pts;
+  private PointsView _ptL00;
   private SimpleFloat3 _sf3;
   private Map<Integer,float[][][]> _i1Map;
   private Map<Integer,float[][][]> _i2Map;
   private Map<Integer,float[][][]> _i3Map;
+  private float[][][] _i1Lines;
   private boolean _havePoints = false;
+  private boolean _haveLines = false;
   private boolean _transpose23;
-  
+
   private void setSlicesPixels(int k1, int k2, int k3, SimpleFloat3 sf3) {
     if (_pv2==null)
       return;
@@ -596,7 +650,7 @@ public class Viewer3P {
     if (_k3!=k3)
       _pv2[0].set(_s1,_s2,slice12(sf3));
   }
-  
+
   private void setSlicesPoints(int k1, int k2, int k3) {
     if (!_havePoints) {
       return;
@@ -622,7 +676,7 @@ public class Viewer3P {
         _pp.remove(_pts[2]);
       }
     }
-    
+
     if (i2Floats!=null) {
 //      System.out.println("found i2floats at k2="+_k2);
       if (_pts[1]==null) {
@@ -631,7 +685,7 @@ public class Viewer3P {
         pt13.setMarkSize(8.0f);
         _pts[1] = pt13;
       } else {
-        _pts[1].set(i2Floats[0],i2Floats[1]);       
+        _pts[1].set(i2Floats[0],i2Floats[1]);
       }
       _pp.addTiledView(1,1,_pts[1]);
     } else {
@@ -639,7 +693,7 @@ public class Viewer3P {
         _pp.remove(_pts[1]);
       }
     }
-    
+
     if (i3Floats!=null) {
 //      System.out.println("found i3floats at k3="+_k3);
       if (_pts[0]==null) {
@@ -657,25 +711,86 @@ public class Viewer3P {
       }
     }
   }
-  
+
+  private void setSlicesLines(int k1, int k2, int k3) {
+    if (!_haveLines) {
+      return;
+    }
+    float[][] i1Floats = _i1Lines[_k1];
+//    float[][] i2Floats = _i2Map.get(_k2);
+//    float[][] i3Floats = _i3Map.get(_k3);
+//    System.out.printf("k1=%d, k2%d, k3=%d%n,",_k1,_k2,_k3);
+    if (i1Floats!=null) {
+//      System.out.println("found i1floats at k1="+_k1);
+//      if (_pts[2]==null) {
+//        PointsView pt23 = _pp.addPoints(0,0,i1Floats[0],i1Floats[1]);
+//        pt23 = _pp.addPoints(0,0,i1Floats[0],i1Floats[1]);
+//        pt23.setStyle("rO");
+//        pt23.setMarkSize(8.0f);
+//        _pts[2] = pt23;
+//      } else {
+      _ptL00.set(i1Floats[1],i1Floats[0]);
+//      }
+      _pp.addTiledView(0,0,_ptL00);
+    } else {
+      if (_ptL00!=null) {
+        _pp.remove(_ptL00);
+      }
+    }
+
+//    if (i2Floats!=null) {
+////      System.out.println("found i2floats at k2="+_k2);
+//      if (_pts[1]==null) {
+//        PointsView pt13 = _pp.addPoints(1,1,i2Floats[0],i2Floats[1]);
+//        pt13.setStyle("rO");
+//        pt13.setMarkSize(8.0f);
+//        _pts[1] = pt13;
+//      } else {
+//        _pts[1].set(i2Floats[0],i2Floats[1]);
+//      }
+//      _pp.addTiledView(1,1,_pts[1]);
+//    } else {
+//      if (_pts[1]!=null) {
+//        _pp.remove(_pts[1]);
+//      }
+//    }
+
+//    if (i3Floats!=null) {
+////      System.out.println("found i3floats at k3="+_k3);
+//      if (_pts[0]==null) {
+//        PointsView pt12 = _pp.addPoints(1,0,i3Floats[0],i3Floats[1]);
+//        pt12.setStyle("rO");
+//        pt12.setMarkSize(8.0f);
+//        _pts[0] = pt12;
+//      } else {
+//        _pts[0].set(i3Floats[0],i3Floats[1]);
+//      }
+//      _pp.addTiledView(1,0,_pts[0]);
+//    } else {
+//      if (_pts[0]!=null) {
+//        _pp.remove(_pts[0]);
+//      }
+//    }
+  }
+
   private float[][] slice12(SimpleFloat3 sf3) {
     float[][] f12 = new float[_n2][_n1];
     sf3.get12(_n1,_n2,0,0,_k3,f12);
     return f12;
   }
-  
+
   private float[][] slice13(SimpleFloat3 sf3) {
     float[][] f13 = new float[_n3][_n1];
     sf3.get13(_n1,_n3,0,_k2,0,f13);
     return f13;
   }
-  
+
   private float[][] slice23(SimpleFloat3 sf3) {
     float[][] f23 = new float[_n3][_n2];
     sf3.get23(_n2,_n3,_k1,0,0,f23);
     return (_transpose23)?transpose(f23):f23;
   }
-  
+
   private class SliceMode extends Mode {
 
     protected SliceMode(ModeManager manager) {
@@ -698,9 +813,9 @@ public class Viewer3P {
         }
       }
     }
-    
+
     private static final long serialVersionUID = 1L;
-    
+
     // Handles mouse pressed and released events.
     private MouseListener _ml = new MouseAdapter() {
       public void mousePressed(MouseEvent e) {
@@ -760,5 +875,5 @@ public class Viewer3P {
       updateSlices(k1,k2,k3);
     }
   }
-    
+
 }
