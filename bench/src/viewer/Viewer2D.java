@@ -36,7 +36,7 @@ import edu.mines.jtk.util.Check;
 import edu.mines.jtk.util.Clips;
 
 /**
- * Wraps a PlotPanel with one Tile for 2D or 3D pixels and 
+ * Wraps a PlotPanel with one Tile for 2D or 3D pixels and
  * includes convenient options for interactively editing the plot.
  * This class inlcludes methods to overlay points or pixels on
  * a base PixelsView.
@@ -52,9 +52,9 @@ public class Viewer2D {
   public Viewer2D() {
     this((Orientation)null);
   }
-  
+
   /**
-   * Constructs a pixels view of {@code f}, with specified 
+   * Constructs a pixels view of {@code f}, with specified
    * orientation.
    * @param f the pixel values.
    * @param orientation the orientation for the pixels.
@@ -64,13 +64,17 @@ public class Viewer2D {
     _vf = new ViewerFrame(_orientation); // Make empty panel.
     _pp = _vf.getPlotPanel();
   }
-  
+
   /**
    * Get the {@link ViewerFrame}.
    * @return the {@link ViewerFrame}.
    */
   public ViewerFrame getViewerFrame() {
     return _vf;
+  }
+
+  public PlotPanel getPlotPanel() {
+    return _pp;
   }
 
   public Sampling getSampling1() {
@@ -102,7 +106,7 @@ public class Viewer2D {
   }
 
   public PixelsView addPixels(
-      Sampling s1, Sampling s2, double[][] f, String label) 
+      Sampling s1, Sampling s2, double[][] f, String label)
   {
     return addPixels(s1,s2,convertToFloat(f),label);
   }
@@ -114,7 +118,7 @@ public class Viewer2D {
   }
 
   public PixelsView addPixels(
-      Sampling s1, Sampling s2, float[][] f, String label) 
+      Sampling s1, Sampling s2, float[][] f, String label)
   {
     if (_s1==null && _s2==null) {
       _s1 = s1;
@@ -150,7 +154,7 @@ public class Viewer2D {
   }
 
   public PixelsView addPixels(
-      Sampling s1, Sampling s2, Sampling s3, float[][][] f, String label) 
+      Sampling s1, Sampling s2, Sampling s3, float[][][] f, String label)
   {
     if (_s1==null && _s2==null && _s3==null) {
       _s1 = s1;
@@ -173,7 +177,7 @@ public class Viewer2D {
       Check.argument(f[0].length==_s2.getCount(),
           "f[0].length is not consistent with sampling");
       Check.argument(f[0][0].length==_s1.getCount(),
-          "f[0][0].length is not consistent with sampling");  
+          "f[0][0].length is not consistent with sampling");
     }
 
     //al panel, displaying the middle frame.
@@ -378,7 +382,7 @@ public class Viewer2D {
     }
     JTextArea text = addMouseTracker();
     bottom.add(text,BorderLayout.SOUTH);
-    _vf.add(bottom,BorderLayout.SOUTH);  
+    _vf.add(bottom,BorderLayout.SOUTH);
     _vf.setVisible(true);
   }
 
@@ -391,7 +395,7 @@ public class Viewer2D {
     int n1 = Integer.parseInt(args[1]);
     int n2 = Integer.parseInt(args[2]);
     int n3 = Integer.parseInt(args[3]);
-    float[][][] f = new float[n3][n2][n1]; 
+    float[][][] f = new float[n3][n2][n1];
     ais.readFloats(f);
     ais.close();
     Viewer2D v = new Viewer2D();
@@ -406,13 +410,13 @@ public class Viewer2D {
   private PlotPanel _pp;
   private float[][] _f2;
   private float[][][] _f3;
-  private Map<PixelsView,float[][][]> _pv3Map = 
+  private Map<PixelsView,float[][][]> _pv3Map =
       new HashMap<PixelsView,float[][][]>();
-  private Map<PointsView,float[][]> _ptMap = 
+  private Map<PointsView,float[][]> _ptMap =
       new HashMap<PointsView,float[][]>();
-  private Map<PointsView,float[][][]> _pt122Map = 
+  private Map<PointsView,float[][][]> _pt122Map =
       new HashMap<PointsView,float[][][]>();
-  private Map<PointsView,float[][][][]> _pt123Map = 
+  private Map<PointsView,float[][][][]> _pt123Map =
       new HashMap<PointsView,float[][][][]>();
   PointsView[] _pts = new PointsView[0];
   PointsView[] _pts122 = new PointsView[0];
