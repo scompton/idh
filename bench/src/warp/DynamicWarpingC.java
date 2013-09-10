@@ -33,9 +33,9 @@ public class DynamicWarpingC {
    * Constructor for smooth dynamic warping of converted wave images. Required
    * parameters are minimum and maximum lag. The number of lags is nl =
    * {@code lMax}-{@code lMin}+1. For warping PS to PP images the typical
-   * minimum lag is 0, but negative values may need to be allowed due to statics
-   * corrections applied to the data. The maximum lag can be computed from the
-   * {@link #computeMaxLag(int, float)} method.
+   * minimum lag is 0, but negative values may need to be allowed due to
+   * statics corrections applied to the data. The maximum lag can be computed
+   * from the {@link #computeMaxLag(int, float)} method.
    * @param lMin the minimum lag.
    * @param lMax the maximum lag.
    */
@@ -190,6 +190,7 @@ public class DynamicWarpingC {
     int[] g1i = new int[ng1];
     for (int ig1=0; ig1<ng1; ig1++)
       g1i[ig1] = (int)(g1[ig1]+0.5f);
+    printInfo(n1,1,1,ng1,1,1);
 
     double[] r1Min = getR1Min(n1);
     double[] r1Max = getR1Max(n1);
@@ -197,7 +198,7 @@ public class DynamicWarpingC {
     float[][] e = computeErrors(f,g);
     fixShifts(e,l1);
     g1i = KnownShiftUtil.getG1(g1i,l1,r1Min,r1Max);
-//    float[][][] dm = accumulateForwardSparse(e,r1Min,r1Max,g1i);
+    // float[][][] dm = accumulateForwardSparse(e,r1Min,r1Max,g1i);
     float[][] es = smoothErrors(e,r1Min,r1Max,g1i);
     float[][][] dm = accumulateForward(es,r1Min,r1Max,g1i);
     float[] u = backtrackReverse(dm[0],dm[1]);
@@ -744,8 +745,8 @@ public class DynamicWarpingC {
     int n = u.length;
     int nm1 = n-1;
     float[] vpvs = new float[n];
-    vpvs[ 0 ] = 1.0f + 2.0f*(u[ 1 ]-u[  0  ]); // at i1=0, forward difference
-    vpvs[nm1] = 1.0f + 2.0f*(u[nm1]-u[nm1-1]); // at i1=nm1, backward difference
+    vpvs[ 0 ] = 1.0f + 2.0f*(u[ 1 ]-u[  0  ]); // at i1=0, forward diff
+    vpvs[nm1] = 1.0f + 2.0f*(u[nm1]-u[nm1-1]); // at i1=nm1, backward diff
     for (int i1=1; i1<nm1; i1++)
       vpvs[i1] = 1.0f + (u[i1+1]-u[i1-1]);
     return vpvs;
@@ -915,28 +916,6 @@ public class DynamicWarpingC {
     }});
     return e;
   }
-
-  // FIXME or DELETEME
-//  /**
-//   * Returns alignment errors for 2D images. Alignment errors
-//   * at every trace are the sum of 2*w nearby traces.
-//   * @param w the width to extend left and right from each
-//   *  trace
-//   * @return Alignment errors for 2D image with Alignment errors
-//   *  at every trace are the sum of 2*w nearby traces.
-//   */
-//  public float[][][] computeErrors2Near(
-//      final float[][] f, final float[][] g, final int w)
-//  {
-//    int n2 = f.length;
-//    int n1 = f[0].length;
-//    final float[][][] e = new float[n2][n1][_nl];
-//    Parallel.loop(n2,new Parallel.LoopInt() {
-//    public void compute(int i2) {
-//      e[i2] = computeErrorsNear(f,g,i2,w);
-//    }});
-//    return e;
-//  }
 
   /**
    * Compute summed alignment errors for 2D images.
@@ -1388,7 +1367,7 @@ public class DynamicWarpingC {
     print("  Coarse grid samples: (ng1,ng2,ng3): ("+ng1+","+ng2+","+ng3+")");
     print("  Number of lags: "+_nl);
     print("  Alignment error smooth 1 memory: "+e1Mem+" MB");
-    print("  Alignment error smooth 2 memory: "+e2Mem+" MB");
+    print("  Alignment error smooth 2 memory: "+((n2>1)?(e2Mem+" MB"):"NA"));
     print("  Alignment error smooth 3 memory: "+((n3>1)?(e3Mem+" MB"):"NA"));
   }
 
@@ -1658,47 +1637,6 @@ public class DynamicWarpingC {
     return pow(abs(f-g),_epow);
   }
 
-//  private void computeErrors(
-//      float[] pp, float[] ps1, float[] ps2, float[][][] e)
-//  {
-//    int n1 = pp.length;
-//    float e1m=0.0f,e2m=0.0f,e3m=0.0f; // last computed values for extrapolation
-//
-//    // Notes for indexing:
-//    // 0 <= il1 < _nl1, where il1 is index for lag between pp and ps1
-//    // 0 <= ilS < _nlS, where ilS is index for lag between ps1 and ps2
-//    // 0 <= i1 < n1, where i1 is index for sequence pp
-//    // 0 <= j1 < n1, where j1 is index for sequence ps1
-//    // 0 <= jS < n1, where jS is index for sequence ps2
-//    // j1 = i1+_l1min, where _l1min is the minimum shift u1 where u2 = u1 + uS
-//    // jS = j1+_lSmin, where _lSmin is the minimum shift uS where u2 = u1 + uS
-//
-//    // Compute errors for pp, ps1, and ps2.
-//    for (int i1=0; i1<n1; ++i1) {
-//      for (int il1=0,j1=i1+_l1min; il1<_nl1; ++il1,++j1) {
-//        float e1;
-//        if (j1<n1) {
-//          e1 = error(pp[i1],ps1[j1]);
-//          e1m = e1;
-//        } else
-//          e1 = e1m;
-//        for (int ilS=0,jS=j1+_lSmin; ilS<_nlS; ++ilS,++jS) {
-//          float e2,e3;
-//          if (jS<n1) {
-//            e2 = error(pp [i1],ps2[jS]);
-//            e3 = error(ps1[j1],ps2[jS]);
-//            e2m = e2;
-//            e3m = e3;
-//          } else {
-//            e2 = e2m;
-//            e3 = e3m;
-//          }
-//          e[i1][il1][ilS] = e1+e2+e3;
-//        }
-//      }
-//    }
-//  }
-
 //  private void initShifts(int n1pp, int n1ps, float vpvsAvg, int sMin) {
 //    _sMin = sMin;
 //    float scale = 2.0f/(vpvsAvg+1.0f);
@@ -1729,44 +1667,20 @@ public class DynamicWarpingC {
     }
   }
 
-  // FIXME or
-  // This is broken because of a change to computeErrors, which no longer sums
-  // into the given alignment errors. This should be an easy fix, but this is
-  // not an important method.
-//  /**
-//   * Returns alignment errors at index i2, from a sum of alignment
-//   * errors at nearby traces.
-//   * @param i2 the center index used for summing nearby alignment
-//   *  errors.
-//   * @param w the width to extend left and right from i2.
-//   * @return summed alignment errors for index i2.
-//   */
-//  private float[][] computeErrorsNear(float[][] f, float[][] g, int i2, int w) {
-//    int n2 = f.length;
-//    int n1 = f[0].length;
-//    final float[][] e = new float[n1][_nl];
-//    final int n2m1 = n2-1;
-//    int i2min = max(0,i2-w);
-//    int i2max = min(n2m1,i2+w);
-//    for (int j=i2min; j<=i2max; j++)
-//      computeErrors(f[j],g[j],e);
-//    return e;
-//  }
-
   private void computeErrors(
-      float[] pp, float[] ps1, float[] ps2, float[][][] e)
+      float[] f, float[] g, float[] h, float[][][] e)
   {
     int n1max = e.length;
     int nl1 = e[0].length;
     int nlS = e[0][0].length;
 
-    // Compute errors for pp, ps1, and ps2.
-    for (int i1=0; i1<n1max; ++i1) {
-      for (int il1=0,j1=i1; il1<nl1; ++il1,++j1) {
-        float e1 = error(pp[i1],ps1[j1]);
-        for (int ilS=0,jS=j1; ilS<nlS; ++ilS,++jS) {
-          float e2 = error(pp [i1],ps2[jS]);
-          float e3 = error(ps1[j1],ps2[jS]);
+    // Compute errors for f, g, and h.
+    for (int i1=0; i1<n1max; i1++) {
+      for (int il1=0,j1=i1; il1<nl1; il1++,j1++) {
+        float e1 = error(f[i1],g[j1]);
+        for (int ilS=0,jS=j1; ilS<nlS; ilS++,jS++) {
+          float e2 = error(f[i1],h[jS]);
+          float e3 = error(g[j1],h[jS]);
           e[i1][il1][ilS] = e1+e2+e3;
         }
       }
@@ -2080,75 +1994,6 @@ public class DynamicWarpingC {
       }
     }
   }
-
-//  private static void accumulateSparse(
-//      int dir, double rMin, double rMax, int[] g,
-//      float[][] e, float[][] d, float[][] m)
-//  {
-//    int nl   = e[0].length;
-//    int ng   = g.length;
-//    int ngm1 = ng-1;
-//    int ibg = (dir>0)?0:ngm1; // beginning index
-//    int ieg = (dir>0)?ng:-1;  // end index
-//    int is = (dir>0)?1:-1;   // stride
-//    int isp = ibg; // sparse grid index
-//    int ie = g[isp]; // error index
-//
-//    // Initialize accumulation values
-//    for (int il=0; il<nl; ++il)
-//      d[isp][il] = e[ie][il];
-//    isp += is;
-//    // Loop over all sparse grid points.
-//    for (; isp!=ieg; isp+=is) {
-//      int ispm1 = isp-is; // previous sparse grid index
-//      ie = g[isp]; // new error index
-//      int je = g[ispm1]; // min error index for interpolation.
-//      int dg = ie-je; // sparse grid delta
-//      int kmin, kmax;
-//      if (dg>0) {
-//        kmin = (int) ceil(-rMax*dg);
-//        kmax = (int)floor(-rMin*dg);
-//      } else {
-//        kmin = (int) ceil(-rMin*dg);
-//        kmax = (int)floor(-rMax*dg);
-//      }
-//      assert kmin<=kmax : "kmin="+kmin+", kmax="+kmax;
-//      float[] dm = new float[nl];
-//      fill(Float.MAX_VALUE,d[isp]);
-//      // loop over all slope indices
-//      for (int k=kmin; k<=kmax; k++) {
-//        int ils = max(0,-k);
-//        int ile = min(nl,nl-k);
-//        for (int il=ils; il<ile; il++)
-//          dm[il] = d[ispm1][il+k] + e[ie][il];
-//        float r = (float)k/(float)dg; // slope
-//        if (r==0) { // zero slope, no interpolation necessary
-//          for (int x=je+is; x!=ie; x+=is)
-//            for (int il=ils; il<ile; il++)
-//              dm[il] += e[x][il];
-//        } else { // linearly interpolate
-//          for (int x=je+is; x!=ie; x+=is) {
-//            float ky = r*(ie-x);
-//            int k1 = (int)ky;
-//            if (ky<0.0f) --k1;
-//            int k2 = k1+1;
-//            float w1 = k2-ky;
-//            float w2 = 1.0f-w1;
-//            for (int il=ils; il<ile; il++)
-//              dm[il] += w1*e[x][k1+il]+w2*e[x][k2+il];
-//          }
-//        }
-//        // update previous errors and record moves.
-//        for (int il=ils; il<ile; il++) {
-//          if (dm[il]<d[isp][il]) {
-//            d[isp][il] = dm[il];
-//            if (m!=null)
-//              m[ispm1][il] = k;
-//          }
-//        }
-//      }
-//    }
-//  }
 
   private static void accumulateSparse(
       int dir, double[] rMin, double[] rMax, int[] g,
