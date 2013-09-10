@@ -1,10 +1,12 @@
 package warp;
 
-import static edu.mines.jtk.util.ArrayMath.*;
 import edu.mines.jtk.dsp.Sampling;
 import edu.mines.jtk.dsp.SincInterp;
 import edu.mines.jtk.interp.CubicInterpolator;
 import edu.mines.jtk.util.Check;
+
+import static edu.mines.jtk.interp.CubicInterpolator.*;
+import static edu.mines.jtk.util.ArrayMath.*;
 
 public class VpVsWarp {
 
@@ -12,7 +14,7 @@ public class VpVsWarp {
    * Computes Vp/Vs values at every time sample. The values
    * correspond to a scaled cosine function with a constant
    * frequency b.
-   * @param m
+   * @param m centered Vp/Vs values of the cosine function.
    * @param a scale factor between -1.0 and 1.0.
    * @param b frequency in Hz.
    * @param s Sampling.
@@ -30,39 +32,54 @@ public class VpVsWarp {
     }
     return vpvs;
   }
- 
-  /**
-   * Computes the shifts u, from the vpvs values.
-   * @param vpvs array of computed vpvs values.
-   * @param s Sampling.
-   * @return shift from synthetic Vp/Vs.
-   */
-  public static float[] getU(float[] vpvs, Sampling s) {
-    int n1 = vpvs.length;
-    float dt = (float)s.getDelta();
-    float[] u = new float[n1];
-//    u[0] = (vpvs[0]-1.0f)/2.0f;
-    u[0] = 0.0f;
-    for (int i1=1; i1<n1; i1++) {
-//      u[i1] = u[i1-1] + (vpvs[i1]-1.0f)/2.0f*dt;
-      u[i1] = u[i1-1] + (vpvs[i1]-1.0f)/2.0f;
-    }
-    return u;
-  }
 
-  // Comparison for getU method. The results of this should be the same.
-  public static float[] computeU(float a, float b, Sampling s) {
+  public static float[] getU(float a, float b, Sampling s) {
     Check.argument(a>=-1.0 & a<=1.0,"a>=-1.0 & a<=1.0");
     int n1 = s.getCount();
     double ft = s.getFirst();
     double dt = s.getDelta();
     float[] u = new float[n1];
-    float d = (float)(4.0*PI*b);
     for (int i1=0; i1<n1; i1++) {
       double t = ft+i1*dt;
-      u[i1] = (float)(a*sin(2.0*PI*b*t)/d + t/2.0f);
+      u[i1] = a*(float)sin(2.0*PI*b*t);
     }
     return u;
+  }
+
+  /**
+   * Computes the shifts u, from the vpvs values.
+   * @param vpvs array of computed vpvs values.
+   * @param du shift delta.
+   * @return shift from synthetic Vp/Vs.
+   */
+  public static float[] getU(float[] vpvs, float du) {
+    int n1 = vpvs.length;
+    float[] u = new float[n1];
+    u[0] = (vpvs[0]-1.0f)*0.5f*du;
+    for (int i1=1; i1<n1; i1++)
+      u[i1] = u[i1-1] + (vpvs[i1]-1.0f)*0.5f*du;
+    return u;
+  }
+
+  public static float[] getU2(
+      float[] u1, Sampling s1, float[] uS, Sampling sS)
+  {
+    int n1 = u1.length;
+    double f1 = s1.getFirst();
+    double d1 = s1.getDelta();
+
+    int nS = uS.length;
+    double fS = sS.getFirst();
+    double dS = sS.getDelta();
+    float[] xS = new float[nS];
+    for (int iS=0; iS<nS; iS++)
+      xS[iS] = (float)(fS+iS*dS);
+    CubicInterpolator ci = new CubicInterpolator(Method.LINEAR,xS,uS);
+
+    float[] u2 = new float[n1];
+    for (int i1=0; i1<n1; i1++)
+      u2[i1] = u1[i1]+ci.interpolate((float)(f1+i1*d1)+u1[i1]);
+    return u2;
   }
 
   public static float getAverage(float[] vpvs) {
@@ -70,30 +87,30 @@ public class VpVsWarp {
     return sum(vpvs)/n1;
   }
 
-  public static float[] warp(float[] ps, float[] vpvs, Sampling s) {
-    int nps = ps.length;
-    float vpvsAvg = getAverage(vpvs);
-    int npp = (int)ceil(2.0f*nps/(vpvsAvg+1.0f));
-    System.out.println("Average Vp/Vs: "+vpvsAvg+", npp="+npp+", nps="+nps);
-    float[] u = getU(vpvs,s);
+  /**
+   * Returns g warped to f, with shifts computed from vpvs array.
+   * @param g
+   * @param vpvs
+   * @param sg
+   * @param sf
+   * @return g warped to f.
+   */
+  public static float[] warp(
+      float[] g, float[] u, Sampling sg, Sampling sf)
+  {
+    int ng = g.length;
+    int nf = u.length;
+    double fg = sg.getFirst();
+    double dg = sg.getDelta();
+    double ff = sf.getFirst();
+    double df = sf.getDelta();
     SincInterp si = new SincInterp();
-    float[] pp = new float[npp];
-    for (int i=0; i<npp; ++i) {
-      double y = i;
-      pp[i] = si.interpolate(nps,1.0,0.0,ps,y+u[i]);
+    float[] f = new float[nf];
+    for (int i=0; i<nf; ++i) {
+      double y = ff+i*df;
+      f[i] = si.interpolate(ng,dg,fg,g,y+u[i]);
     }
-    return pp;
-  }
-
-  public static float[] warp(float[] f, float[] u) {
-    int n1 = f.length;
-    float[] g = new float[n1];
-    SincInterp si = new SincInterp();
-    for (int i=0; i<n1; ++i) {
-      double y = i;
-      g[i] = si.interpolate(n1,1.0,0.0,f,y-u[i]);
-    }
-    return g;
+    return f;
   }
 
   public static float[][] shift2(int n2, float[] x, double scale, double f) {
@@ -101,7 +118,7 @@ public class VpVsWarp {
     float[][] s = new float[n2][n1];
     float[] r = new float[n1];
     ramp(0.0f,1.0f,r);
-    CubicInterpolator ci = 
+    CubicInterpolator ci =
         new CubicInterpolator(CubicInterpolator.Method.LINEAR,r,x);
     for (int i2=0; i2<n2; i2++) {
       float s2 = (float)cos(2.0*PI*f*i2);
@@ -124,7 +141,7 @@ public class VpVsWarp {
     ramp(0.0f,1.0f,r);
     for (int i3=0; i3<n3; i3++) {
       for (int i2=0; i2<n2; i2++) {
-        CubicInterpolator ci = 
+        CubicInterpolator ci =
             new CubicInterpolator(CubicInterpolator.Method.LINEAR,r,x[i2]);
         float s2 = (float)sin(2.0*PI*f*i2);
         for (int i1=0; i1<n1; i1++) {
